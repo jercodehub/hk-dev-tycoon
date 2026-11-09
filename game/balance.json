@@ -1,0 +1,32 @@
+{
+  "quarters": 12,
+  "calibrationClass": "B",
+  "unitBase": 4,
+  "minUnits": 8,
+  "maxUnits": 80,
+  "areaPerUnitM2": 42,
+  "landCostShare": 0.42,
+  "buildCostShare": 0.58,
+  "rentYieldPerQuarter": 0.018,
+  "holdingCostPerQuarter": 0.003,
+  "landHoldingPerQuarter": 0.0015,
+  "sellFriction": 0.04,
+  "vacancyPriceDrag": 0.5,
+  "vacancyRentDrag": 0.65,
+  "completionShock": 1,
+  "minSupplyFactor": 0.7,
+  "newAgeYears": 20,
+  "oldAgeYears": 40,
+  "ageNewPremium": 0.08,
+  "ageOldDiscount": 0.1,
+  "indexDrift": [0.02, 0.015, -0.04, -0.03, 0.02, 0.03, 0.025, 0.02, -0.01, 0.03, 0.025, 0.03],
+  "tutorial": {
+    "district": "沙田區",
+    "startingCash": 55000000
+  },
+  "freePlay": {
+    "startingCash": 180000000,
+    "targetNetWorth": 210000000
+  },
+  "notes": "Multipliers are game-economy levers. They scale the RVD territory index and 港島/九龍/新界 class-B $/m². They are not district official prices."
+}

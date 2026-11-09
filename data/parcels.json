@@ -1,0 +1,4098 @@
+{
+  "source": {
+    "provider": "屋宇署",
+    "providerEn": "Buildings Department",
+    "dataset": "hk-bd-opendata-building-information",
+    "datasetUrl": "https://data.gov.hk/en-data/dataset/hk-bd-opendata-building-information",
+    "downloadUrl": "https://static.csdi.gov.hk/csdi-webpage/download/0e55c533715b5da3ae0ca6e6024e90b4/csv",
+    "usage": "住宅/綜合用途",
+    "usageNote": "屋宇署私人住宅標成「住宅/綜合用途」，沒有再拆純住宅。座同平台都計入聚合，寫字樓、工業、其他唔計。",
+    "gridDegrees": 0.01,
+    "aggregation": "每區按約 0.01 度網格聚合。地圖只畫呢幾百個地段，唔係五萬個可點樓宇標記。",
+    "noPrices": "地段檔沒有樓價。遊戲數值另行用差餉署全港指數同港島／九龍／新界平均售價校準。",
+    "residentialBuildings": 40027,
+    "parcelCount": 406,
+    "byDistrict": {
+      "中西區": 16,
+      "灣仔區": 13,
+      "東區": 16,
+      "南區": 35,
+      "油尖旺區": 10,
+      "深水埗區": 11,
+      "九龍城區": 17,
+      "黃大仙區": 10,
+      "觀塘區": 11,
+      "沙田區": 31,
+      "大埔區": 31,
+      "北區": 23,
+      "元朗區": 41,
+      "屯門區": 26,
+      "荃灣區": 18,
+      "葵青區": 16,
+      "西貢區": 44,
+      "離島區": 37
+    }
+  },
+  "parcels": [
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.262687,
+      "lng": 114.150094,
+      "buildings": 167,
+      "medianYear": 1989,
+      "sampleAddress": "加列山道74號",
+      "id": "CW-01"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.264393,
+      "lng": 114.158665,
+      "buildings": 22,
+      "medianYear": 1979,
+      "sampleAddress": "山頂道84號",
+      "id": "CW-02"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.268513,
+      "lng": 114.152199,
+      "buildings": 202,
+      "medianYear": 1986,
+      "sampleAddress": "HOUSE 8 3-STOREY SINGLE FAMILY HOUSE 1 PLANTATION RD",
+      "id": "CW-03"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.269227,
+      "lng": 114.165092,
+      "buildings": 4,
+      "medianYear": 2004,
+      "sampleAddress": "山頂道40號",
+      "id": "CW-04"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.270057,
+      "lng": 114.159168,
+      "buildings": 264,
+      "medianYear": 1993,
+      "sampleAddress": "施勳道8號 倚巒",
+      "id": "CW-05"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.2736,
+      "lng": 114.119884,
+      "buildings": 12,
+      "medianYear": 2004,
+      "sampleAddress": "摩星嶺道64號 御海園",
+      "id": "CW-06"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.27456,
+      "lng": 114.140941,
+      "buildings": 5,
+      "medianYear": 1958,
+      "sampleAddress": "盧吉道30號 HIRST MANSIONS",
+      "id": "CW-07"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.274717,
+      "lng": 114.127268,
+      "buildings": 8,
+      "medianYear": 1972,
+      "sampleAddress": "摩星嶺道6號 A5號洋房",
+      "id": "CW-08"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.277362,
+      "lng": 114.157614,
+      "buildings": 112,
+      "medianYear": 1974,
+      "sampleAddress": "纜車徑2號",
+      "id": "CW-09"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.281483,
+      "lng": 114.122253,
+      "buildings": 15,
+      "medianYear": 2000,
+      "sampleAddress": "域多利道60號",
+      "id": "CW-10"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.281789,
+      "lng": 114.15099,
+      "buildings": 869,
+      "medianYear": 1977,
+      "sampleAddress": "衛城道3及3A號 孔翠樓",
+      "id": "CW-11"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.281917,
+      "lng": 114.129456,
+      "buildings": 354,
+      "medianYear": 1983,
+      "sampleAddress": "北街37/41號 金寶樓",
+      "id": "CW-12"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.283192,
+      "lng": 114.141161,
+      "buildings": 257,
+      "medianYear": 1984,
+      "sampleAddress": "列堤頓道52號 嘉和苑",
+      "id": "CW-13"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.286137,
+      "lng": 114.133444,
+      "buildings": 76,
+      "medianYear": 1980,
+      "sampleAddress": "皇后大道西576/578號 新景樓",
+      "id": "CW-14"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.286349,
+      "lng": 114.147918,
+      "buildings": 257,
+      "medianYear": 1975,
+      "sampleAddress": "皇后大道西22號",
+      "id": "CW-15"
+    },
+    {
+      "district": "中西區",
+      "region": "港島",
+      "lat": 22.286583,
+      "lng": 114.140924,
+      "buildings": 577,
+      "medianYear": 1977,
+      "sampleAddress": "第一街129號 順泰大廈",
+      "id": "CW-16"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.261224,
+      "lng": 114.189638,
+      "buildings": 142,
+      "medianYear": 1979,
+      "sampleAddress": "大坑道339號 B座",
+      "id": "WC-01"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.261983,
+      "lng": 114.170836,
+      "buildings": 14,
+      "medianYear": 1990,
+      "sampleAddress": "金馬麟山道22號 憇苑",
+      "id": "WC-02"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.263844,
+      "lng": 114.181541,
+      "buildings": 31,
+      "medianYear": 2015,
+      "sampleAddress": "聶歌信山道8號 MOUNT NICHOLSON",
+      "id": "WC-03"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.26899,
+      "lng": 114.189358,
+      "buildings": 514,
+      "medianYear": 1975,
+      "sampleAddress": "大坑道150號 渣甸山花園大廈 (B座)",
+      "id": "WC-04"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.269091,
+      "lng": 114.182007,
+      "buildings": 271,
+      "medianYear": 1980,
+      "sampleAddress": "東山臺23號 翠壁",
+      "id": "WC-05"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.270381,
+      "lng": 114.195439,
+      "buildings": 26,
+      "medianYear": 1974,
+      "sampleAddress": "布思道1號 栢麗園",
+      "id": "WC-06"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.272474,
+      "lng": 114.171582,
+      "buildings": 159,
+      "medianYear": 1980,
+      "sampleAddress": "堅尼地道74號 竹林苑",
+      "id": "WC-07"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.275786,
+      "lng": 114.19769,
+      "buildings": 9,
+      "medianYear": 2006,
+      "sampleAddress": "大坑徑23號 渣甸山名門 1座",
+      "id": "WC-08"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.276569,
+      "lng": 114.171601,
+      "buildings": 396,
+      "medianYear": 1977,
+      "sampleAddress": "盧押道3號 修頓大廈",
+      "id": "WC-09"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.278564,
+      "lng": 114.180594,
+      "buildings": 441,
+      "medianYear": 1967,
+      "sampleAddress": "寶靈頓道11號 榮安大樓",
+      "id": "WC-10"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.279452,
+      "lng": 114.191071,
+      "buildings": 419,
+      "medianYear": 1974,
+      "sampleAddress": "銅鑼灣道66號",
+      "id": "WC-11"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.285834,
+      "lng": 114.195134,
+      "buildings": 2,
+      "medianYear": 1975,
+      "sampleAddress": "雲景道10號 高瞻台",
+      "id": "WC-12"
+    },
+    {
+      "district": "灣仔區",
+      "region": "港島",
+      "lat": 22.285976,
+      "lng": 114.192005,
+      "buildings": 82,
+      "medianYear": 1979,
+      "sampleAddress": "水星街28號 耀星華庭",
+      "id": "WC-13"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.261679,
+      "lng": 114.233707,
+      "buildings": 3,
+      "medianYear": 1971,
+      "sampleAddress": "萃文道9/23號 滿華樓",
+      "id": "EA-01"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.262814,
+      "lng": 114.25141,
+      "buildings": 19,
+      "medianYear": 1993,
+      "sampleAddress": "小西灣道18號 富景花園 10座",
+      "id": "EA-02"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.263643,
+      "lng": 114.238446,
+      "buildings": 35,
+      "medianYear": 1982,
+      "sampleAddress": "柴灣道333號 永利中心 A座",
+      "id": "EA-03"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.265739,
+      "lng": 114.248958,
+      "buildings": 24,
+      "medianYear": 1997,
+      "sampleAddress": "荃灣 聯仁街28號 康睦庭園 2座",
+      "id": "EA-04"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.2674,
+      "lng": 114.240854,
+      "buildings": 13,
+      "medianYear": 1991,
+      "sampleAddress": "香港常安街 5 號1.6.3/(29)（「組裝合成」建築項目）",
+      "id": "EA-05"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.268719,
+      "lng": 114.233597,
+      "buildings": 20,
+      "medianYear": 1985,
+      "sampleAddress": "泰民街13號 樂翠臺(3座)",
+      "id": "EA-06"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.277786,
+      "lng": 114.239456,
+      "buildings": 53,
+      "medianYear": 1988,
+      "sampleAddress": "盛泰道100號 杏花邨 34座",
+      "id": "EA-07"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.278702,
+      "lng": 114.228563,
+      "buildings": 217,
+      "medianYear": 1977,
+      "sampleAddress": "寶文街1號 峻峰花園 A座",
+      "id": "EA-08"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.28182,
+      "lng": 114.22167,
+      "buildings": 254,
+      "medianYear": 1980,
+      "sampleAddress": "成安街3號 富安樓",
+      "id": "EA-09"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.282727,
+      "lng": 114.213474,
+      "buildings": 54,
+      "medianYear": 1978,
+      "sampleAddress": "基利路34號 南豐新邨(2座)",
+      "id": "EA-10"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.283885,
+      "lng": 114.193053,
+      "buildings": 12,
+      "medianYear": 1986,
+      "sampleAddress": "天后廟道31號 君悅華庭",
+      "id": "EA-11"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.284684,
+      "lng": 114.197275,
+      "buildings": 5,
+      "medianYear": 1975,
+      "sampleAddress": "校園徑1號 漢基國際學校",
+      "id": "EA-12"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.286282,
+      "lng": 114.219149,
+      "buildings": 102,
+      "medianYear": 1984,
+      "sampleAddress": "太古城道12號 太古城星輝臺 衞星閣",
+      "id": "EA-13"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.28835,
+      "lng": 114.193473,
+      "buildings": 111,
+      "medianYear": 1984,
+      "sampleAddress": "英皇道153C號 英皇大廈",
+      "id": "EA-14"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.288424,
+      "lng": 114.209941,
+      "buildings": 135,
+      "medianYear": 1977,
+      "sampleAddress": "英皇道955/957號 惠芳閣",
+      "id": "EA-15"
+    },
+    {
+      "district": "東區",
+      "region": "港島",
+      "lat": 22.290181,
+      "lng": 114.199225,
+      "buildings": 569,
+      "medianYear": 1981,
+      "sampleAddress": "英皇道416號 新都城大廈(D座)",
+      "id": "EA-16"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.204852,
+      "lng": 114.213749,
+      "buildings": 9,
+      "medianYear": 2023,
+      "sampleAddress": "FOURTEEN 3-STOREY SINGLE-FAMILY HOUSES FOR DOMESTIC USE OVER A SINGLE-STOREY CARPORT AT 2L/F FOR NON-DOMESTIC USE (HOUSE 10) 128 WONG MA KOK ROAD, HONG KONG",
+      "id": "SO-01"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.206983,
+      "lng": 114.212925,
+      "buildings": 174,
+      "medianYear": 2004,
+      "sampleAddress": "黃麻角道88號 富豪海灣 B31號洋房",
+      "id": "SO-02"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.208808,
+      "lng": 114.254277,
+      "buildings": 1,
+      "medianYear": 1969,
+      "sampleAddress": "CABLE & WIRELESS RESIDENTIAL HOUSE CAPE D'AGUILAR RD",
+      "id": "SO-03"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.21242,
+      "lng": 114.215328,
+      "buildings": 1,
+      "medianYear": 1991,
+      "sampleAddress": "黃麻角道26/32號 聖士提反書院附屬小學",
+      "id": "SO-04"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.217489,
+      "lng": 114.216646,
+      "buildings": 25,
+      "medianYear": 1979,
+      "sampleAddress": "東頭灣道29/31號 FAIRWINDS",
+      "id": "SO-05"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.219068,
+      "lng": 114.203562,
+      "buildings": 114,
+      "medianYear": 1977,
+      "sampleAddress": "舂磡角道42號 紫荊園 C座",
+      "id": "SO-06"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.219945,
+      "lng": 114.210381,
+      "buildings": 452,
+      "medianYear": 1984,
+      "sampleAddress": "佳美道20號",
+      "id": "SO-07"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.229255,
+      "lng": 114.255262,
+      "buildings": 6,
+      "medianYear": 1965,
+      "sampleAddress": "石澳山仔18號",
+      "id": "SO-08"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.229579,
+      "lng": 114.220089,
+      "buildings": 90,
+      "medianYear": 1998,
+      "sampleAddress": "6洋房 45號大潭道",
+      "id": "SO-09"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.23012,
+      "lng": 114.252797,
+      "buildings": 50,
+      "medianYear": 1960,
+      "sampleAddress": "石澳村471號",
+      "id": "SO-10"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.231473,
+      "lng": 114.199477,
+      "buildings": 99,
+      "medianYear": 1986,
+      "sampleAddress": "香港南灣道 39 號1.9.2/(15)",
+      "id": "SO-11"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.232129,
+      "lng": 114.22777,
+      "buildings": 266,
+      "medianYear": 1990,
+      "sampleAddress": "白筆山道18號(棕櫚徑) 紅山半島",
+      "id": "SO-12"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.235923,
+      "lng": 114.227601,
+      "buildings": 29,
+      "medianYear": 1991,
+      "sampleAddress": "白筆山道18號(棕櫚徑) 紅山半島",
+      "id": "SO-13"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.237278,
+      "lng": 114.198755,
+      "buildings": 128,
+      "medianYear": 1983,
+      "sampleAddress": "南灣道9號 濱景園",
+      "id": "SO-14"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.238369,
+      "lng": 114.223183,
+      "buildings": 5,
+      "medianYear": 1996,
+      "sampleAddress": "大潭水塘道700號 TAI TAM GARDENS",
+      "id": "SO-15"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.239155,
+      "lng": 114.190308,
+      "buildings": 240,
+      "medianYear": 1989,
+      "sampleAddress": "淺水灣道67號 怡峰",
+      "id": "SO-16"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.240003,
+      "lng": 114.248312,
+      "buildings": 9,
+      "medianYear": 2002,
+      "sampleAddress": "大浪灣道22號",
+      "id": "SO-17"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.243171,
+      "lng": 114.150639,
+      "buildings": 76,
+      "medianYear": 1992,
+      "sampleAddress": "怡南路28號 海怡半島御庭園 御意居(第28座)",
+      "id": "SO-18"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.243491,
+      "lng": 114.157204,
+      "buildings": 72,
+      "medianYear": 1989,
+      "sampleAddress": "惠風街13/15號",
+      "id": "SO-19"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.243807,
+      "lng": 114.165874,
+      "buildings": 10,
+      "medianYear": 1995,
+      "sampleAddress": "南朗山道30號 南朗醫院 職員宿舍",
+      "id": "SO-20"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.243848,
+      "lng": 114.177639,
+      "buildings": 15,
+      "medianYear": 1983,
+      "sampleAddress": "海洋公園道38號 文麗雙築",
+      "id": "SO-21"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.243953,
+      "lng": 114.144629,
+      "buildings": 2,
+      "medianYear": 1992,
+      "sampleAddress": "海怡路9號 海怡半島第二期 怡雅閣(第9座)",
+      "id": "SO-22"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.246593,
+      "lng": 114.168066,
+      "buildings": 14,
+      "medianYear": 2022,
+      "sampleAddress": "晉環",
+      "id": "SO-23"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.248156,
+      "lng": 114.157227,
+      "buildings": 108,
+      "medianYear": 1977,
+      "sampleAddress": "香港仔大道64號 雙喜大廈",
+      "id": "SO-24"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.249104,
+      "lng": 114.151272,
+      "buildings": 102,
+      "medianYear": 1981,
+      "sampleAddress": "香港仔大道244號 海峰華軒",
+      "id": "SO-25"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.249192,
+      "lng": 114.180789,
+      "buildings": 383,
+      "medianYear": 1986,
+      "sampleAddress": "壽山村道18A號",
+      "id": "SO-26"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.249212,
+      "lng": 114.187573,
+      "buildings": 72,
+      "medianYear": 1993,
+      "sampleAddress": "深水灣道51/55號",
+      "id": "SO-27"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.251993,
+      "lng": 114.137364,
+      "buildings": 30,
+      "medianYear": 1969,
+      "sampleAddress": "華昌街6號 華富(二)邨 華興樓",
+      "id": "SO-28"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.253989,
+      "lng": 114.132807,
+      "buildings": 25,
+      "medianYear": 2007,
+      "sampleAddress": "貝沙山道8號 ISLAND SOUTH 貝沙灣南灣 BEL-AIR NO.8 8B座",
+      "id": "SO-29"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.255969,
+      "lng": 114.19305,
+      "buildings": 7,
+      "medianYear": 1987,
+      "sampleAddress": "淺水灣道4號",
+      "id": "SO-30"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.25751,
+      "lng": 114.199559,
+      "buildings": 18,
+      "medianYear": 1989,
+      "sampleAddress": "大潭水塘道88號 陽明山莊",
+      "id": "SO-31"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.257795,
+      "lng": 114.138379,
+      "buildings": 33,
+      "medianYear": 1979,
+      "sampleAddress": "置富道15號 置富花園 富嘉苑(15座)",
+      "id": "SO-32"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.260191,
+      "lng": 114.131496,
+      "buildings": 129,
+      "medianYear": 1985,
+      "sampleAddress": "域多利道550號 碧瑤灣 45座",
+      "id": "SO-33"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.269158,
+      "lng": 114.127811,
+      "buildings": 150,
+      "medianYear": 1982,
+      "sampleAddress": "37 & 39 Bisney Road, Hong Kong",
+      "id": "SO-34"
+    },
+    {
+      "district": "南區",
+      "region": "港島",
+      "lat": 22.272055,
+      "lng": 114.121537,
+      "buildings": 33,
+      "medianYear": 1977,
+      "sampleAddress": "摩星嶺道53號 SOUTHWEST",
+      "id": "SO-35"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.301005,
+      "lng": 114.176033,
+      "buildings": 64,
+      "medianYear": 1965,
+      "sampleAddress": "漆咸道南81號 南海大廈",
+      "id": "YTM-01"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.301463,
+      "lng": 114.171814,
+      "buildings": 379,
+      "medianYear": 1971,
+      "sampleAddress": "彌敦道172/174號 太平洋大廈",
+      "id": "YTM-02"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.303726,
+      "lng": 114.162635,
+      "buildings": 14,
+      "medianYear": 2003,
+      "sampleAddress": "柯士甸道西1號 UNION SQUARE圓方",
+      "id": "YTM-03"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.309519,
+      "lng": 114.169638,
+      "buildings": 788,
+      "medianYear": 1967,
+      "sampleAddress": "上海街263號",
+      "id": "YTM-04"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.310711,
+      "lng": 114.176291,
+      "buildings": 38,
+      "medianYear": 2000,
+      "sampleAddress": "京士柏道1號 帝庭園 6座",
+      "id": "YTM-05"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.31109,
+      "lng": 114.163432,
+      "buildings": 28,
+      "medianYear": 1998,
+      "sampleAddress": "海庭道8號 富榮花園",
+      "id": "YTM-06"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.320242,
+      "lng": 114.168925,
+      "buildings": 958,
+      "medianYear": 1968,
+      "sampleAddress": "砵蘭街306號 德祥大樓",
+      "id": "YTM-07"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.321021,
+      "lng": 114.16164,
+      "buildings": 286,
+      "medianYear": 1980,
+      "sampleAddress": "大角咀道93號 千歲大廈",
+      "id": "YTM-08"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.325656,
+      "lng": 114.168153,
+      "buildings": 203,
+      "medianYear": 1973,
+      "sampleAddress": "彌敦道782號 麗英大廈",
+      "id": "YTM-09"
+    },
+    {
+      "district": "油尖旺區",
+      "region": "九龍",
+      "lat": 22.325735,
+      "lng": 114.163686,
+      "buildings": 68,
+      "medianYear": 1971,
+      "sampleAddress": "荔枝角道163/165號 麗珠大廈",
+      "id": "YTM-10"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.32971,
+      "lng": 114.169276,
+      "buildings": 436,
+      "medianYear": 1979,
+      "sampleAddress": "窩仔街11號 仁寶大廈",
+      "id": "SSP-01"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.329838,
+      "lng": 114.161966,
+      "buildings": 1044,
+      "medianYear": 1971,
+      "sampleAddress": "汝州街224號 長安大廈",
+      "id": "SSP-02"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.330682,
+      "lng": 114.150065,
+      "buildings": 58,
+      "medianYear": 2017,
+      "sampleAddress": "深盛路8號 碧海藍天 2座",
+      "id": "SSP-03"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.332825,
+      "lng": 114.175837,
+      "buildings": 91,
+      "medianYear": 1987,
+      "sampleAddress": "花圃街23號 又一村花園第2期",
+      "id": "SSP-04"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.334555,
+      "lng": 114.141414,
+      "buildings": 12,
+      "medianYear": 1978,
+      "sampleAddress": "百老匯街100號 美孚新邨第八期",
+      "id": "SSP-05"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.335152,
+      "lng": 114.175392,
+      "buildings": 1,
+      "medianYear": 1992,
+      "sampleAddress": "達之路51號 又一居 17座",
+      "id": "SSP-06"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.337013,
+      "lng": 114.139657,
+      "buildings": 105,
+      "medianYear": 1973,
+      "sampleAddress": "吉利徑1/21及2/4號及 百老匯街33/39及26/50號 美孚新邨第二期",
+      "id": "SSP-07"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.337946,
+      "lng": 114.158665,
+      "buildings": 287,
+      "medianYear": 1986,
+      "sampleAddress": "永隆街11號",
+      "id": "SSP-08"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.339937,
+      "lng": 114.153164,
+      "buildings": 110,
+      "medianYear": 1990,
+      "sampleAddress": "元州街501號 美奇大廈",
+      "id": "SSP-09"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.341165,
+      "lng": 114.170669,
+      "buildings": 103,
+      "medianYear": 2006,
+      "sampleAddress": "歌和老街20號 畢架山峰",
+      "id": "SSP-10"
+    },
+    {
+      "district": "深水埗區",
+      "region": "九龍",
+      "lat": 22.345813,
+      "lng": 114.162639,
+      "buildings": 9,
+      "medianYear": 2024,
+      "sampleAddress": "九龍延坪道 9 號2.6.3/(21)",
+      "id": "SSP-11"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.30346,
+      "lng": 114.188871,
+      "buildings": 88,
+      "medianYear": 1988,
+      "sampleAddress": "船景街7號 黃埔花園棕櫚苑 6座",
+      "id": "KC-01"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.304785,
+      "lng": 114.184514,
+      "buildings": 5,
+      "medianYear": 2000,
+      "sampleAddress": "半島豪庭 紅荔道8號",
+      "id": "KC-02"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.308732,
+      "lng": 114.182969,
+      "buildings": 170,
+      "medianYear": 1978,
+      "sampleAddress": "漆咸道北268號 保其利大廈",
+      "id": "KC-03"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.309531,
+      "lng": 114.187664,
+      "buildings": 406,
+      "medianYear": 1983,
+      "sampleAddress": "馬頭圍道80號 嘉朗豪庭",
+      "id": "KC-04"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.312825,
+      "lng": 114.206663,
+      "buildings": 39,
+      "medianYear": 2024,
+      "sampleAddress": "九龍承豐道 22 號2.8.6/(11)",
+      "id": "KC-05"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.314123,
+      "lng": 114.204366,
+      "buildings": 6,
+      "medianYear": 2024,
+      "sampleAddress": "九龍承豐道 18 號2.8.6/(11)",
+      "id": "KC-06"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.315138,
+      "lng": 114.205162,
+      "buildings": 2,
+      "medianYear": 2024,
+      "sampleAddress": "九龍承豐道 15 號2.8.6/(11)",
+      "id": "KC-07"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.316149,
+      "lng": 114.203477,
+      "buildings": 6,
+      "medianYear": 2024,
+      "sampleAddress": "九龍啟德啟德第 4E 區 1 號地盤新九龍內地段第 663 號2.8.6/(11)",
+      "id": "KC-08"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.319275,
+      "lng": 114.174502,
+      "buildings": 99,
+      "medianYear": 1979,
+      "sampleAddress": "2/F-28/F:3 FLATS PER FLOOR 29/F:2 FLATS 5 VICTORY AVE",
+      "id": "KC-09"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.319573,
+      "lng": 114.189318,
+      "buildings": 672,
+      "medianYear": 1970,
+      "sampleAddress": "九龍城道61號 同興花園 2座",
+      "id": "KC-10"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.320115,
+      "lng": 114.177708,
+      "buildings": 323,
+      "medianYear": 1974,
+      "sampleAddress": "文福道11號 瓊苑",
+      "id": "KC-11"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.325614,
+      "lng": 114.174675,
+      "buildings": 5,
+      "medianYear": 1963,
+      "sampleAddress": "太子道西228A號 皇子大廈(第一期)",
+      "id": "KC-12"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.328226,
+      "lng": 114.200177,
+      "buildings": 105,
+      "medianYear": 2021,
+      "sampleAddress": "沐寧街10號OASISKAITAK低座A座",
+      "id": "KC-13"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.328942,
+      "lng": 114.188652,
+      "buildings": 524,
+      "medianYear": 1975,
+      "sampleAddress": "衙前圍道110號 億富樓",
+      "id": "KC-14"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.330251,
+      "lng": 114.180246,
+      "buildings": 585,
+      "medianYear": 1983,
+      "sampleAddress": "蘭開夏道16號",
+      "id": "KC-15"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.340376,
+      "lng": 114.179084,
+      "buildings": 262,
+      "medianYear": 1978,
+      "sampleAddress": "義德道4號 松濤園",
+      "id": "KC-16"
+    },
+    {
+      "district": "九龍城區",
+      "region": "九龍",
+      "lat": 22.341218,
+      "lng": 114.174196,
+      "buildings": 12,
+      "medianYear": 1977,
+      "sampleAddress": "筆架山道2號",
+      "id": "KC-17"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.332777,
+      "lng": 114.193716,
+      "buildings": 8,
+      "medianYear": 2006,
+      "sampleAddress": "仁愛街52號",
+      "id": "WTS-01"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.334253,
+      "lng": 114.196557,
+      "buildings": 30,
+      "medianYear": 1971,
+      "sampleAddress": "崇齡街93號 安強大樓",
+      "id": "WTS-02"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.334495,
+      "lng": 114.219641,
+      "buildings": 2,
+      "medianYear": 2008,
+      "sampleAddress": "扎山道381號 德望學校(女修道院)",
+      "id": "WTS-03"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.334501,
+      "lng": 114.207954,
+      "buildings": 9,
+      "medianYear": 1982,
+      "sampleAddress": "華池徑7號",
+      "id": "WTS-04"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.336769,
+      "lng": 114.193084,
+      "buildings": 17,
+      "medianYear": 1971,
+      "sampleAddress": "彩虹道121號 啟德花園 5座",
+      "id": "WTS-05"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.337036,
+      "lng": 114.215744,
+      "buildings": 5,
+      "medianYear": 1999,
+      "sampleAddress": "豐盛街63號 曉暉花園 5座",
+      "id": "WTS-06"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.338895,
+      "lng": 114.209552,
+      "buildings": 48,
+      "medianYear": 1994,
+      "sampleAddress": "瓊東街2號 新麗花園 A座",
+      "id": "WTS-07"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.341826,
+      "lng": 114.197849,
+      "buildings": 173,
+      "medianYear": 1971,
+      "sampleAddress": "龍翔道110號 豪苑 第二座",
+      "id": "WTS-08"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.346138,
+      "lng": 114.199882,
+      "buildings": 96,
+      "medianYear": 1973,
+      "sampleAddress": "蒲崗村道99號 滙豪山",
+      "id": "WTS-09"
+    },
+    {
+      "district": "黃大仙區",
+      "region": "九龍",
+      "lat": 22.346263,
+      "lng": 114.187582,
+      "buildings": 23,
+      "medianYear": 1989,
+      "sampleAddress": "翠竹街8號 翠竹花園 11座",
+      "id": "WTS-10"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.293199,
+      "lng": 114.237674,
+      "buildings": 28,
+      "medianYear": 2009,
+      "sampleAddress": "崇信街6號 OCEAN ONE",
+      "id": "KT-01"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.293791,
+      "lng": 114.234422,
+      "buildings": 6,
+      "medianYear": 2024,
+      "sampleAddress": "崇耀街9號 PENINSULA EAST 1座",
+      "id": "KT-02"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.295474,
+      "lng": 114.239839,
+      "buildings": 6,
+      "medianYear": 1980,
+      "sampleAddress": "嘉榮街4號 油塘中心 2座",
+      "id": "KT-03"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.303777,
+      "lng": 114.228265,
+      "buildings": 30,
+      "medianYear": 1992,
+      "sampleAddress": "麗港南街9號 麗港城 37座",
+      "id": "KT-04"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.309837,
+      "lng": 114.228872,
+      "buildings": 102,
+      "medianYear": 1990,
+      "sampleAddress": "觀塘道485號 荷蘭宿舍",
+      "id": "KT-05"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.3143,
+      "lng": 114.222955,
+      "buildings": 21,
+      "medianYear": 1990,
+      "sampleAddress": "牛頭角道300/302號 裕民中心 3座",
+      "id": "KT-06"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.317352,
+      "lng": 114.226958,
+      "buildings": 52,
+      "medianYear": 1966,
+      "sampleAddress": "月華街60號 和樂邨 長安樓",
+      "id": "KT-07"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.317843,
+      "lng": 114.219866,
+      "buildings": 205,
+      "medianYear": 1973,
+      "sampleAddress": "功樂道42號 海天園",
+      "id": "KT-08"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.323333,
+      "lng": 114.212748,
+      "buildings": 38,
+      "medianYear": 1981,
+      "sampleAddress": "偉業街33號 德福花園",
+      "id": "KT-09"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.325944,
+      "lng": 114.215742,
+      "buildings": 17,
+      "medianYear": 1978,
+      "sampleAddress": "牛頭角道55號 利基大廈 C座",
+      "id": "KT-10"
+    },
+    {
+      "district": "觀塘區",
+      "region": "九龍",
+      "lat": 22.329406,
+      "lng": 114.210007,
+      "buildings": 54,
+      "medianYear": 1985,
+      "sampleAddress": "泰峯 1A座, 1B座 觀塘道55號",
+      "id": "KT-11"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.360522,
+      "lng": 114.161801,
+      "buildings": 11,
+      "medianYear": 2021,
+      "sampleAddress": "HOUSE 3: 4 STOREY SINGLE FMAILY HOUSE 8388TAI PO RDSHA TIN HEIGHTS",
+      "id": "ST-01"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.362658,
+      "lng": 114.177023,
+      "buildings": 38,
+      "medianYear": 1994,
+      "sampleAddress": "沙田 大圍 顯泰街1/5號 瑞峰花園 4座",
+      "id": "ST-02"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.363355,
+      "lng": 114.171411,
+      "buildings": 5,
+      "medianYear": 1992,
+      "sampleAddress": "沙田 徑口路29號",
+      "id": "ST-03"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.369753,
+      "lng": 114.170144,
+      "buildings": 87,
+      "medianYear": 1994,
+      "sampleAddress": "沙田 沙田嶺路11號 御林峰 3座",
+      "id": "ST-04"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.372218,
+      "lng": 114.178922,
+      "buildings": 95,
+      "medianYear": 1987,
+      "sampleAddress": "TOWER 6(6A):6/F:ENTRANCE LOBBY,RESIDENTS' RECREATIONAL FACILITY;7/F:10 FLATS 8/F-16/F:10 FLATS;17/F:REFUGE FLOOR; 18/F-39/F:10 FLATS;40/F:REFUGE FLOOR; 41/F-61/F:9 FLATS;62/F:8 FLATS 18 CHE KUNG MIU RD",
+      "id": "ST-05"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.378638,
+      "lng": 114.18025,
+      "buildings": 140,
+      "medianYear": 1989,
+      "sampleAddress": "沙田 銅鑼灣山路8號 嘉御山",
+      "id": "ST-06"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.378895,
+      "lng": 114.171994,
+      "buildings": 9,
+      "medianYear": 1994,
+      "sampleAddress": "沙田 碧田街8號 翠景花園 2座",
+      "id": "ST-07"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.380667,
+      "lng": 114.188544,
+      "buildings": 53,
+      "medianYear": 1985,
+      "sampleAddress": "沙田 沙田正街11/17號 偉華中心",
+      "id": "ST-08"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.380906,
+      "lng": 114.198703,
+      "buildings": 60,
+      "medianYear": 1985,
+      "sampleAddress": "沙田 圓洲角路11號 春暉花園",
+      "id": "ST-09"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.381108,
+      "lng": 114.213292,
+      "buildings": 11,
+      "medianYear": 2015,
+      "sampleAddress": "沙田 行善里 9號 恒生管理學院",
+      "id": "ST-10"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.38376,
+      "lng": 114.21553,
+      "buildings": 6,
+      "medianYear": 1999,
+      "sampleAddress": "沙田 小瀝源路69號 帝堡城",
+      "id": "ST-11"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.38785,
+      "lng": 114.202313,
+      "buildings": 67,
+      "medianYear": 1985,
+      "sampleAddress": "沙田 得利街4號 沙田第一城(12座)",
+      "id": "ST-12"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.39133,
+      "lng": 114.206418,
+      "buildings": 22,
+      "medianYear": 1990,
+      "sampleAddress": "沙田 安景街1/3號 濱景花園 5座",
+      "id": "ST-13"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.392275,
+      "lng": 114.187979,
+      "buildings": 157,
+      "medianYear": 1988,
+      "sampleAddress": "沙田 麗禾里2/4號 麗峰花園 慧苑(B2座)",
+      "id": "ST-14"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.398328,
+      "lng": 114.208394,
+      "buildings": 12,
+      "medianYear": 1993,
+      "sampleAddress": "沙田 安景街19/21號 碧濤花園 金蘭閣(3座)",
+      "id": "ST-15"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.399314,
+      "lng": 114.193363,
+      "buildings": 10,
+      "medianYear": 2006,
+      "sampleAddress": "沙田 樂葵徑2號 晉名峰 E座",
+      "id": "ST-16"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.39978,
+      "lng": 114.199046,
+      "buildings": 100,
+      "medianYear": 1985,
+      "sampleAddress": "沙田 樂林路1/19號 樂怡小築 6座",
+      "id": "ST-17"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.403705,
+      "lng": 114.225526,
+      "buildings": 6,
+      "medianYear": 1988,
+      "sampleAddress": "馬鞍山 恆信街2號 富安花園 15座",
+      "id": "ST-18"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.403751,
+      "lng": 114.223049,
+      "buildings": 11,
+      "medianYear": 1987,
+      "sampleAddress": "馬鞍山 恆信街2號 富安花園 4座",
+      "id": "ST-19"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.409287,
+      "lng": 114.206795,
+      "buildings": 243,
+      "medianYear": 1986,
+      "sampleAddress": "沙田 馬鈴徑81號 蔚麗山莊",
+      "id": "ST-20"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.410758,
+      "lng": 114.202421,
+      "buildings": 378,
+      "medianYear": 2017,
+      "sampleAddress": "3-STOREY SINGLE FAMILY HOUSES (HOUSE 31) 38 LAI PING RD",
+      "id": "ST-21"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.412494,
+      "lng": 114.223008,
+      "buildings": 27,
+      "medianYear": 2004,
+      "sampleAddress": "馬鞍山 沃泰街1號 嵐岸 5座",
+      "id": "ST-22"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.417104,
+      "lng": 114.224062,
+      "buildings": 31,
+      "medianYear": 2011,
+      "sampleAddress": "馬鞍山 恆明街8號 觀瀾雅軒 1座",
+      "id": "ST-23"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.417134,
+      "lng": 114.200962,
+      "buildings": 66,
+      "medianYear": 2017,
+      "sampleAddress": "1洋房 雲端 88號近沙田 狗肚山 麗坪路",
+      "id": "ST-24"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.421355,
+      "lng": 114.209238,
+      "buildings": 35,
+      "medianYear": 1982,
+      "sampleAddress": "沙田 大埔公路馬料水段 沙田市地段第437號 香港中文大學",
+      "id": "ST-25"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.422951,
+      "lng": 114.230832,
+      "buildings": 45,
+      "medianYear": 1994,
+      "sampleAddress": "馬鞍山 鞍祿街18號 新港城 K座",
+      "id": "ST-26"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.424459,
+      "lng": 114.237692,
+      "buildings": 8,
+      "medianYear": 1993,
+      "sampleAddress": "馬鞍山 錦英路6號 富寶花園 10座",
+      "id": "ST-27"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.425273,
+      "lng": 114.206489,
+      "buildings": 1,
+      "medianYear": 2013,
+      "sampleAddress": "敬文書院(有300個宿位的學生宿舍) 沙田 香港中文大學 環迴北路",
+      "id": "ST-28"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.425865,
+      "lng": 114.231736,
+      "buildings": 30,
+      "medianYear": 1996,
+      "sampleAddress": "馬鞍山 西沙路608號 海栢花園 1座",
+      "id": "ST-29"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.430655,
+      "lng": 114.24729,
+      "buildings": 13,
+      "medianYear": 2015,
+      "sampleAddress": "峻源 第1座 落禾沙里1號",
+      "id": "ST-30"
+    },
+    {
+      "district": "沙田區",
+      "region": "新界",
+      "lat": 22.432312,
+      "lng": 114.241649,
+      "buildings": 174,
+      "medianYear": 2019,
+      "sampleAddress": "新界馬鞍山彩沙街 2 號7.5.7/(39)（「組裝合成」建築項目）",
+      "id": "ST-31"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.422299,
+      "lng": 114.197142,
+      "buildings": 4,
+      "medianYear": 2001,
+      "sampleAddress": "大埔 大埔公路大埔滘段4883號 觀海崇庭",
+      "id": "TP-01"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.426211,
+      "lng": 114.266697,
+      "buildings": 3,
+      "medianYear": 2025,
+      "sampleAddress": "8 Hoi Ying Road, Tai Po, New Territories 7.4.1/(5), 7.4.1/(6), 7.4.1/(8), 7.4.1/(10) & 7.4.1/(24)",
+      "id": "TP-02"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.429816,
+      "lng": 114.251396,
+      "buildings": 28,
+      "medianYear": 1998,
+      "sampleAddress": "西貢 西沙路533號 帝琴灣凱琴居 15座",
+      "id": "TP-03"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.430038,
+      "lng": 114.206675,
+      "buildings": 86,
+      "medianYear": 2019,
+      "sampleAddress": "大埔科進路18號海日灣 COURT D1座",
+      "id": "TP-04"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.431852,
+      "lng": 114.200059,
+      "buildings": 199,
+      "medianYear": 2012,
+      "sampleAddress": "大埔 科進路8號 溋玥‧天賦海灣",
+      "id": "TP-05"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.432688,
+      "lng": 114.12101,
+      "buildings": 1,
+      "medianYear": 2001,
+      "sampleAddress": "大埔 丈量約份第10約地段第1822號餘 段 嘉道理農場暨植物園",
+      "id": "TP-06"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.434255,
+      "lng": 114.187632,
+      "buildings": 45,
+      "medianYear": 2002,
+      "sampleAddress": "大埔 紅林路1號 滌濤山 17號洋房",
+      "id": "TP-07"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.434294,
+      "lng": 114.168811,
+      "buildings": 24,
+      "medianYear": 2002,
+      "sampleAddress": "大埔 山塘路18號 龍成堡 11號洋房",
+      "id": "TP-08"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.434613,
+      "lng": 114.182512,
+      "buildings": 21,
+      "medianYear": 1988,
+      "sampleAddress": "大埔 大埔公路大埔滘段4283號 翡翠花園 24號屋",
+      "id": "TP-09"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.436192,
+      "lng": 114.186405,
+      "buildings": 55,
+      "medianYear": 2002,
+      "sampleAddress": "大埔 紅林路1號 滌濤山 56號洋房",
+      "id": "TP-10"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.439077,
+      "lng": 114.180821,
+      "buildings": 237,
+      "medianYear": 1998,
+      "sampleAddress": "新界大埔大埔公路大埔滘段 4138 號7.2.9/(26)",
+      "id": "TP-11"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.439671,
+      "lng": 114.16958,
+      "buildings": 66,
+      "medianYear": 1998,
+      "sampleAddress": "大埔山塘路8號天鑽第6座",
+      "id": "TP-12"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.441696,
+      "lng": 114.161489,
+      "buildings": 35,
+      "medianYear": 1996,
+      "sampleAddress": "大埔 馬窩路10號 新峰花園第一期 12座",
+      "id": "TP-13"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.449389,
+      "lng": 114.167404,
+      "buildings": 285,
+      "medianYear": 1979,
+      "sampleAddress": "大埔 同茂坊13號",
+      "id": "TP-14"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.450781,
+      "lng": 114.322332,
+      "buildings": 1,
+      "medianYear": 1985,
+      "sampleAddress": "西貢 海下路 丈量約份第290約政府地牌照第 T20021號 香港青年旅舍協會白沙澳青年旅 舍",
+      "id": "TP-15"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.45089,
+      "lng": 114.162568,
+      "buildings": 161,
+      "medianYear": 1987,
+      "sampleAddress": "大埔 瑞安街4號 瑞安樓",
+      "id": "TP-16"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.453476,
+      "lng": 114.154421,
+      "buildings": 26,
+      "medianYear": 1989,
+      "sampleAddress": "大埔 梅樹坑路1號 大埔花園 N座",
+      "id": "TP-17"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.457428,
+      "lng": 114.174438,
+      "buildings": 2,
+      "medianYear": 2000,
+      "sampleAddress": "那打素醫院 大埔 全安路11號",
+      "id": "TP-18"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.458905,
+      "lng": 114.206784,
+      "buildings": 533,
+      "medianYear": 2002,
+      "sampleAddress": "大埔 三門仔路23號 比華利山別墅 溫莎道",
+      "id": "TP-19"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.459148,
+      "lng": 114.142081,
+      "buildings": 2,
+      "medianYear": 2022,
+      "sampleAddress": "BLOCK 5 (CARETAKER QUARTER BLOCK): A SINGLE-STOREY CARETAKER'S QUARTER FOR DOMESTIC USE LAM TSUEN",
+      "id": "TP-20"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.461572,
+      "lng": 114.198167,
+      "buildings": 292,
+      "medianYear": 1998,
+      "sampleAddress": "TOWER 16 G/F:4 FLATS; LIFT LOBBY 1/F-3/F:4 FLATS PER FLOOR 5/F:2 FLATS 36 LO FAI RD",
+      "id": "TP-21"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.461627,
+      "lng": 114.178627,
+      "buildings": 7,
+      "medianYear": 2014,
+      "sampleAddress": "大埔 汀角路63號",
+      "id": "TP-22"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.46212,
+      "lng": 114.153648,
+      "buildings": 355,
+      "medianYear": 1980,
+      "sampleAddress": "大埔 康樂園第七街7號 康樂園",
+      "id": "TP-23"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.463223,
+      "lng": 114.157824,
+      "buildings": 571,
+      "medianYear": 1986,
+      "sampleAddress": "大埔 康樂園第十五街6號 康樂園",
+      "id": "TP-24"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.464115,
+      "lng": 114.194587,
+      "buildings": 59,
+      "medianYear": 1999,
+      "sampleAddress": "大埔 露輝路28號 淺月灣一期",
+      "id": "TP-25"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.46536,
+      "lng": 114.156593,
+      "buildings": 79,
+      "medianYear": 1988,
+      "sampleAddress": "大埔 康樂東路130A號 康樂園",
+      "id": "TP-26"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.465549,
+      "lng": 114.153607,
+      "buildings": 135,
+      "medianYear": 1988,
+      "sampleAddress": "大埔 康樂園第十八街71號 康樂園",
+      "id": "TP-27"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.465641,
+      "lng": 114.179612,
+      "buildings": 5,
+      "medianYear": 2014,
+      "sampleAddress": "大埔 鳳園路9號 嵐山 7座",
+      "id": "TP-28"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.466274,
+      "lng": 114.193035,
+      "buildings": 137,
+      "medianYear": 2000,
+      "sampleAddress": "大埔 露屏路1號 淺月灣二期",
+      "id": "TP-29"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.467521,
+      "lng": 114.196614,
+      "buildings": 14,
+      "medianYear": 1996,
+      "sampleAddress": "大埔 露輝路31號 倚龍山莊 9號屋",
+      "id": "TP-30"
+    },
+    {
+      "district": "大埔區",
+      "region": "新界",
+      "lat": 22.47393,
+      "lng": 114.214591,
+      "buildings": 6,
+      "medianYear": 2000,
+      "sampleAddress": "大埔 汀角路111號 映月灣",
+      "id": "TP-31"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.269041,
+      "lng": 114.192194,
+      "buildings": 1,
+      "medianYear": 2022,
+      "sampleAddress": "A 3-STOREY SINGLE FAMILY HOUSE FOR DOMESTIC USE WITH G/F CARPORT 8 HENDERSON RD",
+      "id": "NO-01"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.478098,
+      "lng": 114.113552,
+      "buildings": 214,
+      "medianYear": 2013,
+      "sampleAddress": "北區 粉錦公路338號 歌賦嶺 紅楓徑",
+      "id": "NO-02"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.478832,
+      "lng": 114.115691,
+      "buildings": 125,
+      "medianYear": 2013,
+      "sampleAddress": "北區 粉錦公路338號 歌賦嶺 冬青徑",
+      "id": "NO-03"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.48482,
+      "lng": 114.141606,
+      "buildings": 2,
+      "medianYear": 1995,
+      "sampleAddress": "粉嶺 百和路88號 花都廣場 5座",
+      "id": "NO-04"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.486484,
+      "lng": 114.145029,
+      "buildings": 1,
+      "medianYear": 1999,
+      "sampleAddress": "粉嶺 一鳴路23號 牽晴間 7座",
+      "id": "NO-05"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.489331,
+      "lng": 114.140665,
+      "buildings": 67,
+      "medianYear": 1995,
+      "sampleAddress": "粉嶺 新運路33號 粉嶺中心 H座",
+      "id": "NO-06"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.493861,
+      "lng": 114.131333,
+      "buildings": 77,
+      "medianYear": 1997,
+      "sampleAddress": "粉嶺 裕泰路9號 萬豪居 13座",
+      "id": "NO-07"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.494102,
+      "lng": 114.10393,
+      "buildings": 1,
+      "medianYear": 1974,
+      "sampleAddress": "鄭苑",
+      "id": "NO-08"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.494507,
+      "lng": 114.110305,
+      "buildings": 24,
+      "medianYear": 2005,
+      "sampleAddress": "古洞 金翠路38號 ST. ANDREWS PLACE BELGRAVIA 8",
+      "id": "NO-09"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.498701,
+      "lng": 114.109179,
+      "buildings": 91,
+      "medianYear": 2004,
+      "sampleAddress": "古洞 金錢徑1號 翡翠園",
+      "id": "NO-10"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.499292,
+      "lng": 114.141336,
+      "buildings": 217,
+      "medianYear": 1987,
+      "sampleAddress": "粉嶺 和泰街17號",
+      "id": "NO-11"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.499634,
+      "lng": 114.119463,
+      "buildings": 47,
+      "medianYear": 2019,
+      "sampleAddress": "TOWER 1, 88 CASTLE PEAK RD, KWU TUNG",
+      "id": "NO-12"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.5013,
+      "lng": 114.100582,
+      "buildings": 438,
+      "medianYear": 2009,
+      "sampleAddress": "上水 古洞路33號 天巒 天巒 II 萊茵河大道",
+      "id": "NO-13"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.501497,
+      "lng": 114.145714,
+      "buildings": 15,
+      "medianYear": 2014,
+      "sampleAddress": "粉嶺 馬適路3號 綠悠軒 2座",
+      "id": "NO-14"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.50213,
+      "lng": 114.12926,
+      "buildings": 231,
+      "medianYear": 1973,
+      "sampleAddress": "上水 龍運街8號 新都廣場",
+      "id": "NO-15"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.505697,
+      "lng": 114.150895,
+      "buildings": 3,
+      "medianYear": 2012,
+      "sampleAddress": "粉嶺 近沙頭角公路龍躍頭段 丈量約份第83約地段第2140號 寶血兒童村",
+      "id": "NO-16"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.505806,
+      "lng": 114.098592,
+      "buildings": 15,
+      "medianYear": 1963,
+      "sampleAddress": "元朗 青山公路洲頭段193號 石仔嶺花園",
+      "id": "NO-17"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.505963,
+      "lng": 114.129468,
+      "buildings": 144,
+      "medianYear": 1975,
+      "sampleAddress": "上水 馬會道106號",
+      "id": "NO-18"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.509375,
+      "lng": 114.1569,
+      "buildings": 2,
+      "medianYear": 2002,
+      "sampleAddress": "北區 近沙頭角公路龍躍頭段 丈量約份第83約地段第2427號",
+      "id": "NO-19"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.532316,
+      "lng": 114.153652,
+      "buildings": 2,
+      "medianYear": 2024,
+      "sampleAddress": "新界坪輋路 2 號6.4.2/(1)（「組裝合成」建築項目）",
+      "id": "NO-20"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.544103,
+      "lng": 114.22554,
+      "buildings": 8,
+      "medianYear": 2018,
+      "sampleAddress": "沙頭角順隆街31號尚澄5座",
+      "id": "NO-21"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.544791,
+      "lng": 114.22269,
+      "buildings": 10,
+      "medianYear": 1991,
+      "sampleAddress": "沙頭角 順興街19號 沙頭角邨 47座",
+      "id": "NO-22"
+    },
+    {
+      "district": "北區",
+      "region": "新界",
+      "lat": 22.545941,
+      "lng": 114.222873,
+      "buildings": 44,
+      "medianYear": 1988,
+      "sampleAddress": "沙頭角 順興街53號 沙頭角邨 11座",
+      "id": "NO-23"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.410559,
+      "lng": 114.034532,
+      "buildings": 1,
+      "medianYear": 2013,
+      "sampleAddress": "元朗 大棠山道31號 保良局賽馬會大棠渡假村",
+      "id": "YL-01"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.423021,
+      "lng": 114.020618,
+      "buildings": 30,
+      "medianYear": 2009,
+      "sampleAddress": "元朗 公庵路328號 逸林首府 逸林路",
+      "id": "YL-02"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.427071,
+      "lng": 114.080413,
+      "buildings": 106,
+      "medianYear": 2006,
+      "sampleAddress": "元朗 錦田 錦上路157號 四季豪園",
+      "id": "YL-03"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.42913,
+      "lng": 114.114022,
+      "buildings": 4,
+      "medianYear": 1988,
+      "sampleAddress": "元朗 石崗 林錦公路 丈量約份第114約地段第1799號 香港大學嘉道理農業研究所 第一及第二期",
+      "id": "YL-04"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.430349,
+      "lng": 114.030153,
+      "buildings": 2,
+      "medianYear": 2024,
+      "sampleAddress": "元朗 大棠路 丈量約份第116約地段第5288號",
+      "id": "YL-05"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.431174,
+      "lng": 113.998547,
+      "buildings": 323,
+      "medianYear": 2011,
+      "sampleAddress": "元朗 洪水橋 洪順路8號 銘威苑 B座",
+      "id": "YL-06"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.432649,
+      "lng": 113.994298,
+      "buildings": 30,
+      "medianYear": 1978,
+      "sampleAddress": "新填地街415A號",
+      "id": "YL-07"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.43303,
+      "lng": 114.071941,
+      "buildings": 9,
+      "medianYear": 2022,
+      "sampleAddress": "PHASE 1 & 2A BLOCK 5:FOUR FOUR-STOREY RESIDENTIAL BUILDING 71 KAM SHEUNG ROAD",
+      "id": "YL-08"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.433178,
+      "lng": 114.008382,
+      "buildings": 107,
+      "medianYear": 2012,
+      "sampleAddress": "元朗 屏山 唐人新村路118號 采茵軒 1座",
+      "id": "YL-09"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.43441,
+      "lng": 114.062607,
+      "buildings": 6,
+      "medianYear": 2024,
+      "sampleAddress": "新界元朗錦河路 29 號5.3.1/(27)",
+      "id": "YL-10"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.43696,
+      "lng": 113.994693,
+      "buildings": 16,
+      "medianYear": 1998,
+      "sampleAddress": "元朗 洪水橋 洪水橋大街63號 頤景居",
+      "id": "YL-11"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.437535,
+      "lng": 113.997709,
+      "buildings": 25,
+      "medianYear": 2023,
+      "sampleAddress": "新界洪元路 6 號5.1.2/(15)",
+      "id": "YL-12"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.438529,
+      "lng": 114.062287,
+      "buildings": 33,
+      "medianYear": 1980,
+      "sampleAddress": "元朗 錦田 吉慶圍250號 豪景富居5座",
+      "id": "YL-13"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.440807,
+      "lng": 114.010592,
+      "buildings": 174,
+      "medianYear": 2003,
+      "sampleAddress": "元朗 屏山 唐人新村路19號 永安居",
+      "id": "YL-14"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.441285,
+      "lng": 114.072761,
+      "buildings": 254,
+      "medianYear": 2008,
+      "sampleAddress": "元朗 錦田公路183號 四季名園",
+      "id": "YL-15"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.441349,
+      "lng": 114.021304,
+      "buildings": 116,
+      "medianYear": 1998,
+      "sampleAddress": "元朗 馬田路88號 華翠豪園 2座",
+      "id": "YL-16"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.441858,
+      "lng": 114.029895,
+      "buildings": 371,
+      "medianYear": 1984,
+      "sampleAddress": "元朗 合益路75號 興發樓",
+      "id": "YL-17"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.442536,
+      "lng": 114.081114,
+      "buildings": 121,
+      "medianYear": 2003,
+      "sampleAddress": "元朗 錦田公路233號 四季雅苑 2號屋",
+      "id": "YL-18"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.442739,
+      "lng": 114.038422,
+      "buildings": 23,
+      "medianYear": 2004,
+      "sampleAddress": "元朗 元龍街9號 新時代中城 M8座",
+      "id": "YL-19"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.443662,
+      "lng": 114.053472,
+      "buildings": 73,
+      "medianYear": 2013,
+      "sampleAddress": "元朗 映河路1號 爾巒 卓維雅大道",
+      "id": "YL-20"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.445543,
+      "lng": 114.037041,
+      "buildings": 13,
+      "medianYear": 2016,
+      "sampleAddress": "3 9號近朗日路",
+      "id": "YL-21"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.446307,
+      "lng": 114.021328,
+      "buildings": 56,
+      "medianYear": 1977,
+      "sampleAddress": "元朗 媽廟路34號 永發大樓",
+      "id": "YL-22"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.447127,
+      "lng": 114.029772,
+      "buildings": 134,
+      "medianYear": 1980,
+      "sampleAddress": "元朗 元朗東堤街14號 大興大廈",
+      "id": "YL-23"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.447633,
+      "lng": 114.052205,
+      "buildings": 62,
+      "medianYear": 2020,
+      "sampleAddress": "元朗高埔徑3號山水盈",
+      "id": "YL-24"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.451132,
+      "lng": 114.056437,
+      "buildings": 16,
+      "medianYear": 2017,
+      "sampleAddress": "深水灣道3號",
+      "id": "YL-25"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.452418,
+      "lng": 114.000778,
+      "buildings": 21,
+      "medianYear": 1992,
+      "sampleAddress": "天水圍 天湖路1號 嘉湖山莊樂湖居 12座",
+      "id": "YL-26"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.459583,
+      "lng": 114.002012,
+      "buildings": 33,
+      "medianYear": 1996,
+      "sampleAddress": "新界天恩路 1 號5.1./(15)",
+      "id": "YL-27"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.459696,
+      "lng": 114.006681,
+      "buildings": 23,
+      "medianYear": 1995,
+      "sampleAddress": "天水圍 天龍路2號 嘉湖山莊景湖居 4座",
+      "id": "YL-28"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.462873,
+      "lng": 114.105668,
+      "buildings": 2,
+      "medianYear": 2024,
+      "sampleAddress": "新界打石湖粉錦公路 16 號6.1./(1)（「組裝合成」建築項目）",
+      "id": "YL-29"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.466063,
+      "lng": 113.982686,
+      "buildings": 15,
+      "medianYear": 2005,
+      "sampleAddress": "元朗 流浮山 深灣路233號 深灣畔 3座",
+      "id": "YL-30"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.466465,
+      "lng": 114.006867,
+      "buildings": 38,
+      "medianYear": 2020,
+      "sampleAddress": "WETLAND SEASONS PARK (第20座) 濕地公園路9號",
+      "id": "YL-31"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.470091,
+      "lng": 114.003219,
+      "buildings": 53,
+      "medianYear": 2022,
+      "sampleAddress": "WETLAND SEASONS BAY (第6A座) 濕地公園路1號",
+      "id": "YL-32"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.470383,
+      "lng": 114.057748,
+      "buildings": 1,
+      "medianYear": 1970,
+      "sampleAddress": "元朗 新田 新圍村77B號",
+      "id": "YL-33"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.472866,
+      "lng": 114.048892,
+      "buildings": 339,
+      "medianYear": 1988,
+      "sampleAddress": "元朗 錦綉花園C段第九街14號 錦綉花園",
+      "id": "YL-34"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.473988,
+      "lng": 114.043896,
+      "buildings": 291,
+      "medianYear": 1987,
+      "sampleAddress": "元朗 錦綉花園B段第四街15號 錦綉花園",
+      "id": "YL-35"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.479552,
+      "lng": 114.043479,
+      "buildings": 381,
+      "medianYear": 1986,
+      "sampleAddress": "元朗 錦綉花園J段第一街33號 錦綉花園",
+      "id": "YL-36"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.481774,
+      "lng": 114.050864,
+      "buildings": 863,
+      "medianYear": 1989,
+      "sampleAddress": "元朗 荔枝東路3號 錦綉花園",
+      "id": "YL-37"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.482016,
+      "lng": 114.059461,
+      "buildings": 574,
+      "medianYear": 1997,
+      "sampleAddress": "元朗 新田 新潭路83號 夏威夷豪園",
+      "id": "YL-38"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.485284,
+      "lng": 114.044309,
+      "buildings": 2,
+      "medianYear": 1981,
+      "sampleAddress": "元朗 錦綉花園河北第二街1A號 錦綉花園",
+      "id": "YL-39"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.486642,
+      "lng": 114.058838,
+      "buildings": 623,
+      "medianYear": 1995,
+      "sampleAddress": "A RESIDENTIAL DEVELOPMENT: HOUSES 5: SIXTEEN TWO-STOREY SINGLE FAMILY HOUSE SAN TAM RD",
+      "id": "YL-40"
+    },
+    {
+      "district": "元朗區",
+      "region": "新界",
+      "lat": 22.48722,
+      "lng": 114.051296,
+      "buildings": 481,
+      "medianYear": 1994,
+      "sampleAddress": "元朗 桂花徑 加州花園偉仕居",
+      "id": "YL-41"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.363751,
+      "lng": 113.999998,
+      "buildings": 56,
+      "medianYear": 2002,
+      "sampleAddress": "屯門 青發街28號 浪濤灣 3號洋房",
+      "id": "TM-01"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.364671,
+      "lng": 114.005812,
+      "buildings": 29,
+      "medianYear": 1999,
+      "sampleAddress": "屯門 樂翠街21號 芳苑 D座",
+      "id": "TM-02"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.364908,
+      "lng": 113.99032,
+      "buildings": 7,
+      "medianYear": 1978,
+      "sampleAddress": "屯門 青龍路5號 龍珠島別墅東座",
+      "id": "TM-03"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.366295,
+      "lng": 114.008107,
+      "buildings": 119,
+      "medianYear": 1988,
+      "sampleAddress": "屯門 樂翠街6/18號 青麗灣別墅 A5號洋房",
+      "id": "TM-04"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.369768,
+      "lng": 114.000335,
+      "buildings": 421,
+      "medianYear": 2017,
+      "sampleAddress": "屯門青山公路大欖段THECARMEL",
+      "id": "TM-05"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.370242,
+      "lng": 113.990962,
+      "buildings": 162,
+      "medianYear": 1991,
+      "sampleAddress": "屯門 青山公路青山灣段1號 香港黃金海岸 29座",
+      "id": "TM-06"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.372434,
+      "lng": 113.969511,
+      "buildings": 46,
+      "medianYear": 1991,
+      "sampleAddress": "邁亞美海灣4 - 6 屯門 湖翠路268號",
+      "id": "TM-07"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.373579,
+      "lng": 113.96222,
+      "buildings": 14,
+      "medianYear": 1983,
+      "sampleAddress": "屯門 湖翠路2號 美樂花園 1座",
+      "id": "TM-08"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.375213,
+      "lng": 113.999957,
+      "buildings": 5,
+      "medianYear": 2011,
+      "sampleAddress": "屯門 管翠路1號 星堤 9座",
+      "id": "TM-09"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.376989,
+      "lng": 113.989816,
+      "buildings": 67,
+      "medianYear": 2017,
+      "sampleAddress": "2座",
+      "id": "TM-10"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.378863,
+      "lng": 113.982159,
+      "buildings": 113,
+      "medianYear": 1991,
+      "sampleAddress": "屯門 青山公路青山灣段118A號 松苑 5座",
+      "id": "TM-11"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.380203,
+      "lng": 113.963585,
+      "buildings": 9,
+      "medianYear": 1990,
+      "sampleAddress": "屯門 龍門路55/65號 新屯門中心 2座",
+      "id": "TM-12"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.382297,
+      "lng": 113.969183,
+      "buildings": 57,
+      "medianYear": 1998,
+      "sampleAddress": "御海灣",
+      "id": "TM-13"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.387711,
+      "lng": 113.968509,
+      "buildings": 15,
+      "medianYear": 1998,
+      "sampleAddress": "5/F-25/F: 19 RESIDENTIAL UNITS PER FLOOR 101 YIP WONG RD",
+      "id": "TM-14"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.389593,
+      "lng": 113.979055,
+      "buildings": 96,
+      "medianYear": 1987,
+      "sampleAddress": "屯門 青海圍6號 屯門花園",
+      "id": "TM-15"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.390407,
+      "lng": 113.964903,
+      "buildings": 3,
+      "medianYear": 2002,
+      "sampleAddress": "屯門 環山路8號 富盈軒 C洋房",
+      "id": "TM-16"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.398945,
+      "lng": 113.973129,
+      "buildings": 61,
+      "medianYear": 1989,
+      "sampleAddress": "屯門 震寰路11號 大興花園第一期 4座",
+      "id": "TM-17"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.400044,
+      "lng": 113.977522,
+      "buildings": 118,
+      "medianYear": 1982,
+      "sampleAddress": "屯門 井財街23號 祥隆大廈",
+      "id": "TM-18"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.409502,
+      "lng": 113.969274,
+      "buildings": 32,
+      "medianYear": 2023,
+      "sampleAddress": "BERGEN TOWER 1 8 YAN PO ROAD",
+      "id": "TM-19"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.409881,
+      "lng": 113.981661,
+      "buildings": 57,
+      "medianYear": 2000,
+      "sampleAddress": "屯門 屯安里1號 叠茵庭 2座",
+      "id": "TM-20"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.410663,
+      "lng": 113.964512,
+      "buildings": 2,
+      "medianYear": 1977,
+      "sampleAddress": "屯門 近青山公路新墟段 丈量約份第132約地段第2019號 (礦山村) A座",
+      "id": "TM-21"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.411357,
+      "lng": 113.985166,
+      "buildings": 1,
+      "medianYear": 2013,
+      "sampleAddress": "嶺南大學 賽馬會博雅堂 屯門 青山公路 - 嶺南段8號",
+      "id": "TM-22"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.41846,
+      "lng": 113.985965,
+      "buildings": 24,
+      "medianYear": 2005,
+      "sampleAddress": "屯門 福亨村路138號 綠怡居 2座",
+      "id": "TM-23"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.419216,
+      "lng": 113.982293,
+      "buildings": 13,
+      "medianYear": 2001,
+      "sampleAddress": "LAM TEI",
+      "id": "TM-24"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.421347,
+      "lng": 113.973106,
+      "buildings": 123,
+      "medianYear": 2003,
+      "sampleAddress": "屯門 康寶路88號 茵翠豪庭 98號洋房",
+      "id": "TM-25"
+    },
+    {
+      "district": "屯門區",
+      "region": "新界",
+      "lat": 22.429993,
+      "lng": 113.99443,
+      "buildings": 14,
+      "medianYear": 1995,
+      "sampleAddress": "屯門 青山公路－洪水橋段180號",
+      "id": "TM-26"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.352697,
+      "lng": 114.061189,
+      "buildings": 32,
+      "medianYear": 2004,
+      "sampleAddress": "馬灣 珀麗路8號 珀麗灣 8座",
+      "id": "TW-01"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.361784,
+      "lng": 114.042103,
+      "buildings": 38,
+      "medianYear": 1990,
+      "sampleAddress": "青龍頭 青山公路青龍頭段100號 豪景花園 依麗小築(第15座)",
+      "id": "TW-02"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.362501,
+      "lng": 114.050326,
+      "buildings": 33,
+      "medianYear": 1995,
+      "sampleAddress": "浪翠園IV 荃灣 青山公路－青龍頭段44號",
+      "id": "TW-03"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.362646,
+      "lng": 114.113692,
+      "buildings": 37,
+      "medianYear": 1991,
+      "sampleAddress": "荃灣 怡康街1/7號 海濱花園",
+      "id": "TW-04"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.363789,
+      "lng": 114.115572,
+      "buildings": 2,
+      "medianYear": 2014,
+      "sampleAddress": "荃灣 永順街48號 環宇海灣 7座",
+      "id": "TW-05"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.364309,
+      "lng": 114.06773,
+      "buildings": 6,
+      "medianYear": 1992,
+      "sampleAddress": "元朗 十八鄉 白沙村246A號 金安花園 C座",
+      "id": "TW-06"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.36666,
+      "lng": 114.05999,
+      "buildings": 43,
+      "medianYear": 1992,
+      "sampleAddress": "深井 青山公路深井段41/63號 麗都花園 5座",
+      "id": "TW-07"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.368459,
+      "lng": 114.074162,
+      "buildings": 16,
+      "medianYear": 2014,
+      "sampleAddress": "荃灣 青山公路汀九段380號 星岸",
+      "id": "TW-08"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.369045,
+      "lng": 114.092283,
+      "buildings": 41,
+      "medianYear": 1996,
+      "sampleAddress": "荃灣 悠麗路18號 恒麗園 2座",
+      "id": "TW-09"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.369423,
+      "lng": 114.079046,
+      "buildings": 46,
+      "medianYear": 1997,
+      "sampleAddress": "荃灣 青山公路汀九段335號 汀九別墅 D座",
+      "id": "TW-10"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.370443,
+      "lng": 114.117417,
+      "buildings": 306,
+      "medianYear": 1972,
+      "sampleAddress": "荃灣 眾安街41號 荃運樓",
+      "id": "TW-11"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.370911,
+      "lng": 114.099861,
+      "buildings": 49,
+      "medianYear": 1991,
+      "sampleAddress": "荃灣 青山公路荃灣段620號 麗城花園第二期 2座",
+      "id": "TW-12"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.371183,
+      "lng": 114.112029,
+      "buildings": 143,
+      "medianYear": 1972,
+      "sampleAddress": "荃灣 大壩街83號 大苑樓",
+      "id": "TW-13"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.371836,
+      "lng": 114.131475,
+      "buildings": 7,
+      "medianYear": 2010,
+      "sampleAddress": "葵涌 油麻磡路63號 昇柏山",
+      "id": "TW-14"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.377535,
+      "lng": 114.119832,
+      "buildings": 6,
+      "medianYear": 1999,
+      "sampleAddress": "荃灣 芙蓉山 東林台29號",
+      "id": "TW-15"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.378043,
+      "lng": 114.103534,
+      "buildings": 21,
+      "medianYear": 1980,
+      "sampleAddress": "荃灣 安逸街14號 荃威花園(K座)",
+      "id": "TW-16"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.37951,
+      "lng": 114.108958,
+      "buildings": 106,
+      "medianYear": 1989,
+      "sampleAddress": "荃灣 荃景圍88號 荃灣中心 漢陽樓",
+      "id": "TW-17"
+    },
+    {
+      "district": "荃灣區",
+      "region": "新界",
+      "lat": 22.385236,
+      "lng": 114.109342,
+      "buildings": 4,
+      "medianYear": 2004,
+      "sampleAddress": "荃灣 荃錦公路108號 朗逸峯 2座",
+      "id": "TW-18"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.340854,
+      "lng": 114.093537,
+      "buildings": 3,
+      "medianYear": 1983,
+      "sampleAddress": "青衣 西草灣路1/7號 友聯船塢",
+      "id": "KWT-01"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.343609,
+      "lng": 114.137361,
+      "buildings": 23,
+      "medianYear": 1993,
+      "sampleAddress": "葵涌 荔景山路280號 樂園",
+      "id": "KWT-02"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.343809,
+      "lng": 114.107956,
+      "buildings": 18,
+      "medianYear": 1984,
+      "sampleAddress": "青衣 細山路2/16號 美景花園 5座",
+      "id": "KWT-03"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.344812,
+      "lng": 114.12996,
+      "buildings": 1,
+      "medianYear": 1978,
+      "sampleAddress": "葵涌 榮祖街6號 祖堯邨 啟真樓",
+      "id": "KWT-04"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.347807,
+      "lng": 114.129319,
+      "buildings": 33,
+      "medianYear": 1982,
+      "sampleAddress": "葵涌 念祖街2號 祖堯邨 啟勉樓2座",
+      "id": "KWT-05"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.352364,
+      "lng": 114.136591,
+      "buildings": 30,
+      "medianYear": 1986,
+      "sampleAddress": "葵涌 華景山路9號 華景山莊 1座",
+      "id": "KWT-06"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.353024,
+      "lng": 114.108078,
+      "buildings": 31,
+      "medianYear": 1990,
+      "sampleAddress": "青衣 楓樹窩路1號 翠怡花園 7座",
+      "id": "KWT-07"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.353109,
+      "lng": 114.100511,
+      "buildings": 13,
+      "medianYear": 1999,
+      "sampleAddress": "青衣 青綠街18號 綠悠雅苑 1座",
+      "id": "KWT-08"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.357606,
+      "lng": 114.102701,
+      "buildings": 12,
+      "medianYear": 1991,
+      "sampleAddress": "青衣 青綠街1號 偉景花園 4座",
+      "id": "KWT-09"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.359453,
+      "lng": 114.127942,
+      "buildings": 59,
+      "medianYear": 1977,
+      "sampleAddress": "葵涌 盛芳街19號 京寶大廈",
+      "id": "KWT-10"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.360069,
+      "lng": 114.106887,
+      "buildings": 27,
+      "medianYear": 1999,
+      "sampleAddress": "青衣 牙鷹洲街8號 灝景灣 11座",
+      "id": "KWT-11"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.361084,
+      "lng": 114.136357,
+      "buildings": 16,
+      "medianYear": 1986,
+      "sampleAddress": "葵涌 青山公路葵涌段382號 嘉翠園 2座",
+      "id": "KWT-12"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.361376,
+      "lng": 114.123837,
+      "buildings": 8,
+      "medianYear": 2002,
+      "sampleAddress": "葵涌 葵聯路100號 月海灣2座",
+      "id": "KWT-13"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.367794,
+      "lng": 114.138048,
+      "buildings": 83,
+      "medianYear": 1974,
+      "sampleAddress": "葵涌 和宜合道64號 恭誠樓",
+      "id": "KWT-14"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.367949,
+      "lng": 114.133182,
+      "buildings": 34,
+      "medianYear": 1974,
+      "sampleAddress": "葵涌 葵涌道1027/1033號 昌年大廈",
+      "id": "KWT-15"
+    },
+    {
+      "district": "葵青區",
+      "region": "新界",
+      "lat": 22.368711,
+      "lng": 114.123009,
+      "buildings": 16,
+      "medianYear": 1972,
+      "sampleAddress": "葵涌 大廈街17號 仁雅大廈",
+      "id": "KWT-16"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.209602,
+      "lng": 114.256405,
+      "buildings": 1,
+      "medianYear": 1965,
+      "sampleAddress": "沙田 水泉坳街61號 香港女童軍總會博康營地",
+      "id": "SK-01"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.263623,
+      "lng": 114.298334,
+      "buildings": 1,
+      "medianYear": 1982,
+      "sampleAddress": "清水灣 大坳門路139號 清水灣鄉村俱樂部遊艇會",
+      "id": "SK-02"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.293541,
+      "lng": 114.270301,
+      "buildings": 42,
+      "medianYear": 2020,
+      "sampleAddress": "將軍澳康城路1號日出康城THELOHAS康城",
+      "id": "SK-03"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.29401,
+      "lng": 114.299816,
+      "buildings": 2,
+      "medianYear": 1990,
+      "sampleAddress": "西貢 大環頭 清水灣道 丈量約份第236約地段第357號 CHEUK YIN VILLA",
+      "id": "SK-04"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.296346,
+      "lng": 114.271414,
+      "buildings": 30,
+      "medianYear": 2016,
+      "sampleAddress": "將軍澳 康城路1號 日出康城 SEA TO SKY 3座",
+      "id": "SK-05"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.297401,
+      "lng": 114.275396,
+      "buildings": 5,
+      "medianYear": 2013,
+      "sampleAddress": "將軍澳 石角路8號 峻瀅 7座",
+      "id": "SK-06"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.299899,
+      "lng": 114.290044,
+      "buildings": 4,
+      "medianYear": 2023,
+      "sampleAddress": "2-STOREY SINGLE FAMILY HOME (HOUSE A) HA YEUNG, CLEAR WATER BAY",
+      "id": "SK-07"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.302638,
+      "lng": 114.26019,
+      "buildings": 126,
+      "medianYear": 2018,
+      "sampleAddress": "將軍澳唐俊街28號海天晉第5座",
+      "id": "SK-08"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.302935,
+      "lng": 114.252966,
+      "buildings": 25,
+      "medianYear": 2003,
+      "sampleAddress": "將軍澳澳景路88號 維景灣畔3期",
+      "id": "SK-09"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.307731,
+      "lng": 114.252427,
+      "buildings": 5,
+      "medianYear": 2007,
+      "sampleAddress": "將軍澳翠嶺路48號翠嶺峰",
+      "id": "SK-10"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.30776,
+      "lng": 114.26107,
+      "buildings": 92,
+      "medianYear": 2003,
+      "sampleAddress": "將軍澳 唐賢街9號 天晉 8座 皇鑽海",
+      "id": "SK-11"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.308782,
+      "lng": 114.289536,
+      "buildings": 60,
+      "medianYear": 1999,
+      "sampleAddress": "西貢 柏濤徑126號 栢濤灣",
+      "id": "SK-12"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.31097,
+      "lng": 114.266411,
+      "buildings": 19,
+      "medianYear": 1999,
+      "sampleAddress": "將軍澳 銀澳路1號 新寶城 1座",
+      "id": "SK-13"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.317706,
+      "lng": 114.286177,
+      "buildings": 38,
+      "medianYear": 1979,
+      "sampleAddress": "LOWER GROUND FLOOR: CAR PARKING SPACES, PLANT ROOMS, CARETAKER'S QUARTER 30A,B,C,D HANG HAU WING LUNG RD",
+      "id": "SK-14"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.318962,
+      "lng": 114.279205,
+      "buildings": 190,
+      "medianYear": 1981,
+      "sampleAddress": "西貢 銀線灣 碧沙路23號 君爵堡",
+      "id": "SK-15"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.320614,
+      "lng": 114.258959,
+      "buildings": 51,
+      "medianYear": 1997,
+      "sampleAddress": "元州街498號 青華閣",
+      "id": "SK-16"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.321,
+      "lng": 114.272198,
+      "buildings": 283,
+      "medianYear": 1978,
+      "sampleAddress": "西貢 銀線灣 銀岬路6號 銀輝別墅 7號洋房",
+      "id": "SK-17"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.322096,
+      "lng": 114.253577,
+      "buildings": 23,
+      "medianYear": 1994,
+      "sampleAddress": "將軍澳 寶康路88號 怡心園 2座",
+      "id": "SK-18"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.326861,
+      "lng": 114.252499,
+      "buildings": 2,
+      "medianYear": 2023,
+      "sampleAddress": "4-STOREY DOMESTIC BUILDING (TH) (BLOCK 1) G/F:FLATS AND ANCILLARY ACCOMMODATION 1/F-3/F: FLATS AND ANCILLARY ACCOMMODATION 11 PO LAM ROAD NORTH",
+      "id": "SK-19"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.328217,
+      "lng": 114.269228,
+      "buildings": 200,
+      "medianYear": 1986,
+      "sampleAddress": "西貢 銀線灣 安寧徑1號 銀海峯",
+      "id": "SK-20"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.330513,
+      "lng": 114.263092,
+      "buildings": 57,
+      "medianYear": 1977,
+      "sampleAddress": "清水灣 清水灣道685號 銀灣花園",
+      "id": "SK-21"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.330897,
+      "lng": 114.231147,
+      "buildings": 9,
+      "medianYear": 2023,
+      "sampleAddress": "清水灣 安達臣道9/11號",
+      "id": "SK-22"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.333825,
+      "lng": 114.241398,
+      "buildings": 12,
+      "medianYear": 1983,
+      "sampleAddress": "清水灣 甘澍路8號 HILLTOP VILLA D洋房",
+      "id": "SK-23"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.336517,
+      "lng": 114.229972,
+      "buildings": 105,
+      "medianYear": 1983,
+      "sampleAddress": "清水灣 飛雲路2號 明華園 1號洋房",
+      "id": "SK-24"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.337192,
+      "lng": 114.241648,
+      "buildings": 44,
+      "medianYear": 2003,
+      "sampleAddress": "西貢 白石窩新村路8號 清水灣山莊",
+      "id": "SK-25"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.337378,
+      "lng": 114.266154,
+      "buildings": 14,
+      "medianYear": 1997,
+      "sampleAddress": "西貢 大學道1號",
+      "id": "SK-26"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.339654,
+      "lng": 114.259722,
+      "buildings": 61,
+      "medianYear": 1992,
+      "sampleAddress": "西貢 大埔仔 清水灣道663號 傲瀧 B座",
+      "id": "SK-27"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.341146,
+      "lng": 114.251168,
+      "buildings": 156,
+      "medianYear": 1981,
+      "sampleAddress": "清水灣 碧翠路1號 金璧花園 7座",
+      "id": "SK-28"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.346824,
+      "lng": 114.260059,
+      "buildings": 27,
+      "medianYear": 2002,
+      "sampleAddress": "西貢 竹角9號 康曦花園 8號洋房",
+      "id": "SK-29"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.351377,
+      "lng": 114.251502,
+      "buildings": 108,
+      "medianYear": 2003,
+      "sampleAddress": "新界西貢第 214 約地段第 13 號餘段及 A 段8.2.3/(27)",
+      "id": "SK-30"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.357949,
+      "lng": 114.253493,
+      "buildings": 203,
+      "medianYear": 1988,
+      "sampleAddress": "西貢 西貢公路380號 匡湖居 E18號洋房",
+      "id": "SK-31"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.358483,
+      "lng": 114.256837,
+      "buildings": 264,
+      "medianYear": 1989,
+      "sampleAddress": "西貢 西貢公路380號 匡湖居 K1號洋房",
+      "id": "SK-32"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.368151,
+      "lng": 114.260168,
+      "buildings": 161,
+      "medianYear": 1991,
+      "sampleAddress": "A座立德台A10洋房 白沙灣 近白沙灣西貢公路",
+      "id": "SK-33"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.37055,
+      "lng": 114.248186,
+      "buildings": 1,
+      "medianYear": 1966,
+      "sampleAddress": "西貢 慶徑石 近西貢公路 丈量約份第219約地段第211號",
+      "id": "SK-34"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.374741,
+      "lng": 114.270185,
+      "buildings": 10,
+      "medianYear": 1986,
+      "sampleAddress": "西貢 對面海邨 海富樓",
+      "id": "SK-35"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.3789,
+      "lng": 114.271253,
+      "buildings": 100,
+      "medianYear": 1987,
+      "sampleAddress": "西貢 西貢海傍街12號",
+      "id": "SK-36"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.380159,
+      "lng": 114.263355,
+      "buildings": 3,
+      "medianYear": 1971,
+      "sampleAddress": "西貢 菠蘿輋 太平村151號 丈量約份第222約政府地牌照第 S12028號",
+      "id": "SK-37"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.385026,
+      "lng": 114.263073,
+      "buildings": 1,
+      "medianYear": 2015,
+      "sampleAddress": "西貢 甲邊朗中里1號",
+      "id": "SK-38"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.390357,
+      "lng": 114.274404,
+      "buildings": 81,
+      "medianYear": 1994,
+      "sampleAddress": "西貢 竹洋路99號 龍嶺 2號洋房",
+      "id": "SK-39"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.390782,
+      "lng": 114.275529,
+      "buildings": 29,
+      "medianYear": 1983,
+      "sampleAddress": "西貢 竹洋路93號 西沙小築 C1號洋房",
+      "id": "SK-40"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.391211,
+      "lng": 114.293277,
+      "buildings": 85,
+      "medianYear": 1995,
+      "sampleAddress": "元朗 石崗 近錦田公路 丈量約份第111約地段第1663號D 分段",
+      "id": "SK-41"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.391349,
+      "lng": 114.297434,
+      "buildings": 42,
+      "medianYear": 1993,
+      "sampleAddress": "西貢 早禾坑 丈量約份第252約地段第243號餘 段",
+      "id": "SK-42"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.395337,
+      "lng": 114.286878,
+      "buildings": 1,
+      "medianYear": 1994,
+      "sampleAddress": "西貢 早禾坑21A號",
+      "id": "SK-43"
+    },
+    {
+      "district": "西貢區",
+      "region": "新界",
+      "lat": 22.395607,
+      "lng": 114.282552,
+      "buildings": 1,
+      "medianYear": 1974,
+      "sampleAddress": "西貢 黃竹灣 大網仔路 丈量約份第258約地段第171號 及地段第215號 琴苑",
+      "id": "SK-44"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.203429,
+      "lng": 114.028641,
+      "buildings": 56,
+      "medianYear": 1989,
+      "sampleAddress": "7 長洲 山頂道(48號)",
+      "id": "IS-01"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.203525,
+      "lng": 114.023321,
+      "buildings": 47,
+      "medianYear": 2002,
+      "sampleAddress": "長洲 長洲西堤道33號 新趙苑",
+      "id": "IS-02"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.204078,
+      "lng": 114.037576,
+      "buildings": 21,
+      "medianYear": 1984,
+      "sampleAddress": "FA PENG KNOLL HSE 7 (13 FA PENG RD)",
+      "id": "IS-03"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.206089,
+      "lng": 114.035197,
+      "buildings": 3,
+      "medianYear": 1983,
+      "sampleAddress": "長洲 明暉路2號 家暉苑",
+      "id": "IS-04"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.208935,
+      "lng": 114.029952,
+      "buildings": 23,
+      "medianYear": 1978,
+      "sampleAddress": "長洲 東灣路18號 地段第1069號B分段",
+      "id": "IS-05"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.21424,
+      "lng": 113.98897,
+      "buildings": 8,
+      "medianYear": 1980,
+      "sampleAddress": "大嶼山 芝麻灣半島 二浪灣 丈量約份第337約大嶼山第178號 及增批地段 澄碧邨 16號屋",
+      "id": "IS-06"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.215464,
+      "lng": 113.990407,
+      "buildings": 12,
+      "medianYear": 1979,
+      "sampleAddress": "大嶼山 芝麻灣半島 二浪灣 丈量約份第337約大嶼山第178號 及增批地段 澄碧邨 6號屋",
+      "id": "IS-07"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.217478,
+      "lng": 114.104887,
+      "buildings": 1,
+      "medianYear": 1984,
+      "sampleAddress": "南丫島 波羅咀 丈量約份第3約南丫島第1934號",
+      "id": "IS-08"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.217982,
+      "lng": 114.027675,
+      "buildings": 26,
+      "medianYear": 1997,
+      "sampleAddress": "長洲 長貴路9號 桂濤花園 28號屋",
+      "id": "IS-09"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.219494,
+      "lng": 113.901164,
+      "buildings": 11,
+      "medianYear": 2018,
+      "sampleAddress": "大嶼山 石壁 東灣",
+      "id": "IS-10"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.228228,
+      "lng": 113.934252,
+      "buildings": 1,
+      "medianYear": 1972,
+      "sampleAddress": "大嶼山 塘福",
+      "id": "IS-11"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.229997,
+      "lng": 114.110664,
+      "buildings": 12,
+      "medianYear": 2007,
+      "sampleAddress": "B3洋房 南丫島 牙較灣",
+      "id": "IS-12"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.234291,
+      "lng": 113.961127,
+      "buildings": 15,
+      "medianYear": 1997,
+      "sampleAddress": "大嶼山 長沙 長沙上村60號 ACACIA VILLA",
+      "id": "IS-13"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.235231,
+      "lng": 113.87102,
+      "buildings": 1,
+      "medianYear": 1965,
+      "sampleAddress": "萬丈布",
+      "id": "IS-14"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.236571,
+      "lng": 113.950445,
+      "buildings": 199,
+      "medianYear": 1981,
+      "sampleAddress": "大嶼山 長沙 長富街33號 海桐苑",
+      "id": "IS-15"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.236581,
+      "lng": 113.960868,
+      "buildings": 73,
+      "medianYear": 2006,
+      "sampleAddress": "大嶼山 嶼南道168號 金灣海岸",
+      "id": "IS-16"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.240716,
+      "lng": 113.969391,
+      "buildings": 4,
+      "medianYear": 2013,
+      "sampleAddress": "大嶼山 䃟石灣30A號",
+      "id": "IS-17"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.252602,
+      "lng": 113.985018,
+      "buildings": 1,
+      "medianYear": 2018,
+      "sampleAddress": "大嶼山嶼南道98號SWIRELEADERSHIPCENTRE",
+      "id": "IS-18"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.255505,
+      "lng": 113.907982,
+      "buildings": 2,
+      "medianYear": 1979,
+      "sampleAddress": "大嶼山 近昂平路 丈量約份昂坪第236號 及昂坪第 239號 寶蓮禪寺",
+      "id": "IS-19"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.255585,
+      "lng": 113.858464,
+      "buildings": 1,
+      "medianYear": 1961,
+      "sampleAddress": "丈量約份第302約第369號地段",
+      "id": "IS-20"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.263914,
+      "lng": 114.001277,
+      "buildings": 17,
+      "medianYear": 1987,
+      "sampleAddress": "16 MUI WO FERRY PIER RD",
+      "id": "IS-21"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.266839,
+      "lng": 113.998941,
+      "buildings": 41,
+      "medianYear": 1996,
+      "sampleAddress": "大嶼山 梅窩 銀鑛灣路9號 銀濤軒",
+      "id": "IS-22"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.279946,
+      "lng": 114.018519,
+      "buildings": 1,
+      "medianYear": 1963,
+      "sampleAddress": "大嶼山 大水坑 丈量約份第353約地段第141號 及丈量約份第354約地段第337號 聖母神樂院",
+      "id": "IS-23"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.282457,
+      "lng": 114.041056,
+      "buildings": 22,
+      "medianYear": 1982,
+      "sampleAddress": "坪洲 南山路7號",
+      "id": "IS-24"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.287134,
+      "lng": 114.037413,
+      "buildings": 77,
+      "medianYear": 2016,
+      "sampleAddress": "坪洲 (永利街6號) 地段第386號B分段 PENG CHAU TERRACE",
+      "id": "IS-25"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.287492,
+      "lng": 114.00391,
+      "buildings": 24,
+      "medianYear": 1994,
+      "sampleAddress": "愉景灣 - 璧如臺 大嶼山 璧如徑17號",
+      "id": "IS-26"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.290987,
+      "lng": 113.942435,
+      "buildings": 30,
+      "medianYear": 2002,
+      "sampleAddress": "大嶼山 東涌海濱路8號 海堤灣畔 5座",
+      "id": "IS-27"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.291216,
+      "lng": 114.00999,
+      "buildings": 54,
+      "medianYear": 2018,
+      "sampleAddress": "B洋房",
+      "id": "IS-28"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.29263,
+      "lng": 113.947579,
+      "buildings": 117,
+      "medianYear": 2006,
+      "sampleAddress": "大嶼山 東涌 健東路1號 映灣園海珀名邸",
+      "id": "IS-29"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.293831,
+      "lng": 114.019525,
+      "buildings": 38,
+      "medianYear": 1994,
+      "sampleAddress": "大嶼山 海寧徑8號 愉景灣海寧居",
+      "id": "IS-30"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.294483,
+      "lng": 114.025584,
+      "buildings": 11,
+      "medianYear": 1996,
+      "sampleAddress": "大嶼山 愉景灣道36號 愉景灣蘅峯 碧濤軒",
+      "id": "IS-31"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.295447,
+      "lng": 114.025206,
+      "buildings": 4,
+      "medianYear": 1996,
+      "sampleAddress": "大嶼山 愉景灣道46號 愉景灣蘅峯 碧濤軒",
+      "id": "IS-32"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.295691,
+      "lng": 113.95042,
+      "buildings": 30,
+      "medianYear": 2015,
+      "sampleAddress": "大嶼山 迎康街1號 昇薈",
+      "id": "IS-33"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.2994,
+      "lng": 114.018327,
+      "buildings": 231,
+      "medianYear": 1989,
+      "sampleAddress": "大嶼山 海蜂徑67號 愉景灣蔚陽",
+      "id": "IS-34"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.300581,
+      "lng": 114.013388,
+      "buildings": 205,
+      "medianYear": 1982,
+      "sampleAddress": "大嶼山 海蜂徑9號 愉景灣碧濤",
+      "id": "IS-35"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.306366,
+      "lng": 114.012132,
+      "buildings": 100,
+      "medianYear": 2002,
+      "sampleAddress": "大嶼山 愉景灣 海澄湖畔一段32座",
+      "id": "IS-36"
+    },
+    {
+      "district": "離島區",
+      "region": "新界",
+      "lat": 22.30722,
+      "lng": 114.015269,
+      "buildings": 7,
+      "medianYear": 2011,
+      "sampleAddress": "大嶼山 堤畔徑18號 愉景灣悅堤 L19座",
+      "id": "IS-37"
+    }
+  ]
+}
