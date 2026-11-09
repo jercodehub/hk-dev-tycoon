@@ -1,0 +1,444 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import {
+  chooseContractor,
+  chooseLand,
+  chooseStory,
+  commitSale,
+  confirmSettle,
+  contractorQuote,
+  createCampaign,
+  createCampaignCatalog,
+  createRng,
+  endSummary,
+  gameBench,
+  hydrateCampaign,
+  initialMarket,
+  migrateSave,
+  normalizeChoices,
+  pickDistrict,
+  priceOffer,
+  priceVerdict,
+  projectNumber,
+  resolveSale,
+  rollCollapse,
+  serializeCampaign,
+  skipLand,
+  tickMarket,
+  unitsFromGfa,
+} from "../game/campaign.js";
+
+function load(relativePath) {
+  return JSON.parse(readFileSync(new URL(relativePath, import.meta.url), "utf8"));
+}
+
+const balance = load("../game/campaign-balance.json");
+const market = load("../data/market-stats.json");
+const catalog = createCampaignCatalog({ market, balance });
+
+function start(seed = 7) {
+  return createCampaign(catalog, { seed, company: { name: "啟岸發展", logo: "tower", color: "#e2b15a" } });
+}
+
+function saleState(offer, contractor, reputation = 58) {
+  return {
+    reputation,
+    market: initialMarket(),
+    project: { offer, contractor },
+  };
+}
+
+test("market tick moves land price, build cost, and buyer power with the property price", () => {
+  const up = tickMarket(initialMarket(), 0.05, balance);
+  assert.ok(up.price > 1);
+  assert.ok(up.land > 1);
+  assert.ok(up.build > 1);
+  assert.ok(up.buyer > 1);
+  assert.ok(up.land - 1 > up.build - 1);
+  const down = tickMarket(initialMarket(), -0.05, balance);
+  assert.ok(down.price < 1 && down.land < 1 && down.build < 1 && down.buyer < 1);
+  const before = gameBench(catalog, "沙田區", initialMarket());
+  const after = gameBench(catalog, "沙田區", up);
+  assert.ok(after.fairLandPerFt2 > before.fairLandPerFt2);
+  assert.ok(after.fairBuildPerFt2 > before.fairBuildPerFt2);
+  assert.ok(after.fairSalePerFt2 > before.fairSalePerFt2);
+  assert.equal(after.openData.hkdPerM2, before.openData.hkdPerM2);
+  assert.equal(after.openData.hkdPerM2, market.prices.averagePrices.areas["新界"].B.value);
+});
+
+test("land A/B/C mixes the three land types and skip spends the round without buying", () => {
+  const state = start(11);
+  assert.deepEqual(state.offers.map((offer) => offer.slot), ["A", "B", "C"]);
+  assert.equal(new Set(state.offers.map((offer) => offer.type)).size, 3);
+  assert.equal(state.offers[0].type, "gov");
+  assert.equal(state.offers[0].district, "沙田區");
+  assert.equal(state.offers[0].verdict, "cheap");
+  assert.equal(projectNumber(state), 1);
+  const skipped = skipLand(catalog, state);
+  assert.equal(skipped.ok, true);
+  assert.equal(skipped.state.phase, "settle");
+  assert.equal(skipped.state.cash, state.cash);
+  assert.equal(skipped.state.completed, 0);
+  assert.ok(skipped.state.market.step === 1);
+  assert.equal(state.phase, "land");
+  assert.equal(state.market.step, 0);
+  const settled = confirmSettle(catalog, skipped.state);
+  assert.equal(settled.state.phase, "story");
+  assert.equal(settled.state.completed, 1);
+  assert.equal(settled.state.history[0].outcome, "skip");
+  assert.ok(settled.state.story.tc.length > 0);
+  assert.ok(settled.state.story.en.length > 0);
+  const again = chooseStory(catalog, settled.state, settled.state.story.choices[0].id);
+  assert.equal(again.state.phase, "land");
+  assert.equal(again.state.offers.length, 3);
+  assert.equal(new Set(again.state.offers.map((offer) => offer.type)).size, 3);
+  assert.equal(projectNumber(again.state), 2);
+});
+
+test("district mix follows the land brief: URA mostly urban, MTR split, government anywhere", () => {
+  const rng = createRng(4);
+  let uraUrban = 0;
+  let mtrTown = 0;
+  const checks = 400;
+  for (let i = 0; i < checks; i += 1) {
+    const district = pickDistrict("ura", rng, balance);
+    if (balance.urbanDistricts.includes(district)) uraUrban += 1;
+  }
+  for (let i = 0; i < checks; i += 1) {
+    const district = pickDistrict("mtr", rng, balance);
+    if (balance.newTownDistricts.includes(district)) mtrTown += 1;
+  }
+  assert.ok(uraUrban / checks > 0.75, `URA urban share ${uraUrban / checks}`);
+  assert.ok(mtrTown / checks > 0.35 && mtrTown / checks < 0.65, `MTR new-town share ${mtrTown / checks}`);
+  const seen = new Set();
+  const govRng = createRng(9);
+  for (let i = 0; i < 80; i += 1) seen.add(pickDistrict("gov", govRng, balance));
+  assert.ok(seen.size >= 12);
+});
+
+test("GFA becomes a unit count and every offer is judged against the game market", () => {
+  assert.equal(unitsFromGfa(22000, balance), Math.round(22000 / balance.areaPerUnitFt2));
+  assert.equal(unitsFromGfa(100, balance), balance.minUnits);
+  assert.equal(unitsFromGfa(999999, balance), balance.maxUnits);
+  assert.equal(priceVerdict(1.2, balance), "expensive");
+  assert.equal(priceVerdict(1.08, balance), "expensive");
+  assert.equal(priceVerdict(1, balance), "fair");
+  assert.equal(priceVerdict(0.94, balance), "fair");
+  assert.equal(priceVerdict(0.93, balance), "cheap");
+  assert.equal(priceVerdict(0.84, balance), "cheap");
+  const state = start(5);
+  for (const offer of state.offers) {
+    assert.equal(offer.units, unitsFromGfa(offer.gfaFt2, balance));
+    assert.ok(offer.units >= balance.minUnits && offer.units <= balance.maxUnits);
+    assert.ok(["expensive", "fair", "cheap"].includes(offer.verdict));
+    const spec = balance.landTypes[offer.type];
+    if (offer.slot !== "A") {
+      assert.ok(offer.gfaFt2 >= spec.gfaMin && offer.gfaFt2 <= spec.gfaMax);
+    }
+    assert.equal(offer.partnerRate, spec.partnerRate);
+  }
+  assert.ok(state.offers.some((offer) => offer.verdict === "cheap"));
+  assert.ok(state.offers.some((offer) => offer.verdict === "expensive"));
+});
+
+test("district tiers stay game economy and never pose as official district prices", () => {
+  const state = start(2);
+  for (const offer of state.offers) {
+    assert.equal(offer.officialDistrictPrice, undefined);
+    assert.equal(offer.openData.districtPrice, undefined);
+    assert.equal(offer.openData.hkdPerM2, market.prices.averagePrices.areas[offer.region][balance.calibrationClass].value);
+    assert.notEqual(offer.landPerFt2, offer.openData.hkdPerM2);
+    assert.equal(typeof offer.lever, "number");
+    assert.ok(offer.lever !== offer.openData.hkdPerM2);
+  }
+  const island = gameBench(catalog, "中西區", initialMarket());
+  const shaTin = gameBench(catalog, "沙田區", initialMarket());
+  assert.equal(island.openData.region, "港島");
+  assert.equal(shaTin.openData.region, "新界");
+  assert.notEqual(island.openData.hkdPerM2, shaTin.openData.hkdPerM2);
+  assert.ok(island.fairLandPerFt2 > shaTin.fairLandPerFt2);
+  const poisoned = structuredClone(market);
+  poisoned.prices.averagePrices.areas["沙田區"] = { B: { value: 1 } };
+  assert.throws(() => createCampaignCatalog({ market: poisoned, balance }), /district official prices/);
+});
+
+test("buying the tutorial plot locks the land cheque and moves build cost with the market", () => {
+  const state = start(8);
+  const offer = state.offers[0];
+  assert.ok(state.cash > offer.landTotal);
+  const broke = { ...state, cash: 0 };
+  const denied = chooseLand(catalog, broke, "A");
+  assert.equal(denied.ok, false);
+  assert.equal(denied.error, "insufficient_cash");
+  assert.equal(denied.state, broke);
+  const bought = chooseLand(catalog, state, "A");
+  assert.equal(bought.ok, true);
+  assert.equal(bought.state.cash, state.cash - offer.landTotal);
+  assert.equal(bought.state.phase, "build");
+  assert.equal(bought.state.project.offer.landTotal, offer.landTotal);
+  assert.equal(state.cash, balance.startingCash);
+  const quote = contractorQuote(catalog, bought.state, "huimen");
+  assert.ok(quote.total > offer.estBuildTotal);
+  const cheap = contractorQuote(catalog, bought.state, "jingjin");
+  const rich = contractorQuote(catalog, bought.state, "xinjing");
+  assert.ok(cheap.total < quote.total);
+  assert.ok(quote.total < rich.total);
+});
+
+test("cheap contractor can collapse into a dearer replacement; premium contractor does not", () => {
+  assert.equal(rollCollapse(balance.contractors.xinjing, 0), false);
+  assert.equal(rollCollapse(balance.contractors.jingjin, 0), true);
+  assert.equal(rollCollapse(balance.contractors.jingjin, 0.99), false);
+  const state = start(8);
+  const bought = chooseLand(catalog, state, "A").state;
+  let collapsed = null;
+  let clean = null;
+  for (let seed = 1; seed < 120; seed += 1) {
+    const trial = { ...bought, rngCursor: seed >>> 0, cash: bought.cash, reputation: bought.reputation };
+    const picked = chooseContractor(catalog, trial, "jingjin");
+    assert.equal(picked.ok, true);
+    if (picked.state.project.contractor.collapsed && !collapsed) collapsed = picked.state;
+    if (!picked.state.project.contractor.collapsed && !clean) clean = picked.state;
+    const premium = chooseContractor(catalog, { ...trial, rngCursor: seed >>> 0 }, "xinjing");
+    assert.equal(premium.state.project.contractor.collapsed, false);
+    assert.equal(premium.state.project.contractor.extra, 0);
+  }
+  assert.ok(collapsed, "expected a seeded 精盡 collapse");
+  assert.ok(clean, "expected a seeded 精盡 build that holds");
+  assert.ok(collapsed.project.contractor.extra > 0);
+  assert.ok(collapsed.project.contractor.total > clean.project.contractor.total);
+  assert.ok(collapsed.project.contractor.repDelta < clean.project.contractor.repDelta);
+  assert.ok(collapsed.reputation < clean.reputation);
+  assert.equal(collapsed.phase, "sell");
+});
+
+test("sales funnel: too cheap can clear at a loss, too steep can fail, cheer diminishes", () => {
+  const levels = initialMarket();
+  const dear = priceOffer(
+    { slot: "A", type: "ura", district: "中西區", gfaFt2: 20000, premium: 1.28 },
+    levels,
+    catalog,
+  );
+  const contractor = {
+    id: "huimen",
+    quality: 1,
+    leak: 0.12,
+    collapsed: false,
+    total: dear.estBuildTotal,
+  };
+  const loss = resolveSale(catalog, saleState(dear, contractor), {
+    ask: "cheap",
+    agents: "none",
+    ads: "none",
+    mix: "retail",
+    rebate: "high",
+    cheer: 0,
+  });
+  assert.equal(loss.outcome, "clear");
+  assert.equal(loss.sold, loss.units);
+  assert.ok(loss.profit < 0, `expected a loss, got ${loss.profit}`);
+  assert.equal(loss.risk, "loss_risk");
+
+  const gov = priceOffer(
+    { slot: "B", type: "gov", district: "北區", gfaFt2: 24000, premium: 1 },
+    levels,
+    catalog,
+  );
+  const steady = { id: "huimen", quality: 1, leak: 0.05, collapsed: false, total: gov.estBuildTotal };
+  const fail = resolveSale(catalog, saleState(gov, steady), {
+    ask: "steep",
+    agents: "none",
+    ads: "none",
+    mix: "whale",
+    rebate: "low",
+    cheer: 0,
+  });
+  assert.equal(fail.outcome, "fail");
+  assert.ok(fail.sold / fail.units < balance.partialAt);
+  assert.equal(fail.risk, "fail_risk");
+
+  const retail = resolveSale(catalog, saleState(gov, steady), {
+    ask: "steep",
+    agents: "many",
+    ads: "media",
+    mix: "retail",
+    rebate: "high",
+    cheer: 0,
+  });
+  const whale = resolveSale(catalog, saleState(gov, steady), {
+    ask: "steep",
+    agents: "many",
+    ads: "media",
+    mix: "whale",
+    rebate: "high",
+    cheer: 0,
+  });
+  assert.ok(whale.through < retail.through);
+  assert.ok(retail.agentFee > 0);
+  assert.ok(retail.adCost > 0);
+  assert.ok(retail.rebateCost > whale.rebateCost || retail.gross >= whale.gross);
+
+  const quietLow = resolveSale(catalog, saleState(gov, steady), {
+    ask: "stretch",
+    agents: "none",
+    ads: "none",
+    mix: "blend",
+    rebate: "low",
+    cheer: 0,
+  });
+  const quietHigh = resolveSale(catalog, saleState(gov, steady), {
+    ask: "stretch",
+    agents: "none",
+    ads: "none",
+    mix: "blend",
+    rebate: "high",
+    cheer: 0,
+  });
+  assert.ok(quietHigh.through > quietLow.through);
+  assert.ok(quietHigh.rebateCost > quietLow.rebateCost);
+  const crowdedLow = resolveSale(catalog, saleState(gov, steady), {
+    ask: "market",
+    agents: "many",
+    ads: "media",
+    mix: "blend",
+    rebate: "low",
+    cheer: 0,
+  });
+  const crowdedHigh = resolveSale(catalog, saleState(gov, steady), {
+    ask: "market",
+    agents: "many",
+    ads: "media",
+    mix: "blend",
+    rebate: "high",
+    cheer: 0,
+  });
+  assert.equal(crowdedHigh.sold, crowdedLow.sold);
+  assert.ok(crowdedHigh.profit < crowdedLow.profit);
+
+  const cheer0 = resolveSale(catalog, saleState(gov, steady), { ask: "stretch", agents: "none", ads: "none", mix: "blend", rebate: "low", cheer: 0 });
+  const cheer1 = resolveSale(catalog, saleState(gov, steady), { ask: "stretch", agents: "none", ads: "none", mix: "blend", rebate: "low", cheer: 1 });
+  const cheer2 = resolveSale(catalog, saleState(gov, steady), { ask: "stretch", agents: "none", ads: "none", mix: "blend", rebate: "low", cheer: 2 });
+  const cheer3 = resolveSale(catalog, saleState(gov, steady), { ask: "stretch", agents: "none", ads: "none", mix: "blend", rebate: "low", cheer: 3 });
+  const d1 = cheer1.through - cheer0.through;
+  const d3 = cheer3.through - cheer2.through;
+  assert.ok(d1 > d3);
+  assert.ok(cheer3.through > cheer0.through);
+  assert.ok(cheer3.heat >= cheer0.heat);
+  const clamped = normalizeChoices({ ask: "nope", cheer: 9 }, balance);
+  assert.equal(clamped.ask, "market");
+  assert.equal(clamped.cheer, balance.cheerMax);
+});
+
+test("partner share skims URA and MTR more than a government tender", () => {
+  assert.ok(balance.landTypes.ura.partnerRate > balance.landTypes.mtr.partnerRate);
+  assert.ok(balance.landTypes.mtr.partnerRate > balance.landTypes.gov.partnerRate);
+  const base = priceOffer(
+    { slot: "A", type: "gov", district: "荃灣區", gfaFt2: 30000, premium: 1 },
+    initialMarket(),
+    catalog,
+  );
+  const contractor = { id: "huimen", quality: 1, leak: 0, collapsed: false, total: base.estBuildTotal };
+  const choices = { ask: "market", agents: "one", ads: "web", mix: "blend", rebate: "std", cheer: 1 };
+  const cuts = ["gov", "mtr", "ura"].map((type) => {
+    const offer = { ...base, type, partnerRate: balance.landTypes[type].partnerRate };
+    return resolveSale(catalog, saleState(offer, contractor), choices).partnerShare;
+  });
+  assert.ok(cuts[2] > cuts[1]);
+  assert.ok(cuts[1] > cuts[0]);
+  assert.ok(cuts[0] > 0);
+});
+
+test("a sensible first project can profit and the campaign ends on project 20", () => {
+  let state = start(21);
+  const offer = state.offers.find((item) => item.slot === "A");
+  state = chooseLand(catalog, state, offer.slot).state;
+  const beforeSaleCash = chooseContractor(catalog, state, "huimen");
+  assert.equal(beforeSaleCash.ok, true);
+  state = beforeSaleCash.state;
+  const preview = resolveSale(catalog, state, { ask: "market", agents: "one", ads: "web", mix: "blend", rebate: "std", cheer: 1 });
+  assert.ok(preview.profit > 0, `tutorial path profit ${preview.profit}`);
+  const committed = commitSale(catalog, state, { ask: "market", agents: "one", ads: "web", mix: "blend", rebate: "std", cheer: 1 });
+  assert.equal(committed.state.cash, state.cash);
+  state = confirmSettle(catalog, committed.state).state;
+  assert.equal(state.completed, 1);
+  assert.equal(state.phase, "story");
+  assert.ok(state.unitsSold > 0);
+  assert.equal(state.history[0].profit, preview.profit);
+
+  let guard = 0;
+  while (state.phase !== "summary" && guard < 400) {
+    guard += 1;
+    if (state.phase === "story") {
+      state = chooseStory(catalog, state, state.story.choices[0].id).state;
+    } else if (state.phase === "land") {
+      const affordable = [...state.offers].sort((a, b) => a.landTotal - b.landTotal);
+      if (affordable[0].landTotal <= state.cash) state = chooseLand(catalog, state, affordable[0].slot).state;
+      else state = skipLand(catalog, state).state;
+    } else if (state.phase === "build") {
+      state = chooseContractor(catalog, state, "huimen").state;
+    } else if (state.phase === "sell") {
+      state = commitSale(catalog, state, { ask: "market", agents: "one", ads: "none", mix: "blend", rebate: "low", cheer: 0 }).state;
+    } else if (state.phase === "settle") {
+      state = confirmSettle(catalog, state).state;
+    } else {
+      throw new Error(`stuck in ${state.phase}`);
+    }
+  }
+  assert.equal(state.phase, "summary");
+  assert.equal(state.completed, 20);
+  assert.equal(state.history.length, 20);
+  assert.equal(projectNumber(state), 20);
+  const summary = endSummary(state);
+  assert.equal(typeof summary.cash, "number");
+  assert.equal(typeof summary.reputation, "number");
+  assert.ok(summary.unitsSold > 0);
+  assert.ok(summary.reputation >= 0 && summary.reputation <= 100);
+  assert.equal(typeof summary.flags, "object");
+  assert.ok(state.history.some((item) => item.profit > 0));
+  assert.ok(state.history.some((item) => item.profit < 0 || item.skipped));
+});
+
+test("twenty passes still close the campaign and a phase 1 save resets", () => {
+  let state = start(3);
+  for (let i = 0; i < 20; i += 1) {
+    assert.equal(state.phase, "land");
+    state = skipLand(catalog, state).state;
+    state = confirmSettle(catalog, state).state;
+    if (state.phase === "story") state = chooseStory(catalog, state, state.story.choices[0].id).state;
+  }
+  assert.equal(state.phase, "summary");
+  assert.equal(state.completed, 20);
+  assert.equal(state.unitsSold, 0);
+  assert.ok(Object.keys(state.flags).length > 0);
+  assert.notEqual(state.market.price, 1);
+
+  const legacy = { v: 1, cash: 10, tick: 2, goals: { mode: "tutorial" }, parcels: [] };
+  const migrated = migrateSave(legacy);
+  assert.equal(migrated.ok, false);
+  assert.equal(migrated.notice, "phase1_reset");
+  assert.equal(migrated.state, null);
+  assert.equal(migrateSave({ goals: { mode: "free" }, tick: 0 }).notice, "phase1_reset");
+  assert.equal(migrateSave(null).notice, null);
+
+  const live = start(6);
+  const raw = serializeCampaign(live);
+  raw.offers[0].landTotal = 1;
+  raw.offers[0].units = 1;
+  raw.offers[0].officialDistrictPrice = 999;
+  raw.offers[0].partnerRate = 0;
+  const restored = hydrateCampaign(catalog, raw);
+  assert.equal(restored.offers[0].landTotal, live.offers[0].landTotal);
+  assert.equal(restored.offers[0].units, live.offers[0].units);
+  assert.equal(restored.offers[0].officialDistrictPrice, undefined);
+  assert.equal(restored.offers[0].partnerRate, live.offers[0].partnerRate);
+  assert.equal(restored.cash, live.cash);
+  const bought = chooseLand(catalog, live, "A").state;
+  const built = chooseContractor(catalog, bought, "huimen").state;
+  const saved = serializeCampaign(built);
+  saved.project.contractor.total = 1;
+  saved.project.contractor.extra = 999;
+  const back = hydrateCampaign(catalog, saved);
+  assert.equal(back.project.contractor.total, built.project.contractor.total);
+  assert.equal(back.phase, "sell");
+});

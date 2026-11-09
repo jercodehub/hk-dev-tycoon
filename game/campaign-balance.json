@@ -1,0 +1,131 @@
+{
+  "projects": 20,
+  "calibrationClass": "B",
+  "startingCash": 260000000,
+  "startingReputation": 58,
+  "areaPerUnitFt2": 480,
+  "minUnits": 8,
+  "maxUnits": 360,
+  "landResidual": 0.33,
+  "buildResidual": 0.36,
+  "landElasticity": 1.4,
+  "buildElasticity": 0.5,
+  "buyerElasticity": 1.1,
+  "indexMin": 0.4,
+  "indexMax": 2.2,
+  "driftNoise": 0.012,
+  "drifts": [0.03, 0.02, 0.04, -0.06, -0.04, 0.03, 0.02, 0.05, -0.08, 0.02, 0.03, -0.05, 0.04, 0.02, -0.03, 0.06, -0.07, 0.03, 0.02, 0.04, -0.02, 0.03, 0.01, -0.04],
+  "vacancyDrag": 0.35,
+  "supplyMin": 0.82,
+  "supplyMax": 1.05,
+  "expensiveAt": 1.08,
+  "cheapAt": 0.93,
+  "uraUrbanChance": 0.85,
+  "tutorial": {
+    "district": "沙田區",
+    "gfaFt2": 22000,
+    "premium": 0.9
+  },
+  "landTypes": {
+    "ura": {
+      "premiumMin": 1.12,
+      "premiumMax": 1.32,
+      "gfaMin": 14000,
+      "gfaMax": 42000,
+      "partnerRate": 0.22
+    },
+    "mtr": {
+      "premiumMin": 0.97,
+      "premiumMax": 1.16,
+      "gfaMin": 46000,
+      "gfaMax": 120000,
+      "partnerRate": 0.14
+    },
+    "gov": {
+      "premiumMin": 0.84,
+      "premiumMax": 1.02,
+      "gfaMin": 18000,
+      "gfaMax": 86000,
+      "partnerRate": 0.05
+    }
+  },
+  "contractors": {
+    "jingjin": { "costMul": 0.74, "leak": 0.36, "collapse": 0.24, "quality": 0.88, "rep": -3 },
+    "huimen": { "costMul": 1, "leak": 0.12, "collapse": 0.04, "quality": 1, "rep": 1 },
+    "xinjing": { "costMul": 1.28, "leak": 0.03, "collapse": 0, "quality": 1.1, "rep": 4 }
+  },
+  "collapseExtra": 0.55,
+  "collapseQuality": 0.72,
+  "collapseLeakAdd": 0.14,
+  "collapseRep": -12,
+  "collapseThrough": 0.12,
+  "leakRepWeight": 8,
+  "leakPriceDrag": 0.15,
+  "leakThroughDrag": 0.22,
+  "financeRate": 0.1,
+  "overdraftRep": -4,
+  "ask": { "cheap": 0.82, "market": 1, "stretch": 1.18, "steep": 1.42 },
+  "throughBands": [
+    { "maxMul": 0.9, "through": 0.99 },
+    { "maxMul": 1.05, "through": 0.86 },
+    { "maxMul": 1.22, "through": 0.62 },
+    { "maxMul": 1.35, "through": 0.4 },
+    { "maxMul": 99, "through": 0.18 }
+  ],
+  "agents": {
+    "none": { "through": 0, "rate": 0 },
+    "one": { "through": 0.06, "rate": 0.015 },
+    "many": { "through": 0.11, "rate": 0.032 }
+  },
+  "ads": {
+    "none": { "through": 0, "flatPerFt2": 0 },
+    "web": { "through": 0.05, "flatPerFt2": 12 },
+    "media": { "through": 0.1, "flatPerFt2": 36 }
+  },
+  "mixes": {
+    "whale": { "through": 0.08 },
+    "retail": { "through": 0.02 },
+    "blend": { "through": 0.04 }
+  },
+  "retailChannel": 1.5,
+  "whaleWalkAt": 1.3,
+  "whaleWalk": -0.2,
+  "rebates": {
+    "low": { "through": 0, "rate": 0 },
+    "std": { "through": 0.04, "rate": 0.02 },
+    "high": { "through": 0.1, "rate": 0.06 }
+  },
+  "cheerMax": 3,
+  "cheerGains": [0.06, 0.032, 0.014],
+  "clearAt": 0.97,
+  "partialAt": 0.4,
+  "repThrough": 0.05,
+  "fireSale": 0.55,
+  "repClear": 4,
+  "repPartial": 1,
+  "repFail": -5,
+  "repLoss": -2,
+  "urbanDistricts": ["中西區", "灣仔區", "東區", "南區", "油尖旺區", "深水埗區", "九龍城區", "黃大仙區", "觀塘區"],
+  "newTownDistricts": ["沙田區", "大埔區", "北區", "元朗區", "屯門區", "荃灣區", "葵青區", "西貢區", "離島區"],
+  "districtLever": {
+    "中西區": 1.35,
+    "灣仔區": 1.22,
+    "東區": 0.92,
+    "南區": 1.05,
+    "油尖旺區": 1.28,
+    "深水埗區": 0.86,
+    "九龍城區": 1.05,
+    "黃大仙區": 0.78,
+    "觀塘區": 0.82,
+    "沙田區": 1.08,
+    "大埔區": 0.84,
+    "北區": 0.74,
+    "元朗區": 0.86,
+    "屯門區": 0.78,
+    "荃灣區": 0.96,
+    "葵青區": 0.8,
+    "西貢區": 1,
+    "離島區": 0.7
+  },
+  "notes": "District levers, residuals, contractor odds, and the price path are game-economy values. They are loosely scaled from the RVD territory index and the three region class-B averages, plus district vacancy counts. They are not official 18-district prices."
+}
