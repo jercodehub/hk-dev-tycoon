@@ -3,23 +3,25 @@ import {
   COMPANY_LOGOS,
   UNIT_SPECS,
   campaignHeat,
+  canAddUnit,
   chooseContractor,
   chooseLand,
   chooseStory,
+  commentForPhase,
   commitSale,
-  commentSample,
   confirmSettle,
   contractorQuote,
   createCampaign,
   createCampaignCatalog,
   endSummary,
+  explainForecastGap,
   gfaUsed,
   heatProjectsLeft,
   hydrateCampaign,
   isTutorial,
-  marketComment,
   migrateSave,
-  presetMix,
+  mixPreset,
+  popularityNote,
   projectNumber,
   renameProject,
   resolveSale,
@@ -27,7 +29,7 @@ import {
   saleReveal,
   serializeCampaign,
   skipLand,
-  voiceComment,
+  unitPopularity,
 } from "./campaign.js";
 import { t } from "./copy.js";
 import { STORIES } from "./stories.js";
@@ -63,6 +65,7 @@ const ui = {
   sale: null,
   drawer: null,
   historyFocus: null,
+  thaw: null,
 };
 
 let saleTimer = null;
@@ -192,14 +195,29 @@ function persist() {
   localStorage.setItem(LANG_KEY, ui.lang);
 }
 
+function frozenTotal(state) {
+  return (state?.frozen || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+}
+
+function frozenInfo(state) {
+  const items = state?.frozen || [];
+  if (!items.length) return null;
+  const amount = frozenTotal(state);
+  const soonest = Math.min(...items.map((item) => Number(item.releaseAt) || 0));
+  const left = Math.max(1, soonest - (state.completed || 0));
+  return { amount, left };
+}
+
 function apply(result) {
   if (!result.ok) {
     ui.error = result.error;
     render();
     return;
   }
+  const released = Math.max(0, frozenTotal(ui.state) - frozenTotal(result.state));
   ui.state = result.state;
   ui.error = null;
+  ui.thaw = released > 0 ? released : null;
   if (ui.state.phase !== "sell") ui.sale = null;
   if (ui.state.phase !== "build") ui.build = null;
   persist();
@@ -221,7 +239,7 @@ function ensureSale() {
   if (ui.sale && ui.sale.index === ui.state.project.index) return;
   ui.sale = {
     index: ui.state.project.index,
-    choices: { showflat: false, cheer: 0, leftover: "cut", price: "fair" },
+    choices: { showflat: false, cheer: 0, leftover: "cut", price: "fair", rebate: "none", adBudget: "none", adTarget: null },
     mode: "setup",
     started: 0,
     shownSold: 0,
@@ -231,7 +249,9 @@ function ensureSale() {
 }
 
 function currentQuote() {
-  return resolveSale(ui.catalog, ui.state, ui.sale.choices);
+  const quote = resolveSale(ui.catalog, ui.state, ui.sale.choices);
+  quote.forecastPct = saleForecast(ui.catalog, ui.state, ui.sale.choices).pct;
+  return quote;
 }
 
 function poolSum(pools) {
@@ -273,29 +293,54 @@ function landView() {
     <div class="land-grid">${ui.state.offers.map(landCard).join("")}</div>`;
 }
 
+function popWord(band) {
+  if (band === "high") return t(ui.lang, "popHigh");
+  if (band === "low") return t(ui.lang, "popLow");
+  return t(ui.lang, "popMid");
+}
+
 function buildView() {
   ensureBuild();
   const offer = ui.state.project.offer;
   const gfa = offer.gfaFt2;
   const used = gfaUsed(ui.build.mix);
   const left = gfa - used;
+  const heat = campaignHeat(ui.state, ui.catalog.balance);
+  const popularity = unitPopularity(offer.flavour, heat, ui.catalog.balance);
+  const picked = ui.build.contractor ? contractorQuote(ui.catalog, ui.state, ui.build.contractor) : null;
+  const costPsf = picked ? picked.buildPerFt2 : offer.estBuildPerFt2;
   const rows = UNIT_SPECS.map((spec) => {
     const [nameKey, whoKey] = UNIT_KEYS[spec.id];
-    const max = Math.max(0, Math.floor(gfa / spec.ft2));
     const count = ui.build.mix[spec.id] || 0;
-    return `<label class="mix-row">
-      <span><b>${t(ui.lang, nameKey)}</b><small>${spec.ft2}${t(ui.lang, "ft")} · ${t(ui.lang, whoKey)}</small></span>
-      <input type="range" min="0" max="${max}" step="1" value="${count}" data-unit="${spec.id}" aria-label="${escapeHtml(t(ui.lang, nameKey))}">
-      <strong id="count-${spec.id}">${count}</strong>
-    </label>`;
+    const band = popularity[spec.id]?.band || "mid";
+    const note = popularityNote(offer.flavour, heat, band);
+    const canAdd = canAddUnit(gfa, ui.build.mix, spec.id);
+    return `<div class="mix-row">
+      <span><b>${t(ui.lang, nameKey)}</b><small>${spec.ft2}${t(ui.lang, "ft")} · ${t(ui.lang, whoKey)} · ${popWord(band)}${note ? ` · ${note}` : ""} · ${t(ui.lang, "costPsf", { n: formatHkd(costPsf) })}</small></span>
+      <span class="stepper">
+        <button type="button" class="step" data-action="mix-step" data-unit="${spec.id}" data-delta="-1" ${count <= 0 ? "disabled" : ""} aria-label="−">−</button>
+        <strong id="count-${spec.id}">${count}</strong>
+        <button type="button" class="step" data-action="mix-step" data-unit="${spec.id}" data-delta="1" ${canAdd ? "" : "disabled"} aria-label="+">+</button>
+      </span>
+    </div>`;
   }).join("");
+  const presets = [
+    ["studio", "presetStudio"],
+    ["starter", "presetStarter"],
+    ["upgrade", "presetUpgrade"],
+    ["luxury", "presetLuxury"],
+  ].map(([id, key]) => `<button class="chip" data-action="mix-preset" data-id="${id}">${t(ui.lang, key)}</button>`).join("");
   const cards = ["jingjin", "huimen", "xinjing"].map((id) => {
     const quote = contractorQuote(ui.catalog, ui.state, id);
     const spec = ui.catalog.balance.contractors[id];
     const on = ui.build.contractor === id;
+    const risk = spec.collapse > 0
+      ? `<p class="fine">${t(ui.lang, "collapseRisk", { extra: compactHkd(Math.round(quote.cost * ui.catalog.balance.collapseExtra)) })}</p>`
+      : "";
     return `<button class="choice contractor${on ? " on" : ""}" data-action="pick-contractor" data-id="${id}" aria-pressed="${on}">
       <div class="head"><h3>${t(ui.lang, id)}</h3><strong>${compactHkd(quote.total)}</strong></div>
       <p class="fine">${t(ui.lang, `${id}Note`)} ${t(ui.lang, "leak")}${leakWord(spec.leak)} · ${t(ui.lang, "collapse")}${collapseWord(spec.collapse)}</p>
+      ${risk}
       ${quote.overdraft ? `<p class="fine">${t(ui.lang, "overdraft")}</p>` : ""}
     </button>`;
   }).join("");
@@ -307,7 +352,6 @@ function buildView() {
           <p class="kicker">${t(ui.lang, "buildKicker")}</p>
           <h3>${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))}</h3>
         </div>
-        <button class="ghost" data-action="preset-mix">${t(ui.lang, "preset")}</button>
       </div>
       ${projectNameField()}
       <div id="gfa-live" class="${left < 0 ? "over" : ""}">
@@ -316,7 +360,8 @@ function buildView() {
         <span>${t(ui.lang, "leftGfa")} <strong id="gfa-left">${left.toLocaleString("en-US")}</strong></span>
       </div>
       <div class="bar"><span id="gfa-bar" style="width:${width}%"></span></div>
-      <p class="fine preset-why">${t(ui.lang, presetWhyKey(offer.flavour, campaignHeat(ui.state, ui.catalog.balance)))}</p>
+      <p class="fine preset-why">${t(ui.lang, presetWhyKey(offer.flavour, heat))}</p>
+      <div class="chips preset-row">${presets}</div>
       <p id="over-line" class="fine bad-text"${left < 0 ? "" : " hidden"}>${t(ui.lang, "overGfa")}</p>
       <div class="mixes">${rows}</div>
       <div class="contractors">${cards}</div>
@@ -381,12 +426,74 @@ function fact(label, value) {
   return `<div class="fact"><span>${label}</span><strong>${value}</strong></div>`;
 }
 
-function forecastLine(forecast) {
-  const key = { none: "forecastClear", few: "forecastFew", some: "forecastSome", many: "forecastMany" }[forecast.left] || "forecastClear";
-  const head = t(ui.lang, key);
-  if (!forecast.sticky) return head;
-  const type = t(ui.lang, UNIT_KEYS[forecast.sticky][0]);
-  return `${head} · ${t(ui.lang, "forecastSticky", { type })}`;
+function forecastBlock(forecast) {
+  const sticky = forecast.sticky
+    ? ` · ${t(ui.lang, "forecastSticky", { type: t(ui.lang, UNIT_KEYS[forecast.sticky][0]) })}`
+    : "";
+  return `<p class="forecast" data-forecast-pct="${forecast.pct}">${t(ui.lang, "forecastPct", { pct: forecast.pct })} · ${t(ui.lang, "forecastBefore")}${sticky}</p>`;
+}
+
+function unitBars(bars) {
+  return `<div class="unit-bars">${UNIT_SPECS.map((spec) => {
+    const row = bars?.[spec.id] || { offered: 0, sold: 0, unsold: 0, pct: 0 };
+    const width = row.offered ? Math.max(0, Math.min(100, row.pct)) : 0;
+    const stuck = row.offered > 0 && row.pct < 45;
+    const meta = row.offered
+      ? t(ui.lang, "barMeta", { n: row.offered, sold: row.sold, left: row.unsold })
+      : t(ui.lang, "barEmpty");
+    return `<div class="unit-bar${stuck ? " stuck" : ""}${row.offered ? "" : " none"}" data-bar="${spec.id}" data-sold="${row.sold}" data-offered="${row.offered}">
+      <span>${t(ui.lang, UNIT_KEYS[spec.id][0])}</span>
+      <div class="track"><span style="width:${width}%"></span></div>
+      <small>${meta}</small>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function priceChips() {
+  return ["cheap", "fair", "expensive"].map((id) => {
+    const on = (ui.sale.choices.price || "fair") === id;
+    const quote = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, price: id });
+    const key = id === "cheap" ? "priceCheap" : id === "expensive" ? "priceExpensive" : "priceFair";
+    const stance = id === "cheap" ? "stanceThin" : id === "expensive" ? "stanceFat" : "stanceBalance";
+    return `<button class="chip price-chip${on ? " on" : ""}" data-action="price" data-id="${id}" aria-pressed="${on}">
+      <strong>${t(ui.lang, key)}</strong>
+      <small>${t(ui.lang, "salePsf", { n: formatHkd(quote.askPerFt2) })}</small>
+      <small>${t(ui.lang, "twoBed")} ${compactHkd(quote.byType.two.ask)}</small>
+      <em>${t(ui.lang, stance)}</em>
+    </button>`;
+  }).join("");
+}
+
+function promoRow() {
+  const gfa = ui.state.project.offer.gfaFt2;
+  const adTable = ui.catalog.balance.promo?.ad || { low: { perFt2: 0 }, high: { perFt2: 0 } };
+  const rebates = ["none", "std", "high"].map((id) => {
+    const on = (ui.sale.choices.rebate || "none") === id;
+    const quote = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, rebate: id });
+    const key = id === "high" ? "rebateHigh" : id === "std" ? "rebateStd" : "rebateNone";
+    return `<button class="chip${on ? " on" : ""}" data-action="rebate" data-id="${id}" aria-pressed="${on}"><strong>${t(ui.lang, key)}</strong><small>${compactHkd(quote.rebateCost)}</small></button>`;
+  }).join("");
+  const targets = [["rent", "adRent"], ["starter", "adStarter"], ["upgrade", "adUpgrade"], ["feature", "adFeature"]].map(([id, key]) => {
+    const on = ui.sale.choices.adTarget === id && ui.sale.choices.adBudget !== "none";
+    return `<button class="chip${on ? " on" : ""}" data-action="ad-target" data-id="${id}" aria-pressed="${on}">${t(ui.lang, key)}</button>`;
+  }).join("");
+  const budgets = [["none", "adNone", 0], ["low", "adLow", adTable.low.perFt2], ["high", "adHigh", adTable.high.perFt2]].map(([id, key, per]) => {
+    const on = (ui.sale.choices.adBudget || "none") === id;
+    const cost = id === "none" ? 0 : Math.round(per * gfa);
+    return `<button class="chip${on ? " on" : ""}" data-action="ad-budget" data-id="${id}" aria-pressed="${on}"><strong>${t(ui.lang, key)}</strong><small>${compactHkd(cost)}</small></button>`;
+  }).join("");
+  return `<div class="promo">
+    <div class="promo-line"><span>${t(ui.lang, "rebate")}</span>${rebates}</div>
+    <div class="promo-line"><span>${t(ui.lang, "ad")}</span>${targets}${budgets}</div>
+    <p class="fine">${t(ui.lang, "promoNote")}</p>
+  </div>`;
+}
+
+function collapseBanner() {
+  const contractor = ui.state.project?.contractor;
+  if (!contractor?.collapsed) return "";
+  const extra = Math.max(0, contractor.total - contractor.cost);
+  return `<div class="banner bad">${t(ui.lang, "collapsedBanner", { extra: compactHkd(extra) })} · ${t(ui.lang, "collapseCompare", { quote: compactHkd(contractor.cost), remedy: compactHkd(contractor.total) })}</div>`;
 }
 
 function signed(value) {
@@ -414,12 +521,14 @@ function cheerNote(left) {
 function liveComment() {
   const state = ui.state;
   if (!state) return null;
-  if (state.phase === "sell") ensureSale();
-  if ((state.phase === "sell" || state.phase === "settle") && state.project?.contractor && !state.project.skipped) {
-    const quote = state.phase === "sell" ? currentQuote() : state.project.sale;
-    if (quote) return marketComment(commentSample({ contractor: state.project.contractor, sale: quote }), state.voice);
+  if (state.phase === "sell" && state.project?.contractor && !state.project.skipped) {
+    ensureSale();
+    return commentForPhase("sell", { ...state.project, sale: currentQuote() }, state.voice);
   }
-  return voiceComment(state.voice);
+  if (state.phase === "settle" && state.project?.sale && !state.project.skipped) {
+    return commentForPhase("settle", state.project, state.voice);
+  }
+  return commentForPhase(state.phase, null, state.voice);
 }
 
 function sellSetup() {
@@ -429,21 +538,18 @@ function sellSetup() {
   const cut = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, leftover: "cut" });
   const hold = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, leftover: "hold" });
   const heat = quote.marketHeat;
-  const collapsed = ui.state.project.contractor.collapsed ? `<div class="banner bad">${t(ui.lang, "collapsedBanner")}</div>` : "";
   const showOn = ui.sale.choices.showflat;
-  const prices = ["cheap", "fair", "expensive"].map((id) => {
-    const on = (ui.sale.choices.price || "fair") === id;
-    const key = id === "cheap" ? "priceCheap" : id === "expensive" ? "priceExpensive" : "priceFair";
-    return `<button class="chip${on ? " on" : ""}" data-action="price" data-id="${id}" aria-pressed="${on}">${t(ui.lang, key)}</button>`;
-  }).join("");
-  return `${tutorialBanner()}${collapsed}
-    <section class="card">
+  return `${tutorialBanner()}${collapseBanner()}
+    <section class="card sell-setup">
       <p class="kicker">${t(ui.lang, "sellKicker")} · ${escapeHtml(ui.state.project.name || "")}</p>
       <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))}</p>
       ${projectNameField()}
       <p class="fine">${mixLine(quote.mix)}</p>
-      <div class="chips price-chips">${prices}</div>
-      <p class="forecast">${forecastLine(forecast)}</p>
+      <div class="chips price-chips">${priceChips()}</div>
+      <p class="fine stance-line">${t(ui.lang, "stanceLine")}</p>
+      ${forecastBlock(forecast)}
+      ${promoRow()}
+      ${unitBars(forecast.bars)}
       <p class="bowl ${quote.bowl.ok ? "ok" : "bad"}">${t(ui.lang, "bowl")} ${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")} · ${t(ui.lang, "twoBed")} ${compactHkd(quote.bowl.lump)} / ${compactHkd(quote.bowl.bowl)}</p>
       ${quote.bowl.ok ? "" : `<p class="fine">${t(ui.lang, "bowlCrackNote")}</p>`}
       <p class="fine">${t(ui.lang, "poolLeft")} ${poolLine(quote.poolsAfter)}</p>
@@ -460,9 +566,43 @@ function sellSetup() {
 }
 
 function outcomeLine(quote) {
-  const pair = { clear: t(ui.lang, "outcomeClear"), partial: t(ui.lang, "outcomePartial"), fail: t(ui.lang, "outcomeFail") }[quote.outcome];
+  const pair = {
+    clear: t(ui.lang, "outcomeClear"),
+    almost: t(ui.lang, "outcomeAlmost"),
+    partial: t(ui.lang, "outcomePartial"),
+    fail: t(ui.lang, "outcomeFail"),
+  }[quote.outcome] || t(ui.lang, "outcomeFail");
   const cls = quote.outcome === "clear" ? "ok" : quote.outcome === "fail" ? "bad" : "mid";
   return `<div class="outcome ${cls}">${pair}</div>`;
+}
+
+function gapLine(quote) {
+  const gap = explainForecastGap(quote?.forecastPct, quote);
+  if (!gap) return "";
+  const key = gap.reasons.includes("cheer") && gap.reasons.includes("cake")
+    ? "gapCheerCake"
+    : gap.reasons.includes("cake")
+      ? "gapCake"
+      : gap.reasons.includes("cheer")
+        ? "gapCheer"
+        : "gapLow";
+  return `<p class="fine gap-line">${t(ui.lang, key)} ${t(ui.lang, "forecastPct", { pct: gap.forecast })} → ${gap.actual}%</p>`;
+}
+
+function barsFromQuote(quote) {
+  const bars = {};
+  for (const spec of UNIT_SPECS) {
+    const row = quote.byType[spec.id];
+    const offered = row?.offered || 0;
+    const sold = row?.sold || 0;
+    bars[spec.id] = {
+      offered,
+      sold,
+      unsold: row?.unsold || 0,
+      pct: offered ? Math.round((sold / offered) * 100) : 0,
+    };
+  }
+  return bars;
 }
 
 function sellLive() {
@@ -486,7 +626,7 @@ function sellLive() {
       <div class="pops" id="pops"></div>
       <p class="fine" id="cake-line">${quote.cakeSweep > 0 && shown > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : ""}</p>
       <p class="fine">${t(ui.lang, "floorCash")} <strong id="tally">${formatHkd(shown && quote.sold ? Math.round((quote.gross * shown) / quote.sold) : 0)}</strong></p>
-      ${showOutcome ? outcomeLine(quote) : `<p class="kicker">${t(ui.lang, "selling")}</p>`}
+      ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : `<p class="kicker">${t(ui.lang, "selling")}</p>`}
     </section>`;
 }
 
@@ -602,10 +742,14 @@ function settleView() {
     ${project.offer.type === "gov" ? `<p class="deal">${t(ui.lang, "govSettle")}</p>` : ""}
     ${row(t(ui.lang, "saleIn"), formatHkd(sale.gross))}
     ${sale.showflatCost ? row(t(ui.lang, "showflatCost"), formatHkd(sale.showflatCost)) : ""}
+    ${sale.rebateCost ? row(t(ui.lang, "rebate"), formatHkd(sale.rebateCost)) : ""}
+    ${sale.adCost ? row(t(ui.lang, "ad"), formatHkd(sale.adCost)) : ""}
     ${partner}
-    ${sale.fireNet ? row(t(ui.lang, "fireSale"), formatHkd(sale.fireNet)) : ""}
+    ${sale.unsold > 0 && sale.fireNet ? row(t(ui.lang, "fireSale"), formatHkd(sale.fireNet)) : ""}
     ${sale.frozenAmount ? `<p class="fine">${t(ui.lang, "frozenLine", { cash: formatHkd(sale.frozenAmount) })}</p>` : ""}
+    ${gapLine(sale)}
     ${row(t(ui.lang, "landCost"), formatHkd(project.offer.landTotal))}
+    ${project.contractor.collapsed ? `${row(t(ui.lang, "quoteCost"), formatHkd(project.contractor.cost))}${row(t(ui.lang, "remedyExtra"), formatHkd(project.contractor.total - project.contractor.cost))}` : ""}
     ${row(t(ui.lang, "buildCost"), formatHkd(project.contractor.total))}
     ${row(t(ui.lang, "repChange"), `${sale.reputationDelta >= 0 ? "+" : ""}${sale.reputationDelta}`)}
     ${liveComment() ? `<p class="rep-line">${escapeHtml(t(ui.lang, liveComment()))}</p>` : ""}
@@ -740,6 +884,8 @@ function hud() {
   const heatWord = heat === "loose" ? t(ui.lang, "heatLoose") : heat === "spicy" ? t(ui.lang, "heatSpicy") : "—";
   const heatLeft = ui.state ? t(ui.lang, "heatLeft", { n: heatProjectsLeft(ui.state, ui.catalog.balance) }) : "";
   const comment = ui.state ? liveComment() : null;
+  const frozen = ui.state ? frozenInfo(ui.state) : null;
+  const thaw = ui.thaw ? `<small class="thaw">${t(ui.lang, "thawTick", { cash: compactHkd(ui.thaw) })}</small>` : "";
   let sellRow = "";
   if (ui.state?.phase === "sell") {
     ensureSale();
@@ -752,11 +898,12 @@ function hud() {
   return `<header class="hud">
     <div class="brand">${logoSvg(company.logo, company.color, company.name)}<div><h1>${escapeHtml(company.name)}</h1><p>${t(ui.lang, "tagline")}</p></div></div>
     <div class="stats">
-      <div class="stat stat-cash"><span class="k">${t(ui.lang, "cash")}</span><strong>${compactHkd(cash)}</strong></div>
+      <div class="stat stat-cash"><span class="k">${t(ui.lang, "cash")}</span><strong>${compactHkd(cash)}</strong>${thaw}</div>
       <div class="stat stat-rep"><span class="k">${t(ui.lang, "reputation")}</span><strong>${rep}</strong></div>
       <div class="stat stat-heat heat-stat ${heat || ""}"><span class="k">${t(ui.lang, "heatName")}</span><strong>${heatWord}</strong>${heatLeft ? `<small>${heatLeft}</small>` : ""}</div>
       <div class="stat stat-project"><span class="k">${t(ui.lang, "project")}</span><strong>${number ? `${number} / ${projects}` : `— / ${projects}`}</strong></div>
       <div class="stat stat-next"><span class="k">${t(ui.lang, "nextStep")}</span><strong>${step}</strong></div>
+      ${frozen ? `<div class="stat stat-frozen"><span class="k">${t(ui.lang, "frozenChip")}</span><strong>${compactHkd(frozen.amount)}</strong><small>${t(ui.lang, "frozenLeft", { n: frozen.left })}</small></div>` : ""}
     </div>
     <div class="hud-actions">
       <button class="ghost" data-action="lang">${t(ui.lang, "langName")}</button>
@@ -771,7 +918,30 @@ function hud() {
 function priceWord(price) {
   if (price === "cheap") return t(ui.lang, "priceCheap");
   if (price === "expensive") return t(ui.lang, "priceExpensive");
-  return t(ui.lang, "priceFair");
+  if (price === "fair") return t(ui.lang, "priceFair");
+  return "";
+}
+
+function outcomeShort(outcome) {
+  return {
+    clear: t(ui.lang, "outcomeClear"),
+    almost: t(ui.lang, "outcomeAlmost"),
+    partial: t(ui.lang, "outcomePartialShort"),
+    fail: t(ui.lang, "outcomeFail"),
+    skip: t(ui.lang, "skip"),
+  }[outcome] || "";
+}
+
+function historyMeta(item) {
+  if (item.skipped) return t(ui.lang, "skip");
+  const bits = [];
+  if (["jingjin", "huimen", "xinjing"].includes(item.contractor)) bits.push(t(ui.lang, item.contractor));
+  const price = priceWord(item.price);
+  if (price) bits.push(price);
+  const outcome = outcomeShort(item.outcome);
+  if (outcome) bits.push(outcome);
+  if (item.collapsed) bits.push(t(ui.lang, "collapse"));
+  return bits.join(" · ");
 }
 
 function historyPlace(item) {
@@ -785,14 +955,21 @@ function historyDetail(item) {
   if (!item || item.skipped) {
     return `<h3>${item?.index || ""} · ${t(ui.lang, "skip")}</h3><p class="note">${t(ui.lang, "skippedBody")}</p>`;
   }
-  const leftover = item.leftover === "hold" ? t(ui.lang, "leftoverHold") : t(ui.lang, "leftoverCut");
+  const leftover = item.unsold > 0
+    ? (item.leftover === "hold" ? t(ui.lang, "leftoverHold") : t(ui.lang, "leftoverCut"))
+    : t(ui.lang, "outcomeClear");
+  const ask = item.askPerFt2 ? `${priceWord(item.price)} · ${formatHkd(item.askPerFt2)}${t(ui.lang, "perFt")}` : (priceWord(item.price) || "—");
+  const contractor = ["jingjin", "huimen", "xinjing"].includes(item.contractor) ? t(ui.lang, item.contractor) : "—";
   return `<h3>${escapeHtml(item.name || districtLabel(ui.lang, item.district))}</h3>
     <p class="note">${escapeHtml(historyPlace(item))}</p>
     ${item.comment ? `<p class="rep-line">${escapeHtml(t(ui.lang, item.comment))}</p>` : ""}
+    ${fact(t(ui.lang, "historyContractor"), contractor)}
+    ${fact(t(ui.lang, "collapse"), item.collapsed ? t(ui.lang, "collapse") : t(ui.lang, "collapseNone"))}
     ${fact(t(ui.lang, "historyMix"), mixLine(item.mix || {}))}
-    ${fact(t(ui.lang, "historyPrice"), priceWord(item.price))}
-    ${fact(t(ui.lang, "historySold"), `${item.sold} / ${item.units}`)}
+    ${fact(t(ui.lang, "historyPrice"), ask)}
+    ${fact(t(ui.lang, "historySold"), `${item.sold} / ${item.units} · ${outcomeShort(item.outcome) || "—"}`)}
     ${fact(t(ui.lang, "historyLeft"), `${item.unsold ?? Math.max(0, (item.units || 0) - (item.sold || 0))} · ${leftover}`)}
+    ${item.collapsed ? fact(t(ui.lang, "quoteCost"), `${formatHkd(item.quoteCost || 0)} → ${formatHkd(item.remedyCost || 0)}`) : ""}
     ${fact(t(ui.lang, "profit"), `${item.profit >= 0 ? "+" : ""}${formatHkd(item.profit)}`)}
     ${fact(t(ui.lang, "historyRep"), item.reputationDelta == null ? "—" : signed(item.reputationDelta))}`;
 }
@@ -808,14 +985,14 @@ function historyDrawer() {
           const title = item.skipped ? t(ui.lang, "skip") : (item.name || districtLabel(ui.lang, item.district));
           const sign = item.profit >= 0 ? "+" : "";
           return `<li><button data-action="history-open" data-index="${item.index}">
-            <span><b>${escapeHtml(title)}</b><small>${escapeHtml(historyPlace(item))}</small></span>
+            <span><b>${escapeHtml(title)}</b><small>${escapeHtml(historyMeta(item))}</small><small>${escapeHtml(historyPlace(item))}</small></span>
             <strong>${item.skipped ? "0" : `${sign}${compactHkd(item.profit)}`}</strong>
           </button></li>`;
         }).join("")}</ul>`
       : `<p class="note">${t(ui.lang, "historyEmpty")}</p>`;
   return `<div class="drawer" data-action="close-drawer"><div class="drawer-panel" data-action="stop">
-    <div class="head"><h3>${t(ui.lang, "history")}</h3><button class="ghost" data-action="close-drawer">${t(ui.lang, "close")}</button></div>
-    ${body}
+    <div class="head"><h3>${t(ui.lang, "history")}</h3><button class="ghost drawer-close" data-action="close-drawer">${t(ui.lang, "closeDrawer")}</button></div>
+    <div class="drawer-body">${body}</div>
   </div></div>`;
 }
 
@@ -876,6 +1053,7 @@ function newGame() {
 function onClick(event) {
   const target = event.target.closest("[data-action]");
   if (!target || target.disabled) return;
+  if (target.dataset.action !== "confirm-settle") ui.thaw = null;
   const { action, id, slot } = target.dataset;
   if (action === "lang") {
     ui.lang = ui.lang === "tc" ? "en" : "tc";
@@ -950,10 +1128,20 @@ function onClick(event) {
     render();
     return;
   }
-  if (action === "preset-mix") {
+  if (action === "mix-preset") {
     ensureBuild();
-    const offer = ui.state.project.offer;
-    ui.build.mix = presetMix(offer.gfaFt2, offer.flavour, campaignHeat(ui.state, ui.catalog.balance), ui.catalog.balance);
+    ui.build.mix = mixPreset(ui.state.project.offer.gfaFt2, id);
+    render();
+    return;
+  }
+  if (action === "mix-step") {
+    ensureBuild();
+    const unit = target.dataset.unit;
+    const delta = Number(target.dataset.delta) || 0;
+    const gfa = ui.state.project.offer.gfaFt2;
+    const next = Math.max(0, (ui.build.mix[unit] || 0) + delta);
+    if (delta > 0 && !canAddUnit(gfa, ui.build.mix, unit)) return;
+    ui.build.mix = { ...ui.build.mix, [unit]: next };
     render();
     return;
   }
@@ -973,6 +1161,32 @@ function onClick(event) {
     ensureSale();
     if (ui.sale.mode !== "setup") return;
     ui.sale.choices.showflat = !ui.sale.choices.showflat;
+    render();
+    return;
+  }
+  if (action === "rebate") {
+    ensureSale();
+    if (ui.sale.mode !== "setup") return;
+    ui.sale.choices.rebate = id === "std" || id === "high" ? id : "none";
+    render();
+    return;
+  }
+  if (action === "ad-target") {
+    ensureSale();
+    if (ui.sale.mode !== "setup") return;
+    if (ui.sale.choices.adTarget === id && ui.sale.choices.adBudget !== "none") {
+      ui.sale.choices.adBudget = "none";
+    } else {
+      ui.sale.choices.adTarget = id;
+      if (ui.sale.choices.adBudget === "none") ui.sale.choices.adBudget = "low";
+    }
+    render();
+    return;
+  }
+  if (action === "ad-budget") {
+    ensureSale();
+    if (ui.sale.mode !== "setup") return;
+    ui.sale.choices.adBudget = id === "low" || id === "high" ? id : "none";
     render();
     return;
   }
@@ -1038,7 +1252,14 @@ function writeProjectName(value, restore) {
 }
 
 function onInput(event) {
-  if (event.target.id === "company-name") ui.draft.name = event.target.value.slice(0, 16);
+  if (event.target.id === "company-name") {
+    ui.draft.name = event.target.value.slice(0, 16);
+    const shown = ui.draft.name.trim() || "啟岸發展";
+    for (const node of document.querySelectorAll(".brand h1")) node.textContent = shown;
+    const letter = shown.slice(0, 1) || "啟";
+    for (const node of document.querySelectorAll(".brand text, .preview text")) node.textContent = letter;
+    return;
+  }
   if (event.target.id === "project-name") {
     if (event.target.value.trim()) writeProjectName(event.target.value, false);
     return;

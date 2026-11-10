@@ -97,7 +97,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .shell {
   width: min(920px, 100%);
   margin: 0 auto;
-  padding: 8px 12px 12px;
+  padding: 8px 12px 84px;
   flex: 1;
 }
 .stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -300,15 +300,29 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .deal { margin: 2px 0 0; font-size: var(--fs-decision); font-weight: 700; }
 .mix-row {
   display: grid;
-  grid-template-columns: 118px minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  margin: 4px 0;
+  margin: 6px 0;
 }
 .mix-row b { display: block; font-size: var(--fs-decision); }
 .mix-row small { display: block; color: var(--muted); font-size: var(--fs-kicker); }
-.mix-row input[type="range"] { width: 100%; accent-color: #6ea2ff; }
-.mix-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.mix-row strong { text-align: center; font-variant-numeric: tabular-nums; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper .step {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #121b28;
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.stepper strong { min-width: 2.2ch; font-size: var(--fs-hud); }
+.preset-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 8px; }
+.preset-row .chip { text-align: center; padding: 8px 4px; }
 #gfa-live { display: flex; justify-content: space-between; gap: 8px; font-size: var(--fs-secondary); margin-top: 6px; }
 #gfa-live strong { font-size: var(--fs-hud); }
 #gfa-live.over, .bad-text { color: var(--danger); }
@@ -373,9 +387,40 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .contractor h3 { font-size: var(--fs-decision); }
 .price-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.price-chip {
+  display: grid;
+  gap: 1px;
+  justify-items: center;
+  text-align: center;
+  padding: 8px 4px;
+}
+.price-chip em { font-style: normal; font-size: var(--fs-kicker); font-weight: 800; }
+.price-chip small { font-variant-numeric: tabular-nums; }
+.stance-line { text-align: center; }
+.unit-bars { display: grid; gap: 2px; margin: 4px 0 6px; }
+.unit-bar {
+  display: grid;
+  grid-template-columns: 52px minmax(48px, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.unit-bar > span { font-weight: 800; font-size: var(--fs-secondary); }
+.unit-bar .track { height: 10px; border-radius: 99px; background: #24344a; overflow: hidden; }
+.unit-bar .track span { display: block; height: 100%; background: var(--accent); }
+.unit-bar small { color: var(--muted); font-size: var(--fs-kicker); white-space: nowrap; }
+.unit-bar.stuck .track span { background: #c47b4a; }
+.unit-bar.none .track { opacity: 0.4; }
+.promo { display: grid; gap: 4px; margin: 4px 0; }
+.promo-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.promo-line > span { min-width: 2.5rem; color: var(--muted); font-size: var(--fs-kicker); font-weight: 800; }
+.promo-line .chip { min-height: 36px; padding: 4px 8px; }
+.promo .fine { margin: 0; }
+.gap-line { color: var(--game); font-weight: 700; }
+.thaw { display: block; color: var(--ok); font-weight: 800; animation: pop 0.6s ease; }
+.stat-frozen strong { color: var(--game); }
 .preset-why { color: #d5e4ff; }
 .forecast {
-  margin: 8px 0 4px;
+  margin: 4px 0;
   color: var(--game);
   font-size: var(--fs-decision);
   font-weight: 800;
@@ -408,19 +453,43 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   inset: 0;
   z-index: 45;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
+  padding: 12px 16px 64px;
   background: rgba(8, 12, 18, 0.72);
 }
 .drawer-panel {
   width: min(560px, 100%);
-  max-height: min(78vh, 640px);
-  overflow: auto;
+  max-height: calc(100vh - 88px);
+  max-height: calc(100dvh - 88px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 16px 16px 0 0;
-  padding: 12px 12px calc(16px + env(safe-area-inset-bottom));
+  border-radius: 16px;
+  padding: 12px;
 }
+.drawer-panel .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel);
+  padding-bottom: 8px;
+}
+.drawer-panel .head h3 { margin: 0; font-size: var(--fs-title); }
+.drawer-close {
+  min-width: 88px;
+  min-height: 44px;
+  background: var(--accent);
+  color: #08111e;
+  border-color: #8eb6ff;
+}
+.drawer-body { overflow: auto; min-height: 0; }
 .record-list { list-style: none; margin: 8px 0 0; padding: 0; }
 .record-list button {
   width: 100%;
@@ -435,7 +504,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   padding: 10px 2px;
 }
 .record-list b { display: block; font-size: var(--fs-decision); }
-.record-list small { display: block; color: var(--muted); font-size: var(--fs-kicker); }
+.record-list small { display: block; color: var(--muted); font-size: var(--fs-kicker); white-space: normal; }
 .record-list strong { font-size: var(--fs-hud); font-variant-numeric: tabular-nums; }
 
 .fact { margin: 8px 0; }
@@ -462,6 +531,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .project-name { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
 .project-name input { min-height: 40px; }
+.sell-setup .project-name { margin: 4px 0; }
+.sell-setup .project-name input { min-height: 36px; }
 
 @media (max-width: 860px) {
   .hud { grid-template-columns: 1fr auto; align-items: center; }
@@ -474,7 +545,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   .stat-next { grid-column: span 2; }
   .hud-actions .ghost { min-height: 32px; padding: 4px 8px; font-size: var(--fs-kicker); }
   .land-grid { grid-template-columns: 1fr; }
-  .mix-row { grid-template-columns: 96px minmax(0, 1fr) 28px; }
+  .mix-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .stepper .step { width: 44px; height: 44px; }
   .card h3 { font-size: 1.125rem; }
 }
 

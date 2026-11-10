@@ -299,6 +299,68 @@ export function presetMix(gfaFt2, flavour, heat, balance) {
   return mix;
 }
 
+export const MIX_PRESETS = ["studio", "starter", "upgrade", "luxury"];
+
+const PRESET_ORDER = {
+  studio: ["studio", "one", "two", "three", "feature"],
+  starter: ["two", "one", "three", "studio", "feature"],
+  upgrade: ["three", "two", "feature", "one", "studio"],
+  luxury: ["feature", "three", "two", "one", "studio"],
+};
+
+export function mixPreset(gfaFt2, preset) {
+  const order = PRESET_ORDER[preset] || PRESET_ORDER.starter;
+  const specs = Object.fromEntries(UNIT_SPECS.map((spec) => [spec.id, spec]));
+  const mix = emptyMix();
+  let left = Math.max(0, Math.floor(Number(gfaFt2) || 0));
+  let guard = 0;
+  while (guard < 20000) {
+    guard += 1;
+    let placed = false;
+    for (const id of order) {
+      if (specs[id].ft2 <= left) {
+        mix[id] += 1;
+        left -= specs[id].ft2;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) break;
+  }
+  return mix;
+}
+
+export function canAddUnit(gfaFt2, mix, unitId) {
+  const spec = UNIT_SPECS.find((item) => item.id === unitId);
+  if (!spec) return false;
+  const next = normalizeMix(mix);
+  next[unitId] += 1;
+  return mixFits(gfaFt2, next);
+}
+
+export function unitPopularity(flavour, heat, balance) {
+  const useHeat = heat === "spicy" ? "spicy" : "loose";
+  const out = {};
+  for (const spec of UNIT_SPECS) {
+    const score = round4(balance.heatMod[useHeat][spec.pool] * balance.flavourMod[flavour][spec.pool]);
+    let band = "mid";
+    if (score >= 1.15) band = "high";
+    else if (score <= 0.9) band = "low";
+    out[spec.id] = { band, score };
+  }
+  return out;
+}
+
+const POP_PLACE = { uni: "近大學", starter: "偏遠", core: "核心" };
+const POP_HEAT = { loose: "鬆", spicy: "辣" };
+
+export function popularityNote(flavour, heat, band) {
+  if (band === "mid") return "";
+  const place = POP_PLACE[flavour] || "";
+  const market = POP_HEAT[heat === "spicy" ? "spicy" : "loose"] || "";
+  return place && market ? `${place}＋${market}` : "";
+}
+
 export function sizePools(catalog, { gfaFt2, flavour, heat, buyer = 1, bias = {} }) {
   const { balance } = catalog;
   const pools = {};
@@ -646,12 +708,45 @@ export function chooseContractor(catalog, state, contractorId, rawMix) {
   });
 }
 
+const AD_TARGET_UNITS = {
+  rent: ["studio"],
+  starter: ["two"],
+  upgrade: ["three"],
+  feature: ["feature"],
+};
+
 export function normalizeChoices(raw = {}, balance) {
   const cheer = clamp(Math.round(Number(raw.cheer) || 0), 0, balance.cheerMax);
   const showflat = Boolean(raw.showflat);
   const leftover = raw.leftover === "hold" ? "hold" : "cut";
   const price = raw.price === "cheap" || raw.price === "expensive" ? raw.price : "fair";
-  return { showflat, cheer, leftover, price, askMul: askMultiplier(price, balance) };
+  const rebate = raw.rebate === "std" || raw.rebate === "high" ? raw.rebate : "none";
+  const adBudget = raw.adBudget === "low" || raw.adBudget === "high" ? raw.adBudget : "none";
+  const adTarget = Object.prototype.hasOwnProperty.call(AD_TARGET_UNITS, raw.adTarget) ? raw.adTarget : null;
+  return {
+    showflat,
+    cheer,
+    leftover,
+    price,
+    askMul: askMultiplier(price, balance),
+    rebate,
+    adBudget,
+    adTarget,
+  };
+}
+
+function promoSpec(choices, balance) {
+  const table = balance.promo || {};
+  const rebate = table.rebate?.[choices.rebate] || { through: 0, rate: 0 };
+  const aimed = choices.adBudget !== "none" && AD_TARGET_UNITS[choices.adTarget];
+  const ad = aimed ? table.ad?.[choices.adBudget] || { through: 0, perFt2: 0 } : { through: 0, perFt2: 0 };
+  return {
+    rebateThrough: Number(rebate.through) || 0,
+    rebateRate: Number(rebate.rate) || 0,
+    adThrough: aimed ? Number(ad.through) || 0 : 0,
+    adPerFt2: aimed ? Number(ad.perFt2) || 0 : 0,
+    adUnits: aimed ? AD_TARGET_UNITS[choices.adTarget] : [],
+  };
 }
 
 function askMultiplier(price, balance) {
@@ -713,6 +808,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
         : 1;
   const askMul = choices.askMul;
   const pricedConvert = priceConvert(askMul, balance);
+  const promo = promoSpec(choices, balance);
   const twoAsk = fairPerFt2 * 450 * askMul;
   const bowlRaw = affordability({
     lump: twoAsk,
@@ -747,17 +843,23 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     if (choices.showflat) convert += balance.showflatBoost[spec.id];
     if (spec.id === "studio" && marketHeat === "loose") convert += balance.looseStudio;
     if (spec.id !== "studio" && marketHeat === "spicy") convert += balance.spicyLiveIn;
+    convert += promo.rebateThrough;
+    const aimed = promo.adUnits.includes(spec.id) && offered > 0;
+    if (aimed) convert += promo.adThrough;
     if (contractor.collapsed) convert -= balance.collapseThrough;
     if (spec.id === "two" && !bowlRaw.ok) convert *= balance.bowlCrack;
     if (spec.id === "studio" && whaleSensitive) convert *= balance.whalePriceCut;
     convert *= pricedConvert;
     convert = clamp(convert, 0.05, 0.98);
     const pool = poolsBefore[spec.pool];
-    let soldN = Math.min(offered, Math.round(pool * convert));
+    const brought = aimed ? Math.max(1, Math.round(offered * promo.adThrough)) : 0;
+    let soldN = Math.min(offered, Math.round((pool + brought) * convert));
     if (spec.id === "studio" && cakeSweep > 0) soldN = Math.min(offered, Math.max(soldN, cakeSweep));
-    soldN = Math.max(0, Math.min(soldN, pool, offered));
+    const cap = aimed ? offered : Math.min(pool, offered);
+    soldN = Math.max(0, Math.min(soldN, cap));
+    const fromPool = Math.min(soldN, pool);
     const unsoldN = offered - soldN;
-    poolsAfter[spec.pool] = pool - soldN;
+    poolsAfter[spec.pool] = pool - fromPool;
     grossExact += soldN * ask;
     if (unsoldN > 0 && choices.leftover === "cut") fireExact += unsoldN * ask * balance.fireSale;
     if (unsoldN > 0 && choices.leftover === "hold") frozenExact += unsoldN * ask * balance.holdRecover;
@@ -769,7 +871,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
       ask: money(ask),
       convert: round4(convert),
       poolBefore: pool,
-      poolAfter: pool - soldN,
+      poolAfter: pool - fromPool,
       sensitive: spec.id === "studio" ? whaleSensitive : false,
     };
   }
@@ -777,20 +879,23 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   const fireGross = money(fireExact);
   const frozenAmount = choices.leftover === "hold" ? money(frozenExact) : 0;
   const showflatCost = choices.showflat ? money(balance.showflatPerFt2 * offer.gfaFt2) : 0;
+  const rebateCost = money(gross * promo.rebateRate);
+  const adCost = money(promo.adPerFt2 * offer.gfaFt2);
   const partnerOnSales = money(gross * offer.partnerRate);
   const firePartner = money(fireGross * offer.partnerRate);
   const partnerShare = partnerOnSales + firePartner;
   const fireNet = fireGross - firePartner;
-  const netCash = money(gross - showflatCost - partnerOnSales + fireNet);
+  const netCash = money(gross - showflatCost - rebateCost - adCost - partnerOnSales + fireNet);
   const profit = netCash - offer.landTotal - contractor.total;
   const unsold = units - sold;
   const ratio = units === 0 ? 0 : sold / units;
   let outcome = "fail";
-  if (units > 0 && (sold === units || ratio >= balance.clearAt)) outcome = "clear";
+  if (units > 0 && unsold === 0) outcome = "clear";
+  else if (ratio >= balance.clearAt) outcome = "almost";
   else if (ratio >= balance.partialAt) outcome = "partial";
   const through = units === 0 ? 0 : sold / units;
   const heat = Math.round(clamp(through, 0, 1) * 100);
-  let reputationDelta = outcome === "clear" ? balance.repClear : outcome === "partial" ? balance.repPartial : balance.repFail;
+  let reputationDelta = outcome === "clear" || outcome === "almost" ? balance.repClear : outcome === "partial" ? balance.repPartial : balance.repFail;
   if (profit < 0) reputationDelta += balance.repLoss;
   if (unsold > 0 && choices.leftover === "cut") reputationDelta += balance.repCut;
   if (unsold > 0 && choices.leftover === "hold") reputationDelta += balance.repHold;
@@ -814,7 +919,10 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     whaleBudget: money(whaleBudget),
     cakeSweep,
     showflatCost,
+    rebateCost,
+    adCost,
     fairPerFt2: money(fairPerFt2),
+    askPerFt2: money(fairPerFt2 * askMul),
     askPerUnit: perUnit,
     through,
     sold,
@@ -847,21 +955,46 @@ export function saleForecast(catalog, state, rawChoices) {
   else if (unsold > 0) left = "many";
   let sticky = null;
   let stickyUnsold = 0;
+  const bars = {};
   for (const spec of UNIT_SPECS) {
     const row = preview.byType[spec.id];
     if (row && row.unsold > stickyUnsold) {
       sticky = spec.id;
       stickyUnsold = row.unsold;
     }
+    const offered = row?.offered || 0;
+    const soldN = row?.sold || 0;
+    bars[spec.id] = {
+      offered,
+      sold: soldN,
+      unsold: row?.unsold || 0,
+      pct: offered ? Math.round((soldN / offered) * 100) : 0,
+    };
   }
   return {
-    sellsOut: preview.outcome === "clear",
+    sellsOut: units > 0 && unsold === 0,
     left,
     leftRank: LEFT_RANK[left],
     sticky: unsold > 0 ? sticky : null,
     price: preview.choices.price,
     outcome: preview.outcome,
+    pct: units ? Math.round((preview.sold / units) * 100) : 0,
+    beforeCheer: true,
+    bars,
   };
+}
+
+export function explainForecastGap(forecastPct, sale) {
+  const actual = sale?.units ? Math.round((sale.sold / sale.units) * 100) : 0;
+  const forecast = Math.round(Number(forecastPct) || 0);
+  const gap = actual - forecast;
+  if (Math.abs(gap) <= 4) return null;
+  const reasons = [];
+  if (gap > 0 && (sale?.choices?.cheer || 0) > 0) reasons.push("cheer");
+  if (gap > 0 && (sale?.cakeSweep || 0) > 0) reasons.push("cake");
+  if (gap < 0) reasons.push("low");
+  if (!reasons.length) return null;
+  return { actual, forecast, gap, reasons };
 }
 
 export function saleReveal(sold, cheer, cheerMax = 3) {
@@ -933,7 +1066,7 @@ export function marketComment(sample, voice = null) {
   const bad = view.quality < 0.94;
   const pricey = view.price === "expensive";
   const cheap = view.price === "cheap";
-  if (pricey && (view.unsoldRatio >= 0.25 || bad)) return "dearEmpty";
+  if (pricey && view.unsoldRatio >= 0.25) return "dearEmpty";
   if (cheap && good && view.unsoldRatio < 0.25) return "valueGood";
   if (cheap && bad) return "cheapBad";
   if (pricey && good) return "dearGood";
@@ -951,6 +1084,13 @@ export function voiceComment(voice) {
     quality: voice.quality,
     unsoldRatio: voice.stuck >= 0.5 ? 0.4 : 0,
   });
+}
+
+export function commentForPhase(phase, project, voice) {
+  if ((phase === "sell" || phase === "settle") && project && !project.skipped && project.sale) {
+    return marketComment(commentSample(project));
+  }
+  return voiceComment(voice);
 }
 
 export function commentSample(project) {
@@ -975,6 +1115,7 @@ export function commitSale(catalog, state, choices) {
     rngCursor = stepped.rngCursor;
   }
   const sale = resolveSale(catalog, state, { ...normalized, roll }, roll);
+  sale.forecastPct = saleForecast(catalog, state, normalized).pct;
   return succeed({
     ...state,
     rngCursor,
@@ -1070,7 +1211,13 @@ export function confirmSettle(catalog, state) {
       leftover: sale.choices?.leftover || "cut",
       unsold: sale.unsold,
       reputationDelta: sale.reputationDelta,
-      comment: marketComment(commentSample(state.project), voice),
+      comment: marketComment(commentSample(state.project)),
+      contractor: state.project.contractor?.id || null,
+      collapsed: Boolean(state.project.contractor?.collapsed),
+      quoteCost: state.project.contractor?.cost || 0,
+      remedyCost: state.project.contractor?.total || 0,
+      askPerFt2: sale.askPerFt2 || 0,
+      forecastPct: sale.forecastPct ?? null,
     };
     voice = pushVoice(voice, commentSample(state.project));
   }
@@ -1278,10 +1425,12 @@ export function hydrateCampaign(catalog, saved) {
       sale: null,
     };
     if (state.phase === "settle" && contractor) {
+      const choices = saved.project.choices || {};
       state.project.sale = resolveSale(catalog, state, {
-        ...(saved.project.choices || {}),
+        ...choices,
         roll: state.project.saleRoll,
       });
+      state.project.sale.forecastPct = saleForecast(catalog, state, choices).pct;
     }
   }
   if (saved.story?.id) {
