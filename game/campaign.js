@@ -8,8 +8,8 @@
 import { DISTRICTS } from "./i18n.js";
 import { STORIES } from "./stories.js";
 
-export const SAVE_VERSION = 6;
-export const JV_SHARE = 0.35;
+export const SAVE_VERSION = 7;
+export const JV_SHARES = [0.25, 0.35, 0.5];
 export const UNIT_SPECS = [
   { id: "studio", ft2: 280, pool: "whale" },
   { id: "one", ft2: 350, pool: "couple" },
@@ -25,6 +25,7 @@ const PHASES = ["land", "build", "sell", "settle", "story", "summary", "gameover
 const LOAN_MODES = ["cash", "small", "big"];
 export const COMPANY_LOGOS = ["tower", "wave", "diamond", "gate", "sun", "monogram"];
 export const COMPANY_COLORS = ["#e2b15a", "#6ea2ff", "#e06b6b", "#3ecf8e", "#c084fc", "#f4f1ea"];
+export const CHAIR_AVATARS = ["crop", "bob", "glasses", "bun", "wave", "fringe"];
 
 export function money(value) {
   return Math.round(value);
@@ -79,7 +80,9 @@ export function normalizeCompany(input = {}) {
   const color = COMPANY_COLORS.includes(String(input.color || "").toLowerCase())
     ? String(input.color).toLowerCase()
     : COMPANY_COLORS[0];
-  return { name, logo, color };
+  const chairName = String(input.chairName || "主席").trim().slice(0, 10) || "主席";
+  const avatar = CHAIR_AVATARS.includes(input.avatar) ? input.avatar : CHAIR_AVATARS[0];
+  return { name, logo, color, chairName, avatar };
 }
 
 export function createCampaignCatalog({ market, balance }) {
@@ -107,6 +110,10 @@ export function createCampaignCatalog({ market, balance }) {
   }
   if (balance.projects !== 20) throw new Error("campaign is exactly 20 projects");
   if (balance.landTypes.gov.partnerRate !== 0) throw new Error("government land takes no partner share");
+  const sellBoost = balance.landTypes?.mtr?.sellBoost;
+  if (typeof sellBoost !== "number" || sellBoost < 0.08 || sellBoost > 0.12) {
+    throw new Error("mtr sellBoost must be +8 to +12 percentage points");
+  }
   for (const district of Object.keys(balance.districtLever)) {
     if (!["uni", "starter", "core"].includes(balance.flavours?.[district])) {
       throw new Error(`missing flavour for ${district}`);
@@ -447,14 +454,20 @@ export function priceVerdict(ratio, balance) {
 }
 
 export function pickDistrict(type, rng, balance, used = new Set()) {
-  const urban = balance.urbanDistricts;
-  const towns = balance.newTownDistricts;
+  const urban = balance.urbanDistricts || [];
+  const towns = balance.newTownDistricts || [];
   const all = Object.keys(balance.districtLever);
   let pool = all;
-  if (type === "ura") pool = rng.next() < balance.uraUrbanChance ? urban : all;
+  if (type === "ura") pool = urban;
   else if (type === "mtr") pool = rng.next() < 0.5 ? towns : urban;
+  else if (type === "gov") {
+    const chance = typeof balance.govTownChance === "number" ? balance.govTownChance : 0.8;
+    pool = rng.next() < chance ? towns : urban;
+  }
   const fresh = pool.filter((district) => !used.has(district));
+  // URA stays on the nine urban districts even when every one is already used.
   const source = fresh.length ? fresh : pool;
+  if (!source.length) throw new Error(`no districts for ${type}`);
   return source[Math.floor(rng.next() * source.length)];
 }
 
@@ -523,8 +536,27 @@ export function quoteLoan(buildCost, mode, balance) {
   return { mode: use, principal, interest, rate: Number(spec.rate) || 0, due: principal + interest };
 }
 
+function sameStake(value, target) {
+  return Number.isFinite(value) && Math.abs(value - target) < 1e-9;
+}
+
 export function stakeOf(offer) {
-  return Number(offer?.stake) === JV_SHARE ? JV_SHARE : 1;
+  const stake = Number(offer?.stake);
+  if (sameStake(stake, 1)) return 1;
+  for (const share of JV_SHARES) {
+    if (sameStake(stake, share)) return share;
+  }
+  return 1;
+}
+
+function parseStake(raw) {
+  if (raw == null || raw === "full") return 1;
+  const requested = Number(raw);
+  if (sameStake(requested, 1)) return 1;
+  for (const share of JV_SHARES) {
+    if (sameStake(requested, share)) return share;
+  }
+  return null;
 }
 
 export function jvEligible(offer) {
@@ -562,7 +594,7 @@ export function fundBuild(balance, { cash, cost, mode }) {
 
 export function remedyExtra(balance, grossCost, stake = 1, remedy = "rush") {
   const rates = remedyRates(balance, remedy === "worse" ? "worse" : "rush");
-  const share = stake === JV_SHARE ? JV_SHARE : 1;
+  const share = stakeOf({ stake });
   return money((Number(grossCost) || 0) * (Number(rates.extra) || 0) * share);
 }
 
@@ -875,15 +907,23 @@ function liftFlagshipOffer(offers, state, catalog, heat) {
   return next;
 }
 
-function offerBuyable(offer, cash) {
+export function offerBuyable(offer, cash) {
   if (!offer) return false;
-  if (offer.landTotal <= cash) return true;
-  return jvEligible(offer) && money(offer.landTotal * JV_SHARE) <= cash;
+  if (money(offer.landTotal) <= money(cash)) return true;
+  const floor = Math.min(...JV_SHARES);
+  return jvEligible(offer) && money(offer.landTotal * floor) <= money(cash);
 }
 
-function ensureAffordableOffer(offers, state, catalog, heat) {
+function survivalCovered(offer, cash) {
+  if (!offer) return false;
+  if (money(offer.landTotal) <= money(cash)) return true;
+  if (!jvEligible(offer)) return false;
+  return JV_SHARES.some((share) => share > 0.25 && money(offer.landTotal * share) <= money(cash));
+}
+
+export function ensureAffordableOffer(offers, state, catalog, heat) {
   const cash = Math.max(0, money(state.cash || 0));
-  if (offers.some((offer) => offerBuyable(offer, cash))) return offers;
+  if (offers.some((offer) => survivalCovered(offer, cash))) return offers;
   if (cash < 8000000) return offers;
   const budget = money(cash * 0.58);
   const premium = catalog.balance.landTypes.gov.premiumMin;
@@ -986,8 +1026,7 @@ export function chooseLand(catalog, state, slot, rawStake = 1) {
   if (state.phase !== "land") return fail(state, "bad_phase");
   const offer = (state.offers || []).find((item) => item.slot === slot);
   if (!offer) return fail(state, "bad_slot");
-  const requested = rawStake == null || rawStake === "full" ? 1 : Number(rawStake);
-  const stake = requested === JV_SHARE ? JV_SHARE : requested === 1 ? 1 : null;
+  const stake = parseStake(rawStake);
   if (stake == null) return fail(state, "bad_stake");
   if (stake < 1 && !jvEligible(offer)) return fail(state, "bad_stake");
   const landPaid = money(offer.landTotal * stake);
@@ -1339,6 +1378,10 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     if (spec.id === "two" && !bowlRaw.ok) convert *= balance.bowlCrack;
     if (spec.id === "studio" && whaleSensitive) convert *= balance.whalePriceCut;
     convert *= pricedConvert;
+    if (offer.type === "mtr") {
+      // Rail bonus: landTypes.mtr.sellBoost is +8 to +12 percentage points of through-rate.
+      convert += Number(balance.landTypes?.mtr?.sellBoost) || 0;
+    }
     convert = clamp(convert, 0.05, 0.98);
     const pool = poolsBefore[spec.pool];
     const brought = aimed ? Math.max(1, Math.round(offered * promo.adThrough)) : 0;
@@ -1657,7 +1700,7 @@ function takeStory(state, catalog) {
   const { value, rngCursor } = runRng(state, (rng) => pickStory(STORIES, rng, {
     previousId: state.story?.id || state.storyLog?.[state.storyLog.length - 1] || null,
     govLand,
-    weight: catalog.balance.controversyWeight,
+    weight: govLand ? Number(catalog.balance.govControversyWeight ?? 1) : 1,
     counts: state.storyCounts || {},
     cap: catalog.balance.storyRepeatCap || 2,
   }));
@@ -1963,7 +2006,7 @@ export function hydrateCampaign(catalog, saved) {
   const heat = campaignHeat(state, catalog.balance);
   const attachScale = (offer) => {
     const priced = priceOffer(offer, offer.quotedAt, catalog, heat);
-    const stake = offer.stake === JV_SHARE ? JV_SHARE : 1;
+    const stake = stakeOf(offer);
     const landPaid = typeof offer.landPaid === "number" ? money(offer.landPaid) : money(priced.landTotal * stake);
     return {
       ...priced,
@@ -2056,16 +2099,29 @@ function withVenture(raw) {
   if (project?.offer && project.offer.stake == null) {
     project.offer = { ...project.offer, stake: 1 };
   }
-  return { ...raw, v: SAVE_VERSION, project };
+  return { ...raw, v: 6, project };
+}
+
+function withIdentity(raw) {
+  const company = { ...(raw.company || {}) };
+  const chairName = String(company.chairName || "").trim().slice(0, 10);
+  company.chairName = chairName || "主席";
+  if (!CHAIR_AVATARS.includes(company.avatar)) company.avatar = CHAIR_AVATARS[0];
+  let project = raw.project == null ? raw.project : { ...raw.project };
+  if (project?.offer) {
+    project = { ...project, offer: { ...project.offer, stake: stakeOf(project.offer) } };
+  }
+  return { ...raw, v: SAVE_VERSION, company, project };
 }
 
 export function migrateSave(raw) {
   if (!raw) return { ok: false, notice: null, state: null };
   if (raw.goals || raw.v === 1 || raw.v === 2) return { ok: false, notice: "phase1_reset", state: null };
   if (raw.v === SAVE_VERSION) return { ok: true, notice: null, state: raw };
-  if (raw.v === 5) return { ok: true, notice: null, state: withVenture(raw) };
-  if (raw.v === 4) return { ok: true, notice: null, state: withVenture(withMidterm(raw)) };
-  if (raw.v === 3) return { ok: true, notice: null, state: withVenture(withMidterm(upgradeV3(raw))) };
+  if (raw.v === 6) return { ok: true, notice: null, state: withIdentity(raw) };
+  if (raw.v === 5) return { ok: true, notice: null, state: withIdentity(withVenture(raw)) };
+  if (raw.v === 4) return { ok: true, notice: null, state: withIdentity(withVenture(withMidterm(raw))) };
+  if (raw.v === 3) return { ok: true, notice: null, state: withIdentity(withVenture(withMidterm(upgradeV3(raw)))) };
   return { ok: false, notice: "phase1_reset", state: null };
 }
 
@@ -2140,6 +2196,80 @@ export function buildSalesBand(catalog, state, mix, contractorId) {
   const gaps = mixPoolGaps(catalog, draft, clean);
   const weakAt = catalog.balance.weakBand ?? 22;
   return { low, high, pct, weak: gaps.length > 0 || high <= weakAt, gaps };
+}
+
+export function salesTone(pct) {
+  const n = Number(pct) || 0;
+  if (n >= 80) return "hot";
+  if (n >= 50) return "steady";
+  return "quiet";
+}
+
+export function bigLoanWarned(pct, mode) {
+  return mode === "big" && salesTone(pct) !== "hot";
+}
+
+export function celebrateClear(outcome) {
+  return outcome === "clear";
+}
+
+export function projectPresetMix(catalog, state) {
+  const offer = state?.project?.offer;
+  if (!offer) return emptyMix();
+  const flavour = offer.flavour || districtFlavour(offer.district, catalog.balance);
+  const heat = offer.heat === "spicy" || offer.heat === "loose" ? offer.heat : campaignHeat(state, catalog.balance);
+  return presetMix(offer.gfaFt2, flavour, heat, catalog.balance);
+}
+
+export function updateCompany(state, input) {
+  if (!state) return fail(state, "bad_phase");
+  return succeed({ ...state, company: normalizeCompany({ ...(state.company || {}), ...(input || {}) }) });
+}
+
+export function buildOutlook(catalog, state, mix, contractorId, mode = "cash") {
+  const offer = state?.project?.offer;
+  if (!offer) return { interest: 0, profit: 0, tone: "quiet", warnBig: false };
+  const stake = stakeOf(offer);
+  const id = contractorId && catalog.balance.contractors[contractorId] ? contractorId : null;
+  const spec = catalog.balance.contractors[id || "huimen"];
+  const playerCost = id
+    ? contractorQuote(catalog, state, id).playerCost
+    : money((offer.estBuildTotal || 0) * stake);
+  const plan = fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode });
+  const draft = {
+    ...state,
+    project: {
+      ...state.project,
+      mix: normalizeMix(mix),
+      contractor: {
+        id: id || "huimen",
+        quality: spec.quality,
+        leak: spec.leak,
+        collapsed: false,
+        total: playerCost,
+        cost: playerCost,
+        saleDrag: 0,
+      },
+    },
+  };
+  const sale = resolveSale(catalog, draft, {
+    price: "fair",
+    cheer: 0,
+    leftover: "cut",
+    rebate: "none",
+    adBudget: "none",
+    showflat: false,
+    roll: 1,
+  });
+  const band = buildSalesBand(catalog, state, mix, contractorId);
+  const tone = salesTone(band.pct);
+  return {
+    interest: plan.interest,
+    profit: sale.profit,
+    tone,
+    warnBig: mode === "big" && tone !== "hot",
+    band,
+  };
 }
 
 export function saleLedger(catalog, state, rawChoices) {

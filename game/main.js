@@ -1,13 +1,16 @@
 import {
+  CHAIR_AVATARS,
   COMPANY_COLORS,
   COMPANY_LOGOS,
+  JV_SHARES,
   UNIT_SPECS,
-  JV_SHARE,
   acknowledgeMismatch,
   addUnits,
+  buildOutlook,
   buildSalesBand,
   campaignHeat,
   canAddUnit,
+  celebrateClear,
   chooseContractor,
   chooseLand,
   chooseRemedy,
@@ -35,6 +38,7 @@ import {
   popularityNote,
   priceRemedy,
   projectNumber,
+  projectPresetMix,
   remedyExtra,
   renameProject,
   resolveSale,
@@ -46,10 +50,12 @@ import {
   settlementPreview,
   shouldTeachMismatch,
   similarProject,
+  sizePools,
   skipLand,
   stakeOf,
   unitPopularity,
   unitRowNote,
+  updateCompany,
 } from "./campaign.js";
 import { t } from "./copy.js";
 import { STORIES } from "./stories.js";
@@ -58,7 +64,7 @@ import { districtLabel, formatHkd } from "./i18n.js";
 const SAVE_KEY = "hk-dev-tycoon-v3";
 const OLD_KEYS = ["hk-dev-tycoon-v2", "hk-dev-tycoon-v1"];
 const LANG_KEY = "hk-dev-tycoon-lang";
-const NAMES = ["啟岸發展", "維港置業", "山海發展", "新界共建", "港灣創建", "青嵐地產"];
+const NAMES = ["洪興地產", "九龍實業", "雞地發展"];
 const POOL_KEYS = [
   ["whale", "poolWhale"],
   ["couple", "poolCouple"],
@@ -80,7 +86,9 @@ const ui = {
   state: null,
   error: null,
   menu: false,
-  draft: { name: "啟岸發展", logo: "tower", color: "#e2b15a" },
+  draft: { name: "洪興地產", logo: "tower", color: "#e2b15a", chairName: "主席", avatar: CHAIR_AVATARS[0] },
+  renaming: false,
+  identity: false,
   build: null,
   sale: null,
   drawer: null,
@@ -144,6 +152,23 @@ function logoSvg(id, color, name) {
     monogram: `<circle cx="32" cy="32" r="22" fill="none" stroke="${ink}" stroke-width="3"/><text x="32" y="39" text-anchor="middle" font-size="20" font-family="sans-serif" fill="${ink}">${letter}</text>`,
   };
   return `<svg class="logo" viewBox="0 0 64 64" aria-hidden="true">${marks[id] || marks.tower}</svg>`;
+}
+
+function avatarSvg(id, color) {
+  const ink = /^#[0-9a-f]{6}$/i.test(color) ? color : "#e2b15a";
+  const skin = "#f3d2b0";
+  const hair = {
+    crop: `<path d="M20 24c0-9 5-14 12-14s12 5 12 14c-2 2-22 2-24 0z" fill="${ink}"/>`,
+    bob: `<path d="M16 28c0-14 7-20 16-20s16 6 16 20v14H16z" fill="${ink}"/>`,
+    glasses: `<path d="M20 22c1-8 6-12 12-12s11 4 12 12" fill="${ink}"/>`,
+    bun: `<circle cx="32" cy="10" r="5" fill="${ink}"/><path d="M21 24c0-8 5-12 11-12s11 4 11 12" fill="${ink}"/>`,
+    wave: `<path d="M16 30c2-16 10-20 16-18 2 6 8 6 12-4 4 6 6 14 4 22H16z" fill="${ink}"/>`,
+    fringe: `<path d="M17 30c1-16 8-20 15-18-2 8-1 10 0 12-4-8-8-6-15 6z" fill="${ink}"/><path d="M32 24c2-10 8-14 15-12 1 8 1 12-2 16-6-6-10-2-13-4z" fill="${ink}"/>`,
+  };
+  const glasses = id === "glasses"
+    ? `<circle cx="26" cy="31" r="5" fill="none" stroke="${ink}" stroke-width="2.4"/><circle cx="39" cy="31" r="5" fill="none" stroke="${ink}" stroke-width="2.4"/><path d="M31 31h3" stroke="${ink}" stroke-width="2.2"/>`
+    : "";
+  return `<svg class="avatar" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="31" fill="#0e1622" stroke="${ink}" stroke-width="2"/><path d="M14 58c3-12 10-16 18-16s15 4 18 16" fill="${ink}"/>${hair[id] || hair.crop}<circle cx="32" cy="30" r="11" fill="${skin}"/>${glasses}</svg>`;
 }
 
 function errorText(code) {
@@ -401,31 +426,43 @@ function tutorialBanner() {
   return "";
 }
 
+function shareSentence(stake) {
+  const you = Math.round(Number(stake) * 100);
+  const partner = 100 - you;
+  return t(ui.lang, "jvLine", { you, partner });
+}
+
 function landCard(offer) {
   const broke = ui.state.cash < offer.landTotal;
   const deal = offer.partnerRate <= 0
     ? t(ui.lang, "typeGovNote")
     : `${t(ui.lang, typeNote(offer.type))} ${t(ui.lang, "shareOf", { pct: `${Math.round(offer.partnerRate * 100)}%` })}`;
+  const rail = offer.type === "mtr"
+    ? `<p class="deal rail">${t(ui.lang, "mtrRail")} <span class="badge badge-game">${t(ui.lang, "gameMark")}</span></p>`
+    : "";
   const body = `<div class="head"><h3>${t(ui.lang, "slot", { slot: offer.slot })} · ${t(ui.lang, typeKey(offer.type))}</h3>${stamp(offer.verdict)}</div>
-    <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))}</p>
-    <p class="fine">${formatCount(offer.gfaFt2)} ${t(ui.lang, "ft")} · ${t(ui.lang, "estUnits", { n: formatCount(offer.units) })} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
-    <p class="fine plot-price">${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)}</p>
-    <p class="deal">${deal}</p>`;
+    <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${formatCount(offer.gfaFt2)} ${t(ui.lang, "ft")} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
+    <p class="fine plot-price">${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)} · ${deal}</p>${rail}`;
   if (!jvEligible(offer)) {
     return `<button class="choice plot" data-action="buy" data-slot="${offer.slot}" data-stake="1" ${broke ? "disabled" : ""}>
       ${body}
       ${broke ? `<p class="fine">${t(ui.lang, "broke")}</p>` : ""}
     </button>`;
   }
-  const share = Math.round(offer.landTotal * JV_SHARE);
-  const jvBroke = ui.state.cash < share;
+  const cells = [
+    [1, "jvFull"],
+    [JV_SHARES[0], "jv25"],
+    [JV_SHARES[1], "jv35"],
+    [JV_SHARES[2], "jv50"],
+  ].map(([stake, key]) => {
+    const share = Math.round(offer.landTotal * stake);
+    const short = ui.state.cash < share;
+    return `<button data-action="buy" data-slot="${offer.slot}" data-stake="${stake}" ${short ? "disabled" : ""}>${t(ui.lang, key)}<small>${t(ui.lang, "youPay", { cash: compactHkd(share) })}</small></button>`;
+  }).join("");
   return `<article class="choice plot venture">
     ${body}
-    <div class="pair stake-pair">
-      <button data-action="buy" data-slot="${offer.slot}" data-stake="1" ${broke ? "disabled" : ""}>${t(ui.lang, "jvFull")}<small>${compactHkd(offer.landTotal)}</small></button>
-      <button data-action="buy" data-slot="${offer.slot}" data-stake="${JV_SHARE}" ${jvBroke ? "disabled" : ""}>${t(ui.lang, "jv35")}<small>${compactHkd(share)}</small></button>
-    </div>
-    <p class="fine jv-line">${t(ui.lang, "jvLine")}</p>
+    <div class="stake-grid">${cells}</div>
+    <p class="fine jv-line" data-jv-line>${shareSentence(0.35)}</p>
   </article>`;
 }
 
@@ -443,6 +480,22 @@ function popWord(band) {
   return t(ui.lang, "popMid");
 }
 
+function toneKey(tone) {
+  if (tone === "hot") return "toneHot";
+  if (tone === "steady") return "toneSteady";
+  return "toneQuiet";
+}
+
+function salesBlock(sales) {
+  const outlook = buildOutlook(ui.catalog, ui.state, ui.build.mix, ui.build.contractor, ui.build.loan || "cash");
+  const tone = outlook.tone;
+  const fill = tone === "hot" ? 100 : tone === "steady" ? 50 : 0;
+  return `<div class="sales-band tone-${tone}" id="sales-band">
+    <p class="sales-label">${t(ui.lang, "salesBand", { low: sales.low, high: sales.high })} ${t(ui.lang, toneKey(tone))}</p>
+    <span class="tone-bar" aria-hidden="true"><i style="width:${fill}%"></i></span>
+  </div>`;
+}
+
 function buildView() {
   ensureBuild();
   const offer = ui.state.project.offer;
@@ -451,6 +504,13 @@ function buildView() {
   const left = gfa - used;
   const heat = campaignHeat(ui.state, ui.catalog.balance);
   const popularity = unitPopularity(offer.flavour, heat, ui.catalog.balance);
+  const pools = sizePools(ui.catalog, {
+    gfaFt2: gfa,
+    flavour: offer.flavour,
+    heat,
+    buyer: ui.state.market?.buyer || 1,
+    bias: ui.state.poolBias || {},
+  });
   const picked = ui.build.contractor ? contractorQuote(ui.catalog, ui.state, ui.build.contractor) : null;
   const costPsf = picked ? picked.buildPerFt2 : offer.estBuildPerFt2;
   const step = mixDelta(gfa);
@@ -469,6 +529,7 @@ function buildView() {
     ]);
     return `<div class="mix-row">
       <span><b>${t(ui.lang, nameKey)}</b><small>${caption}</small></span>
+      <span class="guests">${t(ui.lang, "guests", { n: formatCount(pools[spec.pool] || 0) })}</span>
       <span class="stepper">
         <button type="button" class="step" data-action="mix-step" data-unit="${spec.id}" data-delta="${-step}" ${count <= 0 ? "disabled" : ""} aria-label="−${stepLabel}">−</button>
         <strong id="count-${spec.id}">${formatCount(count)}</strong>
@@ -506,6 +567,8 @@ function buildView() {
       big: compactHkd(funding("big").principal),
     })}</p>`;
   const sales = buildSalesBand(ui.catalog, ui.state, ui.build.mix, ui.build.contractor);
+  const outlook = buildOutlook(ui.catalog, ui.state, ui.build.mix, ui.build.contractor, ui.build.loan || "cash");
+  const warn = outlook.warnBig ? `<p class="loan-warn">${t(ui.lang, "loanWarn")}</p>` : "";
   const cards = ["jingjin", "huimen", "xinjing"].map((id) => {
     const quote = contractorQuote(ui.catalog, ui.state, id);
     const spec = ui.catalog.balance.contractors[id];
@@ -521,12 +584,15 @@ function buildView() {
     </button>`;
   }).join("");
   const width = Math.max(0, Math.min(100, (used / gfa) * 100));
-  const stakeNote = stakeOf(offer) < 1 ? `<p class="fine jv-line">${t(ui.lang, "jvLine")} ${t(ui.lang, "jvDisclaimer")}</p>` : "";
+  const stake = stakeOf(offer);
+  const stakeNote = stake < 1 ? `<p class="fine jv-line">${shareSentence(stake)}</p>` : "";
   return `${errorBanner()}${yellowBanner()}${tutorialBanner()}
     <section class="card build-card">
-      <p class="kicker">${t(ui.lang, "buildKicker")} · ${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
+      <div class="title-row">
+        ${projectTitle()}
+        <span class="kicker">${t(ui.lang, "buildKicker")} · ${t(ui.lang, siteKey(offer.siteTier))}</span>
+      </div>
       ${stakeNote}
-      ${projectNameField()}
       <div id="gfa-live" class="${left < 0 ? "over" : ""}">
         <span>${t(ui.lang, "gfa")} ${formatCount(gfa)}</span>
         <span class="psf" id="gfa-psf">${t(ui.lang, "costPsf", { n: formatHkd(costPsf) })}</span>
@@ -534,14 +600,19 @@ function buildView() {
         <span>${t(ui.lang, "leftGfa")} <strong id="gfa-left">${formatCount(left)}</strong></span>
       </div>
       <div class="bar"><span id="gfa-bar" style="width:${width}%"></span></div>
-      <p class="fine build-band">${t(ui.lang, presetWhyKey(offer.flavour, heat))} · ${t(ui.lang, "salesBand", { low: sales.low, high: sales.high })}</p>
+      ${salesBlock(sales)}
       ${sales.weak ? `<p class="mismatch-line">${t(ui.lang, "mismatchTitle")}</p>` : ""}
-      <div class="chips preset-row">${presets}</div>
+      <div class="preset-line">
+        <button type="button" class="reset-mix" data-action="reset-mix">${t(ui.lang, "resetMix")}</button>
+        <div class="chips preset-row">${presets}</div>
+      </div>
       <p id="over-line" class="fine bad-text"${left < 0 ? "" : " hidden"}>${t(ui.lang, "overGfa")}</p>
       <div class="mixes">${rows}</div>
       <div class="credit-row"><span>${t(ui.lang, "creditKicker")}</span>${loans}</div>
+      <p class="loan-compare">${t(ui.lang, "loanCompare", { interest: compactHkd(outlook.interest), profit: compactHkd(outlook.profit) })}</p>
+      ${warn}
       ${shortLine}
-      <p class="fine credit-note">${t(ui.lang, "creditNote")}</p>
+      <p class="fine credit-note">${t(ui.lang, "loanDisclaimer")}</p>
       <div class="contractors">${cards}</div>
     </section>`;
 }
@@ -592,12 +663,17 @@ function presetWhyKey(flavour, heat) {
   return `why${place}${market}`;
 }
 
-function projectNameField() {
+function projectTitle() {
   const name = ui.state?.project?.name || "";
-  return `<label class="project-name">
-    <span>${t(ui.lang, "projectName")}</span>
-    <input id="project-name" maxlength="12" value="${escapeHtml(name)}" aria-label="${escapeHtml(t(ui.lang, "projectName"))}">
-  </label>`;
+  if (ui.renaming) {
+    return `<label class="title-line editing">
+      <input id="project-name" maxlength="12" value="${escapeHtml(name)}" aria-label="${escapeHtml(t(ui.lang, "projectName"))}">
+    </label>`;
+  }
+  return `<button type="button" class="title-line" data-action="rename-edit">
+    <span class="title-text">${escapeHtml(name)}</span>
+    <span class="rename-tag">${t(ui.lang, "rename")}</span>
+  </button>`;
 }
 
 function fact(label, value) {
@@ -748,7 +824,10 @@ function sellSetup() {
   const showOn = ui.sale.choices.showflat;
   return `${tutorialBanner()}${yellowBanner()}${bridgeBanner()}${collapseBanner()}
     <section class="card sell-setup showroom">
-      <p class="kicker">${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</p>
+      <div class="title-row">
+        <span class="kicker">${t(ui.lang, "showroom")}</span>
+        ${projectTitle()}
+      </div>
       <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
       <div class="chips price-chips">${priceChips()}</div>
       ${forecastBlock(forecast)}
@@ -964,7 +1043,14 @@ function settleView() {
       due: compactHkd(project.loan.due),
     }))
     : "";
-  return `${bridgeBanner()}<section class="card"><h2>${t(ui.lang, "settleKicker")}</h2>
+  const party = celebrateClear(sale.outcome);
+  const confetti = party
+    ? `<div class="confetti" aria-hidden="true">${Array.from({ length: 10 }, () => "<i></i>").join("")}</div>`
+    : "";
+  const stampClear = party ? `<p class="clear-stamp">${t(ui.lang, "outcomeClear")}</p>` : "";
+  return `${bridgeBanner()}<section class="card${party ? " clear-card" : ""}"><h2>${t(ui.lang, "settleKicker")}</h2>
+    ${stampClear}
+    ${confetti}
     ${outcomeLine(sale)}
     <div class="big-profit ${cls}">${sign}${formatHkd(sale.profit)}</div>
     <p class="fine">${escapeHtml(districtLabel(ui.lang, project.offer.district))} · ${t(ui.lang, flavourKey(project.offer.flavour))} · ${t(ui.lang, typeKey(project.offer.type))}</p>
@@ -1096,19 +1182,28 @@ function mainView() {
   return summaryView();
 }
 
-function companyView() {
-  const names = NAMES.map((name) => `<button class="chip${ui.draft.name === name ? " on" : ""}" data-action="preset-name" data-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("");
-  const logos = COMPANY_LOGOS.map((id) => `<button class="chip logo-pick${ui.draft.logo === id ? " on" : ""}" data-action="logo" data-id="${id}" aria-pressed="${ui.draft.logo === id}">${logoSvg(id, ui.draft.color, ui.draft.name)}</button>`).join("");
-  const colors = COMPANY_COLORS.map((color) => `<button class="swatch${ui.draft.color === color ? " on" : ""}" style="background:${color}" data-action="color" data-color="${color}" aria-label="${color}"></button>`).join("");
-  return `<section class="card">
-      <p class="kicker">${t(ui.lang, "companyKicker")}</p>
-      <h3>${t(ui.lang, "title")}</h3>
-      <p class="note">${t(ui.lang, "companyLead")}</p>
-      <div class="preview">${logoSvg(ui.draft.logo, ui.draft.color, ui.draft.name)}</div>
-      <div class="names">${names}</div>
+function identityFields() {
+  const names = NAMES.map((name) => `<button type="button" class="chip${ui.draft.name === name ? " on" : ""}" data-action="preset-name" data-name="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("");
+  const avatars = CHAIR_AVATARS.map((id) => `<button type="button" class="avatar-pick${ui.draft.avatar === id ? " on" : ""}" data-action="avatar" data-id="${id}" aria-pressed="${ui.draft.avatar === id}" aria-label="${id}">${avatarSvg(id, ui.draft.color)}</button>`).join("");
+  const logos = COMPANY_LOGOS.map((id) => `<button type="button" class="chip logo-pick${ui.draft.logo === id ? " on" : ""}" data-action="logo" data-id="${id}" aria-pressed="${ui.draft.logo === id}">${logoSvg(id, ui.draft.color, ui.draft.name)}</button>`).join("");
+  const colors = COMPANY_COLORS.map((color) => `<button type="button" class="swatch${ui.draft.color === color ? " on" : ""}" style="background:${color}" data-action="color" data-color="${color}" aria-label="${color}"></button>`).join("");
+  return `<label class="field-label">${t(ui.lang, "chairName")}
+      <input id="chair-name" class="name-field" maxlength="10" value="${escapeHtml(ui.draft.chairName || "主席")}" aria-label="${escapeHtml(t(ui.lang, "chairName"))}">
+    </label>
+    <div class="avatar-row">${avatars}</div>
+    <label class="field-label">${t(ui.lang, "companyName")}
       <input id="company-name" class="name-field" maxlength="16" value="${escapeHtml(ui.draft.name)}" aria-label="${escapeHtml(t(ui.lang, "companyName"))}">
-      <div class="chips">${logos}</div>
-      <div class="swatches">${colors}</div>
+    </label>
+    <div class="names">${names}</div>
+    <div class="chips">${logos}</div>
+    <div class="swatches">${colors}</div>`;
+}
+
+function companyView() {
+  return `<section class="card company-card">
+      <p class="kicker">${t(ui.lang, "companyKicker")}</p>
+      <p class="note">${t(ui.lang, "companyLead")}</p>
+      ${identityFields()}
     </section>`;
 }
 
@@ -1188,8 +1283,11 @@ function hud() {
       <div class="stat"><span class="k">${t(ui.lang, "poolLeft")}</span><strong id="hud-pool-num">${poolSum(quote.poolsAfter)}</strong></div>
     </div>`;
   }
+  const mark = ui.state
+    ? `<button type="button" class="avatar-btn" data-action="identity" aria-label="${escapeHtml(t(ui.lang, "identity"))}">${avatarSvg(company.avatar || CHAIR_AVATARS[0], company.color)}</button>`
+    : logoSvg(company.logo, company.color, company.name);
   return `<header class="hud">
-    <div class="brand">${logoSvg(company.logo, company.color, company.name)}<div><h1>${escapeHtml(company.name)}</h1><p>${t(ui.lang, "tagline")}</p></div></div>
+    <div class="brand">${mark}<div class="brand-copy"><h1>${escapeHtml(company.name)}</h1><p>${t(ui.lang, "tagline")}</p></div></div>
     <div class="stats">
       <div class="stat stat-cash"><span class="k">${t(ui.lang, "cash")}</span><strong>${compactHkd(cash)}</strong>${thaw}</div>
       <div class="stat stat-rep"><span class="k">${t(ui.lang, "reputation")}</span><strong>${rep}</strong></div>
@@ -1295,7 +1393,20 @@ function menuOverlay() {
     <h3>${t(ui.lang, "menu")}</h3>
     <div class="stack">
       <button class="primary" data-action="close-menu">${t(ui.lang, "close")}</button>
+      <button class="ghost" data-action="identity">${t(ui.lang, "identity")}</button>
       <button class="ghost" data-action="new-game">${t(ui.lang, "newGame")}</button>
+    </div>
+  </div></div>`;
+}
+
+function identityOverlay() {
+  if (!ui.identity || !ui.state) return "";
+  return `<div class="menu identity-menu"><div class="card company-card">
+    <p class="kicker">${t(ui.lang, "identity")}</p>
+    ${identityFields()}
+    <div class="stack">
+      <button class="primary" data-action="save-identity">${t(ui.lang, "saveIdentity")}</button>
+      <button class="ghost" data-action="close-identity">${t(ui.lang, "close")}</button>
     </div>
   </div></div>`;
 }
@@ -1312,15 +1423,33 @@ function render() {
     <p class="legal"><span>${t(ui.lang, "disclaimer")}</span><span class="legal-en"> · ${t(ui.lang, "disclaimerEn")}</span>${jvVisible() ? `<span class="legal-jv"> · ${t(ui.lang, "jvDisclaimer")}</span>` : ""}</p>
     ${dock()}
     ${menuOverlay()}
+    ${identityOverlay()}
     ${historyDrawer()}`;
+  if (ui.renaming) {
+    const field = document.querySelector("#project-name");
+    if (field) {
+      field.focus();
+      field.select();
+    }
+  }
+}
+
+function readIdentityInputs() {
+  const name = document.querySelector("#company-name");
+  const chair = document.querySelector("#chair-name");
+  if (name) ui.draft.name = String(name.value || "").trim().slice(0, 16) || ui.draft.name || "啟岸發展";
+  if (chair) ui.draft.chairName = String(chair.value || "").trim().slice(0, 10) || "主席";
+  if (!CHAIR_AVATARS.includes(ui.draft.avatar)) ui.draft.avatar = CHAIR_AVATARS[0];
 }
 
 function foundCompany() {
-  const name = document.querySelector("#company-name")?.value ?? ui.draft.name;
-  ui.draft.name = String(name || "").trim().slice(0, 16) || "啟岸發展";
+  readIdentityInputs();
+  ui.draft.name = String(ui.draft.name || "").trim().slice(0, 16) || "啟岸發展";
   const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
   ui.state = createCampaign(ui.catalog, { company: ui.draft, seed });
   ui.menu = false;
+  ui.identity = false;
+  ui.renaming = false;
   ui.drawer = null;
   ui.historyFocus = null;
   ui.error = null;
@@ -1340,6 +1469,8 @@ function newGame() {
   ui.sale = null;
   ui.build = null;
   ui.menu = false;
+  ui.identity = false;
+  ui.renaming = false;
   ui.drawer = null;
   ui.historyFocus = null;
   ui.error = null;
@@ -1371,7 +1502,49 @@ function onClick(event) {
   }
   if (action === "menu") {
     ui.menu = true;
+    ui.identity = false;
     ui.drawer = null;
+    render();
+    return;
+  }
+  if (action === "identity") {
+    if (ui.state) ui.draft = { ...ui.state.company };
+    ui.identity = true;
+    ui.menu = false;
+    ui.drawer = null;
+    render();
+    return;
+  }
+  if (action === "close-identity") {
+    ui.identity = false;
+    render();
+    return;
+  }
+  if (action === "save-identity") {
+    readIdentityInputs();
+    const saved = updateCompany(ui.state, ui.draft);
+    if (saved.ok) {
+      ui.state = saved.state;
+      ui.identity = false;
+      persist();
+    }
+    render();
+    return;
+  }
+  if (action === "avatar") {
+    if (CHAIR_AVATARS.includes(id)) ui.draft.avatar = id;
+    readIdentityInputs();
+    render();
+    return;
+  }
+  if (action === "rename-edit") {
+    ui.renaming = true;
+    render();
+    return;
+  }
+  if (action === "reset-mix") {
+    ensureBuild();
+    ui.build.mix = projectPresetMix(ui.catalog, ui.state);
     render();
     return;
   }
@@ -1409,6 +1582,7 @@ function onClick(event) {
     return;
   }
   if (action === "preset-name") {
+    readIdentityInputs();
     ui.draft.name = target.dataset.name;
     render();
     return;
@@ -1608,7 +1782,11 @@ function onInput(event) {
     const shown = ui.draft.name.trim() || "啟岸發展";
     for (const node of document.querySelectorAll(".brand h1")) node.textContent = shown;
     const letter = shown.slice(0, 1) || "啟";
-    for (const node of document.querySelectorAll(".brand text, .preview text")) node.textContent = letter;
+    for (const node of document.querySelectorAll(".brand text, .logo-pick text")) node.textContent = letter;
+    return;
+  }
+  if (event.target.id === "chair-name") {
+    ui.draft.chairName = event.target.value.slice(0, 10);
     return;
   }
   if (event.target.id === "project-name") {
@@ -1650,8 +1828,26 @@ async function boot() {
   }
   app.addEventListener("click", onClick);
   app.addEventListener("input", onInput);
-  app.addEventListener("change", (event) => {
-    if (event.target.id === "project-name") writeProjectName(event.target.value, true);
+  app.addEventListener("focusout", (event) => {
+    if (event.target.id !== "project-name") return;
+    writeProjectName(event.target.value, false);
+    ui.renaming = false;
+    render();
+  });
+  app.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.target.id === "project-name") {
+      event.preventDefault();
+      event.target.blur();
+    }
+  });
+  app.addEventListener("pointerover", (event) => {
+    const button = event.target.closest?.(".stake-grid button");
+    if (!button) return;
+    const line = button.closest(".venture")?.querySelector("[data-jv-line]");
+    if (!line) return;
+    const stake = Number(button.dataset.stake);
+    if (!Number.isFinite(stake) || stake <= 0) return;
+    line.textContent = shareSentence(stake);
   });
   render();
 }

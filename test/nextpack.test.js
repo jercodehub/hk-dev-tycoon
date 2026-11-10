@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  JV_SHARE,
+  JV_SHARES,
+  bigLoanWarned,
+  buildOutlook,
   buildSalesBand,
   campaignWorth,
+  celebrateClear,
   chooseContractor,
   chooseLand,
   chooseRemedy,
@@ -14,17 +17,27 @@ import {
   contractorQuote,
   createCampaign,
   createCampaignCatalog,
+  ensureAffordableOffer,
   fundBuild,
+  hydrateCampaign,
+  initialMarket,
   jvEligible,
   lapseExit,
+  migrateSave,
   mismatchEcho,
   mixPreset,
+  pickDistrict,
+  presetMix,
+  priceOffer,
+  projectPresetMix,
   quoteLoan,
   remedyExtra,
   resolveSale,
   rollOffers,
+  rollSiteTier,
   saleForecast,
   saleLedger,
+  serializeCampaign,
   settlementPreview,
   shouldTeachMismatch,
   acknowledgeMismatch,
@@ -39,6 +52,7 @@ function load(relativePath) {
   return JSON.parse(readFileSync(new URL(relativePath, import.meta.url), "utf8"));
 }
 
+const JV_SHARE = 0.35;
 const balance = load("../game/campaign-balance.json");
 const market = load("../data/market-stats.json");
 const catalog = createCampaignCatalog({ market, balance });
@@ -256,7 +270,8 @@ test("one bad project does not permanently lock a flagship opportunity", () => {
     else break;
   }
   assert.equal(state.phase, "summary");
-  assert.equal(sawFlagship, true);
+  assert.equal(state.credit.forceSmall, false);
+  assert.equal(sawFlagship, campaignWorth(state) >= balance.siteTiers.find((row) => row.id === "flagship").minWorth);
   assert.ok(campaignWorth(state) > 0);
 });
 
@@ -315,4 +330,239 @@ test("a 35% venture is only on mid-tier government sites and credit stays on tha
   assert.ok(Math.abs(joint.rebateCost / whole.rebateCost - JV_SHARE) < 0.05 || whole.rebateCost === 0);
   assert.ok(joint.netCash < whole.netCash);
   assert.ok(joint.netCash > 0);
+});
+
+test("venture stakes are only 25, 35, 50, or fully owned", () => {
+  assert.deepEqual(JV_SHARES, [0.25, 0.35, 0.5]);
+  assert.equal(stakeOf({ stake: 0.25 }), 0.25);
+  assert.equal(stakeOf({ stake: 0.35 }), 0.35);
+  assert.equal(stakeOf({ stake: 0.5 }), 0.5);
+  assert.equal(stakeOf({ stake: 1 }), 1);
+  assert.equal(stakeOf({}), 1);
+  assert.equal(stakeOf({ stake: 0.2 }), 1);
+  assert.equal(stakeOf({ stake: 0.4 }), 1);
+
+  let rich = { ...start(9), cash: 20_000_000_000, completed: 14, credit: { unpaidStreak: 0, carried: 0, yellow: false, forceSmall: false, owed: 0 } };
+  rich = rollOffers(rich, catalog);
+  const venture = rich.offers.find((offer) => jvEligible(offer));
+  assert.ok(venture);
+  for (const share of JV_SHARES) {
+    const broke = { ...rich, cash: Math.round(venture.landTotal * share) };
+    const taken = chooseLand(catalog, broke, venture.slot, share);
+    assert.equal(taken.ok, true, share);
+    assert.equal(stakeOf(taken.state.project.offer), share);
+    assert.equal(taken.state.project.offer.landPaid, Math.round(venture.landTotal * share));
+    const quote = contractorQuote(catalog, taken.state, "huimen");
+    assert.equal(quote.playerCost, Math.round(quote.cost * share));
+    const whole = resolveSale(catalog, {
+      ...taken.state,
+      project: {
+        ...taken.state.project,
+        offer: { ...taken.state.project.offer, stake: 1, landPaid: venture.landTotal },
+        contractor: { id: "huimen", quality: 1, leak: 0, collapsed: false, total: quote.cost, cost: quote.cost, saleDrag: 0 },
+        mix: venture.mixHint,
+      },
+    }, { price: "fair", showflat: true, cheer: 0, leftover: "cut", rebate: "none", adBudget: "none" });
+    const part = resolveSale(catalog, {
+      ...taken.state,
+      project: {
+        ...taken.state.project,
+        contractor: { id: "huimen", quality: 1, leak: 0, collapsed: false, total: quote.playerCost, cost: quote.playerCost, saleDrag: 0 },
+        mix: venture.mixHint,
+      },
+    }, { price: "fair", showflat: true, cheer: 0, leftover: "cut", rebate: "none", adBudget: "none" });
+    assert.ok(Math.abs(part.showflatCost / whole.showflatCost - share) < 0.02);
+    assert.ok(part.netCash < whole.netCash);
+    const shared = rich.offers.find((offer) => offer.type === "ura" || offer.type === "mtr");
+    if (shared) assert.equal(chooseLand(catalog, { ...rich, cash: shared.landTotal }, shared.slot, share).error, "bad_stake");
+  }
+  assert.equal(remedyExtra(balance, 100000, 0.25, "rush"), Math.round(100000 * balance.collapseExtra * 0.25));
+  assert.equal(remedyExtra(balance, 100000, 0.5, "worse"), Math.round(100000 * balance.remedy.worseExtra * 0.5));
+});
+
+test("opening projects stay small, so 25% cannot buy a flagship", () => {
+  const opening = start(4);
+  assert.ok(opening.offers.every((offer) => offer.siteTier === "small"));
+  assert.ok(opening.offers.every((offer) => jvEligible(offer) === false));
+  assert.equal(chooseLand(catalog, opening, opening.offers[2].slot, 0.25).error, "bad_stake");
+  assert.equal(balance.flagshipFrom, 12);
+  assert.equal(balance.siteTiers.find((row) => row.id === "flagship").minWorth, 3600000000);
+  assert.equal(rollSiteTier(9_000_000_000_000, opening.seed, 0, balance, false), "small");
+  assert.equal(rollSiteTier(9_000_000_000_000, opening.seed, 1, balance, false), "small");
+  let scaled = { ...start(3), cash: 2_000_000_000, completed: 14, credit: { unpaidStreak: 0, carried: 0, yellow: false, forceSmall: false, owed: 0 } };
+  scaled = rollOffers(scaled, catalog);
+  assert.ok(scaled.offers.every((offer) => offer.siteTier !== "flagship"));
+});
+
+test("a 25% mid site does not cancel the small government survival plot", () => {
+  const levels = initialMarket();
+  const mid = priceOffer({ slot: "A", type: "gov", district: "元朗區", gfaFt2: 80000, premium: 1.1 }, levels, catalog, "loose");
+  mid.siteTier = "mid";
+  const offers = [
+    { ...mid, slot: "A" },
+    { ...mid, slot: "B", landTotal: mid.landTotal + 1000 },
+    { ...mid, slot: "C", type: "ura", partnerRate: 0.22, siteTier: "flagship" },
+  ];
+  const cash = Math.round(mid.landTotal * 0.3);
+  assert.ok(cash >= mid.landTotal * 0.25);
+  assert.ok(cash < mid.landTotal * 0.35);
+  const state = { cash, market: levels, credit: { forceSmall: false } };
+  const next = ensureAffordableOffer(offers, state, catalog, "loose");
+  const injected = next.find((offer) => offer.siteTier === "small" && offer.type === "gov");
+  assert.ok(injected);
+  assert.ok(next.every((offer) => offer.slot !== "C" || offer.siteTier === "flagship"));
+  assert.equal(injected.siteTier, "small");
+  const covered = ensureAffordableOffer(offers, { ...state, cash: Math.round(mid.landTotal * 0.35) }, catalog, "loose");
+  assert.equal(covered.find((offer) => offer.siteTier === "small" && offer.slot === "B"), undefined);
+});
+
+test("save version 7 keeps an in-progress 0.35 stake and fills chair and avatar", () => {
+  let state = start(6);
+  state = chooseLand(catalog, state, "A").state;
+  const raw = serializeCampaign(state);
+  raw.v = 6;
+  raw.project.offer.stake = 0.35;
+  const history = [{ index: 1, name: "舊盤", stake: 0.2, note: "keep" }];
+  raw.history = history;
+  delete raw.company.chairName;
+  delete raw.company.avatar;
+  const migrated = migrateSave(raw);
+  assert.equal(migrated.ok, true);
+  assert.equal(migrated.state.v, 7);
+  assert.equal(migrated.state.project.offer.stake, 0.35);
+  assert.equal(migrated.state.company.chairName, "主席");
+  assert.equal(migrated.state.company.avatar, "crop");
+  assert.equal(migrated.state.history[0].note, "keep");
+  assert.equal(migrated.state.history[0].stake, 0.2);
+  const hydrated = hydrateCampaign(catalog, migrated.state);
+  assert.equal(stakeOf(hydrated.project.offer), 0.35);
+  assert.equal(hydrated.company.chairName, "主席");
+  assert.equal(hydrated.cash, state.cash);
+
+  const missing = serializeCampaign(state);
+  missing.v = 6;
+  delete missing.project.offer.stake;
+  delete missing.company.chairName;
+  assert.equal(migrateSave(missing).state.project.offer.stake, 1);
+  const odd = serializeCampaign(state);
+  odd.v = 6;
+  odd.project.offer.stake = 0.2;
+  assert.equal(migrateSave(odd).state.project.offer.stake, 1);
+
+  for (const version of [3, 4, 5]) {
+    const legacy = serializeCampaign(start(8));
+    legacy.v = version;
+    if (version < 5) delete legacy.credit;
+    if (version < 4) delete legacy.voice;
+    const upgraded = migrateSave(legacy);
+    assert.equal(upgraded.ok, true);
+    assert.equal(upgraded.notice, null);
+    assert.equal(upgraded.state.v, 7);
+    assert.equal(upgraded.state.company.chairName, "主席");
+    assert.ok(upgraded.state.company.avatar);
+    assert.equal(hydrateCampaign(catalog, upgraded.state).cash, legacy.cash);
+  }
+});
+
+test("metro sell boost is in the build band and the showroom forecast", () => {
+  assert.ok(balance.landTypes.mtr.sellBoost >= 0.08 && balance.landTypes.mtr.sellBoost <= 0.12);
+  const mix = { studio: 20, one: 0, two: 0, three: 0, feature: 0 };
+  const base = priceOffer({ slot: "A", type: "gov", district: "沙田區", gfaFt2: 22000, premium: 1 }, initialMarket(), catalog, "spicy");
+  const stateFor = (type) => ({
+    seed: 1,
+    completed: 0,
+    cash: 1_000_000_000,
+    reputation: 58,
+    market: initialMarket(),
+    poolBias: {},
+    phase: "build",
+    project: {
+      offer: { ...base, type, partnerRate: balance.landTypes[type].partnerRate, heat: "spicy" },
+      mix,
+      contractor: { id: "huimen", quality: 1, leak: 0, collapsed: false, total: 0, cost: 0, saleDrag: 0 },
+    },
+  });
+  const gov = stateFor("gov");
+  const mtr = stateFor("mtr");
+  const govBand = buildSalesBand(catalog, gov, mix, "huimen");
+  const mtrBand = buildSalesBand(catalog, mtr, mix, "huimen");
+  const govSale = resolveSale(catalog, gov, { price: "fair", cheer: 0, leftover: "cut", rebate: "none", adBudget: "none", roll: 1 });
+  const mtrSale = resolveSale(catalog, mtr, { price: "fair", cheer: 0, leftover: "cut", rebate: "none", adBudget: "none", roll: 1 });
+  assert.ok(mtrSale.byType.studio.convert > govSale.byType.studio.convert);
+  assert.ok(Math.abs((mtrSale.byType.studio.convert - govSale.byType.studio.convert) - balance.landTypes.mtr.sellBoost) < 0.02);
+  assert.ok(mtrBand.pct > govBand.pct);
+  const selling = {
+    ...mtr,
+    phase: "sell",
+    project: {
+      ...mtr.project,
+      contractor: { id: "huimen", quality: 1, leak: 0, collapsed: false, total: base.estBuildTotal, cost: base.estBuildTotal, saleDrag: 0 },
+    },
+  };
+  const plain = {
+    ...selling,
+    project: { ...selling.project, offer: { ...selling.project.offer, type: "gov", partnerRate: 0 } },
+  };
+  const forecast = saleForecast(catalog, selling, { price: "fair", cheer: 0, leftover: "cut" });
+  const without = saleForecast(catalog, plain, { price: "fair", cheer: 0, leftover: "cut" });
+  assert.ok(forecast.pct > without.pct);
+  assert.ok(t("tc", "forecastPct", { pct: forecast.pct }).includes("預計沽出"));
+  assert.equal(t("tc", "salesBand", { low: mtrBand.low, high: mtrBand.high }).includes("預計沽出"), false);
+});
+
+test("reset mix restores the project preset and a weak band warns on a large loan", () => {
+  const state = bought(6);
+  const preset = projectPresetMix(catalog, state);
+  assert.deepEqual(preset, presetMix(state.project.offer.gfaFt2, state.project.offer.flavour, state.project.offer.heat, balance));
+  assert.deepEqual(preset, state.project.offer.mixHint);
+  const luxury = mixPreset(state.project.offer.gfaFt2, "luxury");
+  assert.notDeepEqual(luxury, preset);
+  const weak = buildSalesBand(catalog, state, luxury, "jingjin");
+  assert.ok(weak.pct < 80);
+  assert.equal(bigLoanWarned(weak.pct, "big"), true);
+  assert.equal(bigLoanWarned(weak.pct, "small"), false);
+  assert.equal(bigLoanWarned(80, "big"), false);
+  assert.equal(bigLoanWarned(79, "big"), true);
+  assert.equal(bigLoanWarned(49, "big"), true);
+  const outlook = buildOutlook(catalog, state, luxury, "jingjin", "big");
+  assert.equal(outlook.warnBig, true);
+  assert.ok(outlook.interest > 0);
+  assert.equal(t("tc", "loanWarn"), "銷情未夠綠，借大數利息可能食晒利潤。娛樂模擬，非借貸意見。");
+  assert.equal(t("tc", "loanWarn").includes("食咗"), false);
+  assert.equal(t("tc", "loanCompare", { interest: "$1", profit: "$2" }), "息 $1 · 預計你份利潤約 $2");
+  assert.equal(t("tc", "loanDisclaimer"), "遊戲內借貸，娛樂模擬，非借貸意見");
+});
+
+test("a sell-out celebration only runs when the project fully clears", () => {
+  assert.equal(celebrateClear("clear"), true);
+  assert.equal(celebrateClear("almost"), false);
+  assert.equal(celebrateClear("partial"), false);
+  assert.equal(celebrateClear("fail"), false);
+  const main = readFileSync(new URL("../game/main.js", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../game/styles.css", import.meta.url), "utf8");
+  assert.ok(main.includes("celebrateClear"));
+  assert.ok(css.includes(".clear-stamp"));
+  assert.ok(css.includes("confetti"));
+  assert.ok(css.includes("prefers-reduced-motion"));
+  assert.equal(css.includes(".jv-line { display: none"), false);
+  assert.equal(css.includes(".project-name { display: none"), false);
+  assert.ok(css.includes(".title-line"));
+  assert.ok(css.includes(".reset-mix"));
+  assert.ok(css.includes(".sales-band"));
+  const copy = playerFacingCopy().join("\n");
+  assert.equal(copy.includes("沸清"), false);
+  assert.equal(copy.includes("預計沸出"), false);
+  assert.equal(copy.includes("深水埐"), false);
+  assert.equal(copy.includes("娓樂"), false);
+  assert.ok(copy.includes("沽清"));
+  assert.ok(copy.includes("預計沽出"));
+  assert.ok(copy.includes("娛樂模擬"));
+  assert.equal(t("tc", "typeGovNote"), "無分成");
+  assert.equal(t("tc", "govSettle"), "政府地無分成。");
+  assert.equal(t("tc", "jvLine", { you: 50, partner: 50 }), "你出 50% · 夥伴 50% · 之後按呢個份額分");
+  assert.ok(t("tc", "mtrRail").includes("鐵路交通"));
+  for (let i = 0; i < 30; i += 1) {
+    const district = pickDistrict("gov", { next: () => i / 30 }, balance);
+    assert.ok(balance.urbanDistricts.includes(district) || balance.newTownDistricts.includes(district));
+  }
 });

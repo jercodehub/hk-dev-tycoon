@@ -235,7 +235,7 @@ test("a loose market can send one speculator through two or three studios", () =
   assert.equal(projectSale("北區", { seed: 1 }).byType.studio.sensitive, false);
 });
 
-test("government land skims nothing and draws more controversy than a skip", () => {
+test("government land skims nothing and does not pile on controversy", () => {
   assert.equal(balance.landTypes.gov.partnerRate, 0);
   assert.ok(balance.landTypes.ura.partnerRate > balance.landTypes.mtr.partnerRate);
   assert.ok(balance.landTypes.mtr.partnerRate > 0);
@@ -274,7 +274,9 @@ test("government land skims nothing and draws more controversy than a skip", () 
     }
     return hits / samples;
   }
-  assert.ok(rate("gov") > rate("skip") + 0.12);
+  assert.equal(balance.govControversyWeight, 1);
+  assert.ok(balance.controversyWeight <= 1);
+  assert.ok(rate("gov") < rate("skip") + 0.18);
 });
 
 test("side stories move reputation, cash, and a buyer pool", () => {
@@ -391,7 +393,7 @@ test("a renamed project stays in the save, and a phase 3 save upgrades", () => {
   const migrated = migrateSave(legacy);
   assert.equal(migrated.ok, true);
   assert.equal(migrated.notice, null);
-  assert.equal(migrated.state.v, 6);
+  assert.equal(migrated.state.v, 7);
   const upgraded = hydrateCampaign(catalog, migrated.state);
   assert.equal(upgraded.cash, state.cash);
   assert.equal(upgraded.phase, "build");
