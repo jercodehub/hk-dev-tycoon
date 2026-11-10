@@ -8,7 +8,7 @@
 import { DISTRICTS } from "./i18n.js";
 import { STORIES } from "./stories.js";
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const UNIT_SPECS = [
   { id: "studio", ft2: 280, pool: "whale" },
   { id: "one", ft2: 350, pool: "couple" },
@@ -232,6 +232,35 @@ export function campaignHeat(state, balance) {
   const looseStart = ((state?.seed || 0) % 2) === 0;
   const loose = block % 2 === 0 ? looseStart : !looseStart;
   return loose ? "loose" : "spicy";
+}
+
+export function heatProjectsLeft(state, balance) {
+  const every = Math.max(1, balance?.heatEvery || 3);
+  const into = (state?.completed || 0) % every;
+  return every - into;
+}
+
+const FLAVOUR_TAG = { uni: "近大學", starter: "偏遠上車", core: "核心" };
+
+export function defaultProjectName(district, flavour) {
+  const short = String(district || "").replace(/區$/, "") || "項目";
+  const tag = FLAVOUR_TAG[flavour] || "";
+  return `${short}${tag ? `·${tag}` : ""}`.slice(0, 12);
+}
+
+export function normalizeProjectName(name, fallback) {
+  const clean = String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 12);
+  return clean || fallback || "項目";
+}
+
+export function renameProject(catalog, state, name) {
+  if (state.phase !== "build" && state.phase !== "sell") return fail(state, "bad_phase");
+  if (!state.project || state.project.skipped || !state.project.offer) return fail(state, "bad_phase");
+  const fallback = defaultProjectName(state.project.offer.district, state.project.offer.flavour);
+  return succeed({
+    ...state,
+    project: { ...state.project, name: normalizeProjectName(name, fallback) },
+  });
 }
 
 export function presetMix(gfaFt2, flavour, heat, balance) {
@@ -467,6 +496,7 @@ export function createCampaign(catalog, { company, seed = 1 } = {}) {
     rngCursor,
     poolBias: emptyBias(),
     frozen: [],
+    voice: emptyVoice(),
     notice: null,
   };
   return rollOffers(state, catalog);
@@ -503,6 +533,7 @@ export function chooseLand(catalog, state, slot) {
     project: {
       index: state.completed + 1,
       skipped: false,
+      name: defaultProjectName(offer.district, offer.flavour),
       offer: {
         ...offer,
         quotedAt: { ...offer.quotedAt },
@@ -619,7 +650,19 @@ export function normalizeChoices(raw = {}, balance) {
   const cheer = clamp(Math.round(Number(raw.cheer) || 0), 0, balance.cheerMax);
   const showflat = Boolean(raw.showflat);
   const leftover = raw.leftover === "hold" ? "hold" : "cut";
-  return { showflat, cheer, leftover };
+  const price = raw.price === "cheap" || raw.price === "expensive" ? raw.price : "fair";
+  return { showflat, cheer, leftover, price, askMul: askMultiplier(price, balance) };
+}
+
+function askMultiplier(price, balance) {
+  const key = price === "cheap" ? "cheap" : price === "expensive" ? "stretch" : "market";
+  const mul = balance.ask?.[key];
+  return typeof mul === "number" && mul > 0 ? mul : 1;
+}
+
+function priceConvert(askMul, balance) {
+  const fair = baseThrough(1, balance) || 1;
+  return baseThrough(askMul, balance) / fair;
 }
 
 function baseThrough(askMul, balance) {
@@ -668,14 +711,16 @@ export function resolveSale(catalog, state, rawChoices, roll) {
       : typeof state.project?.saleRoll === "number"
         ? state.project.saleRoll
         : 1;
-  const twoAsk = fairPerFt2 * 450;
+  const askMul = choices.askMul;
+  const pricedConvert = priceConvert(askMul, balance);
+  const twoAsk = fairPerFt2 * 450 * askMul;
   const bowlRaw = affordability({
     lump: twoAsk,
     budget: balance.starterBudget * buyer,
     cheer: choices.cheer,
     gains: balance.cheerBowl,
   });
-  const studioAsk = fairPerFt2 * 280;
+  const studioAsk = fairPerFt2 * 280 * askMul;
   const whaleBudget = balance.whaleBudget * buyer * (marketHeat === "loose" ? balance.looseWhaleMul : balance.spicyWhaleMul);
   const whaleSensitive = studioAsk > whaleBudget;
   let cheerBonus = 0;
@@ -697,7 +742,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   for (const spec of UNIT_SPECS) {
     const offered = mix[spec.id];
     units += offered;
-    const ask = fairPerFt2 * spec.ft2;
+    const ask = fairPerFt2 * spec.ft2 * askMul;
     let convert = balance.baseConvert[spec.id] + cheerBonus;
     if (choices.showflat) convert += balance.showflatBoost[spec.id];
     if (spec.id === "studio" && marketHeat === "loose") convert += balance.looseStudio;
@@ -705,6 +750,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     if (contractor.collapsed) convert -= balance.collapseThrough;
     if (spec.id === "two" && !bowlRaw.ok) convert *= balance.bowlCrack;
     if (spec.id === "studio" && whaleSensitive) convert *= balance.whalePriceCut;
+    convert *= pricedConvert;
     convert = clamp(convert, 0.05, 0.98);
     const pool = poolsBefore[spec.pool];
     let soldN = Math.min(offered, Math.round(pool * convert));
@@ -788,6 +834,135 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   };
 }
 
+const LEFT_RANK = { none: 0, few: 1, some: 2, many: 3 };
+
+export function saleForecast(catalog, state, rawChoices) {
+  const preview = resolveSale(catalog, state, { ...rawChoices, cheer: 0, roll: 1 });
+  const units = preview.units;
+  const unsold = preview.unsold;
+  const ratio = units ? unsold / units : 0;
+  let left = "none";
+  if (unsold > 0 && ratio < 0.12) left = "few";
+  else if (unsold > 0 && ratio < 0.35) left = "some";
+  else if (unsold > 0) left = "many";
+  let sticky = null;
+  let stickyUnsold = 0;
+  for (const spec of UNIT_SPECS) {
+    const row = preview.byType[spec.id];
+    if (row && row.unsold > stickyUnsold) {
+      sticky = spec.id;
+      stickyUnsold = row.unsold;
+    }
+  }
+  return {
+    sellsOut: preview.outcome === "clear",
+    left,
+    leftRank: LEFT_RANK[left],
+    sticky: unsold > 0 ? sticky : null,
+    price: preview.choices.price,
+    outcome: preview.outcome,
+  };
+}
+
+export function saleReveal(sold, cheer, cheerMax = 3) {
+  const steps = Math.max(1, Math.round(Number(cheerMax) || 0) || 3);
+  const used = clamp(Math.round(Number(cheer) || 0), 0, steps);
+  const total = Math.max(0, Math.round(Number(sold) || 0));
+  if (used >= steps) return { shown: total, done: true, cheerLeft: 0 };
+  const cap = 0.34 + (used / steps) * 0.5;
+  return { shown: Math.min(total, Math.round(total * cap)), done: false, cheerLeft: steps - used };
+}
+
+export function saleQuality(contractor, showflat) {
+  let score = Number(contractor?.quality) || 1;
+  if (showflat) score += 0.08;
+  if (contractor?.collapsed) score -= 0.06;
+  if ((contractor?.leak || 0) >= 0.3) score -= 0.05;
+  return round4(score);
+}
+
+export function emptyVoice() {
+  return { n: 0, price: 0, quality: 1, stuck: 0 };
+}
+
+const PRICE_CODE = { cheap: -1, fair: 0, expensive: 1 };
+const STANCE_EDGE = 0.4;
+
+function commentHistoryWeight(n) {
+  if (!n || n <= 1) return 0.22;
+  return Math.min(0.62, 0.34 + n * 0.1);
+}
+
+function stanceFromScore(score) {
+  if (score <= -STANCE_EDGE) return "cheap";
+  if (score >= STANCE_EDGE) return "expensive";
+  return "fair";
+}
+
+export function pushVoice(voice, sample) {
+  const n0 = voice?.n || 0;
+  const n = n0 + 1;
+  const w = n0 === 0 ? 1 : 1 / Math.min(n, 3);
+  const code = PRICE_CODE[sample.price] ?? 0;
+  const stuck = sample.price === "expensive" && sample.unsoldRatio >= 0.25 ? 1 : 0;
+  return {
+    n,
+    price: round4((n0 ? voice.price : 0) * (1 - w) + code * w),
+    quality: round4((n0 ? voice.quality : sample.quality) * (1 - w) + sample.quality * w),
+    stuck: round4((n0 ? voice.stuck : 0) * (1 - w) + stuck * w),
+  };
+}
+
+function blendedSample(sample, voice) {
+  if (!voice?.n) return sample;
+  const code = PRICE_CODE[sample.price] ?? 0;
+  const weight = commentHistoryWeight(voice.n);
+  const priceScore = voice.price * weight + code * (1 - weight);
+  const quality = voice.quality * weight + sample.quality * (1 - weight);
+  const stuck = voice.stuck * weight + (sample.unsoldRatio >= 0.25 ? 1 : 0) * (1 - weight);
+  return {
+    price: stanceFromScore(priceScore),
+    quality,
+    unsoldRatio: Math.max(sample.unsoldRatio || 0, stuck >= 0.5 ? 0.25 : 0),
+  };
+}
+
+export function marketComment(sample, voice = null) {
+  const view = blendedSample(sample, voice);
+  const good = view.quality >= 1.05;
+  const bad = view.quality < 0.94;
+  const pricey = view.price === "expensive";
+  const cheap = view.price === "cheap";
+  if (pricey && (view.unsoldRatio >= 0.25 || bad)) return "dearEmpty";
+  if (cheap && good && view.unsoldRatio < 0.25) return "valueGood";
+  if (cheap && bad) return "cheapBad";
+  if (pricey && good) return "dearGood";
+  if (cheap) return "cheapMid";
+  if (pricey) return "dearMid";
+  if (bad) return "fairBad";
+  if (good) return "fairGood";
+  return "fairMid";
+}
+
+export function voiceComment(voice) {
+  if (!voice?.n) return null;
+  return marketComment({
+    price: stanceFromScore(voice.price),
+    quality: voice.quality,
+    unsoldRatio: voice.stuck >= 0.5 ? 0.4 : 0,
+  });
+}
+
+export function commentSample(project) {
+  const sale = project?.sale;
+  const units = sale?.units || 0;
+  return {
+    price: sale?.choices?.price || "fair",
+    quality: saleQuality(project?.contractor, Boolean(sale?.choices?.showflat)),
+    unsoldRatio: units ? (sale.unsold || 0) / units : 0,
+  };
+}
+
 export function commitSale(catalog, state, choices) {
   if (state.phase !== "sell") return fail(state, "bad_phase");
   const normalized = normalizeChoices(choices, catalog.balance);
@@ -851,6 +1026,7 @@ export function confirmSettle(catalog, state) {
   let reputation = state.reputation;
   let unitsSold = state.unitsSold;
   let unitsLaunched = state.unitsLaunched;
+  let voice = state.voice || emptyVoice();
   const frozen = (state.frozen || []).map((item) => ({ ...item }));
   let entry;
   if (state.project?.skipped) {
@@ -888,7 +1064,15 @@ export function confirmSettle(catalog, state) {
       units: sale.units,
       partnerShare: sale.partnerShare,
       cakeSweep: sale.cakeSweep,
+      name: state.project.name || defaultProjectName(state.project.offer.district, state.project.offer.flavour),
+      mix: normalizeMix(state.project.mix),
+      price: sale.choices?.price || "fair",
+      leftover: sale.choices?.leftover || "cut",
+      unsold: sale.unsold,
+      reputationDelta: sale.reputationDelta,
+      comment: marketComment(commentSample(state.project), voice),
     };
+    voice = pushVoice(voice, commentSample(state.project));
   }
   const completed = state.completed + 1;
   let released = 0;
@@ -911,6 +1095,7 @@ export function confirmSettle(catalog, state) {
     unitsLaunched,
     completed,
     history,
+    voice,
     frozen: keep,
     offers: null,
     project: null,
@@ -971,6 +1156,7 @@ export function serializeCampaign(state) {
     unitsSold: state.unitsSold,
     unitsLaunched: state.unitsLaunched,
     poolBias: { ...emptyBias(), ...(state.poolBias || {}) },
+    voice: { ...emptyVoice(), ...(state.voice || {}) },
     frozen: (state.frozen || []).map((item) => ({ ...item })),
     history: state.history.map((item) => ({ ...item })),
     story: state.story ? { id: state.story.id, picked: state.story.picked || null } : null,
@@ -979,6 +1165,7 @@ export function serializeCampaign(state) {
       ? {
           index: state.project.index,
           skipped: Boolean(state.project.skipped),
+          name: state.project.name || null,
           move: state.project.move ?? null,
           offer: slimOffer(state.project.offer),
           contractor: state.project.contractor
@@ -1057,6 +1244,12 @@ export function hydrateCampaign(catalog, saved) {
     unitsSold: saved.unitsSold || 0,
     unitsLaunched: saved.unitsLaunched || 0,
     poolBias: { ...emptyBias(), ...(saved.poolBias || {}) },
+    voice: {
+      n: saved.voice?.n || 0,
+      price: Number(saved.voice?.price) || 0,
+      quality: typeof saved.voice?.quality === "number" ? saved.voice.quality : 1,
+      stuck: Number(saved.voice?.stuck) || 0,
+    },
     frozen: Array.isArray(saved.frozen) ? saved.frozen.map((item) => ({ ...item })) : [],
     history: Array.isArray(saved.history) ? saved.history.map((item) => ({ ...item })) : [],
     notice: null,
@@ -1076,6 +1269,7 @@ export function hydrateCampaign(catalog, saved) {
     state.project = {
       index: saved.project.index,
       skipped: false,
+      name: normalizeProjectName(saved.project.name, defaultProjectName(offer.district, offer.flavour)),
       offer,
       contractor,
       mix: saved.project.mix ? normalizeMix(saved.project.mix) : null,
@@ -1097,9 +1291,33 @@ export function hydrateCampaign(catalog, saved) {
   return state;
 }
 
+function upgradeV3(raw) {
+  const history = Array.isArray(raw.history)
+    ? raw.history.map((item) => ({
+        name: null,
+        mix: null,
+        price: null,
+        leftover: null,
+        unsold: null,
+        reputationDelta: null,
+        comment: null,
+        ...item,
+      }))
+    : [];
+  return {
+    ...raw,
+    v: SAVE_VERSION,
+    voice: raw.voice || emptyVoice(),
+    history,
+    project: raw.project ? { name: null, ...raw.project } : raw.project ?? null,
+  };
+}
+
 export function migrateSave(raw) {
   if (!raw) return { ok: false, notice: null, state: null };
-  if (raw.v === SAVE_VERSION && !raw.goals) return { ok: true, notice: null, state: raw };
+  if (raw.goals || raw.v === 1 || raw.v === 2) return { ok: false, notice: "phase1_reset", state: null };
+  if (raw.v === SAVE_VERSION) return { ok: true, notice: null, state: raw };
+  if (raw.v === 3) return { ok: true, notice: null, state: upgradeV3(raw) };
   return { ok: false, notice: "phase1_reset", state: null };
 }
 
