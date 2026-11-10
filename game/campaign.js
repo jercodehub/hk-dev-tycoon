@@ -1,14 +1,22 @@
 /**
- * Phase 2 campaign. No DOM.
- * One project = land → build → sell → settle. A run is 20 projects.
- * `game` money is the game economy. `openData` repeats RVD region $/m² and the
- * territory index only. District tiers are game levers, never official prices.
+ * Phase 3 campaign. No DOM.
+ * One project = land → build → sell → settle → story. A run is 20 projects.
+ * Unit mix, buyer pools, and spicy/loose heat live here.
+ * Region prices still scale the model. The screen does not print them.
  */
 
 import { DISTRICTS } from "./i18n.js";
 import { STORIES } from "./stories.js";
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
+export const UNIT_SPECS = [
+  { id: "studio", ft2: 280, pool: "whale" },
+  { id: "one", ft2: 350, pool: "couple" },
+  { id: "two", ft2: 450, pool: "starter" },
+  { id: "three", ft2: 600, pool: "upgrader" },
+  { id: "feature", ft2: 1000, pool: "feature" },
+];
+export const POOLS = ["whale", "couple", "starter", "upgrader", "feature"];
 export const FT2_PER_M2 = 10.76391041671;
 
 const REGIONS = ["港島", "九龍", "新界"];
@@ -96,6 +104,22 @@ export function createCampaignCatalog({ market, balance }) {
     throw new Error("market drifts missing");
   }
   if (balance.projects !== 20) throw new Error("campaign is exactly 20 projects");
+  if (balance.landTypes.gov.partnerRate !== 0) throw new Error("government land takes no partner share");
+  for (const district of Object.keys(balance.districtLever)) {
+    if (!["uni", "starter", "core"].includes(balance.flavours?.[district])) {
+      throw new Error(`missing flavour for ${district}`);
+    }
+  }
+  for (const heat of ["loose", "spicy"]) {
+    for (const pool of POOLS) {
+      if (typeof balance.heatMod?.[heat]?.[pool] !== "number") throw new Error(`missing ${heat} ${pool}`);
+    }
+  }
+  for (const flavour of ["uni", "starter", "core"]) {
+    for (const pool of POOLS) {
+      if (typeof balance.flavourMod?.[flavour]?.[pool] !== "number") throw new Error(`missing ${flavour} ${pool}`);
+    }
+  }
   return { market, balance };
 }
 
@@ -160,6 +184,119 @@ export function unitsFromGfa(gfaFt2, balance) {
   return clamp(Math.round(gfaFt2 / balance.areaPerUnitFt2), balance.minUnits, balance.maxUnits);
 }
 
+export function emptyMix() {
+  return { studio: 0, one: 0, two: 0, three: 0, feature: 0 };
+}
+
+export function emptyBias() {
+  return { whale: 0, couple: 0, starter: 0, upgrader: 0, feature: 0 };
+}
+
+export function normalizeMix(raw) {
+  const mix = emptyMix();
+  if (!raw) return mix;
+  for (const spec of UNIT_SPECS) {
+    const count = Math.floor(Number(raw[spec.id]));
+    mix[spec.id] = Number.isFinite(count) && count > 0 ? count : 0;
+  }
+  return mix;
+}
+
+export function gfaUsed(mix) {
+  const clean = normalizeMix(mix);
+  return UNIT_SPECS.reduce((sum, spec) => sum + clean[spec.id] * spec.ft2, 0);
+}
+
+export function gfaRemaining(gfaFt2, mix) {
+  return gfaFt2 - gfaUsed(mix);
+}
+
+export function mixFits(gfaFt2, mix) {
+  return gfaRemaining(gfaFt2, mix) >= 0;
+}
+
+export function unitTotal(mix) {
+  const clean = normalizeMix(mix);
+  return UNIT_SPECS.reduce((sum, spec) => sum + clean[spec.id], 0);
+}
+
+export function districtFlavour(district, balance) {
+  const flavour = balance.flavours?.[district];
+  if (!flavour) throw new Error(`missing flavour ${district}`);
+  return flavour;
+}
+
+export function campaignHeat(state, balance) {
+  const every = balance.heatEvery || 3;
+  const block = Math.floor((state?.completed || 0) / every);
+  const looseStart = ((state?.seed || 0) % 2) === 0;
+  const loose = block % 2 === 0 ? looseStart : !looseStart;
+  return loose ? "loose" : "spicy";
+}
+
+export function presetMix(gfaFt2, flavour, heat, balance) {
+  const weights = {};
+  let sum = 0;
+  for (const spec of UNIT_SPECS) {
+    const weight = balance.poolShare[spec.pool] * balance.heatMod[heat][spec.pool] * balance.flavourMod[flavour][spec.pool];
+    weights[spec.id] = weight;
+    sum += weight;
+  }
+  const budget = Math.max(0, Math.floor(gfaFt2 * balance.presetFill));
+  const mix = emptyMix();
+  const remainders = {};
+  let used = 0;
+  for (const spec of UNIT_SPECS) {
+    const exact = sum === 0 ? 0 : (weights[spec.id] / sum) * budget / spec.ft2;
+    const count = Math.floor(exact);
+    remainders[spec.id] = exact - count;
+    mix[spec.id] = count;
+    used += count * spec.ft2;
+  }
+  const order = [...UNIT_SPECS].sort((a, b) => remainders[b.id] - remainders[a.id] || a.ft2 - b.ft2);
+  let guard = 0;
+  while (guard < 8) {
+    guard += 1;
+    let placed = false;
+    for (const spec of order) {
+      if (used + spec.ft2 <= budget) {
+        mix[spec.id] += 1;
+        used += spec.ft2;
+        placed = true;
+      }
+    }
+    if (!placed) break;
+  }
+  return mix;
+}
+
+export function sizePools(catalog, { gfaFt2, flavour, heat, buyer = 1, bias = {} }) {
+  const { balance } = catalog;
+  const pools = {};
+  for (const spec of UNIT_SPECS) {
+    const feet = gfaFt2 * balance.poolShare[spec.pool] * balance.heatMod[heat][spec.pool] * balance.flavourMod[flavour][spec.pool] * buyer;
+    pools[spec.pool] = Math.max(0, Math.round(feet / spec.ft2) + (bias[spec.pool] || 0));
+  }
+  return pools;
+}
+
+export function affordability({ lump, budget, cheer = 0, gains = [] }) {
+  let help = 0;
+  const steps = Math.max(0, Math.round(Number(cheer) || 0));
+  for (let i = 0; i < steps; i += 1) help += gains[i] || 0;
+  const bowl = budget * (1 + help);
+  const ratio = bowl === 0 ? 0 : lump / bowl;
+  return { bowl, lump, help, ratio, ok: lump <= bowl + 1e-6 };
+}
+
+export function rollCake({ heat, roll, chance, offered, pool }) {
+  if (heat !== "loose") return 0;
+  if (offered < 2 || pool < 2) return 0;
+  if (!(roll < chance)) return 0;
+  const want = roll < chance * 0.5 ? 3 : 2;
+  return Math.min(want, offered, pool);
+}
+
 export function priceVerdict(ratio, balance) {
   if (ratio >= balance.expensiveAt) return "expensive";
   if (ratio <= balance.cheapAt) return "cheap";
@@ -186,19 +323,25 @@ function lerp(min, max, t) {
   return min + (max - min) * t;
 }
 
-export function priceOffer(skeleton, levels, catalog) {
+export function priceOffer(skeleton, levels, catalog, heat = "loose") {
   const bench = gameBench(catalog, skeleton.district, levels);
   const spec = catalog.balance.landTypes[skeleton.type];
   const partnerRate = spec.partnerRate;
   const landExact = bench.fairLandPerFt2 * skeleton.premium;
   const buildExact = bench.fairBuildPerFt2;
+  const flavour = districtFlavour(skeleton.district, catalog.balance);
+  const useHeat = heat === "spicy" ? "spicy" : "loose";
+  const mixHint = presetMix(skeleton.gfaFt2, flavour, useHeat, catalog.balance);
   return {
     slot: skeleton.slot,
     type: skeleton.type,
     district: skeleton.district,
     region: bench.region,
+    flavour,
+    heat: useHeat,
     gfaFt2: skeleton.gfaFt2,
-    units: unitsFromGfa(skeleton.gfaFt2, catalog.balance),
+    units: unitTotal(mixHint),
+    mixHint,
     premium: skeleton.premium,
     partnerRate,
     quotedAt: {
@@ -220,7 +363,7 @@ export function priceOffer(skeleton, levels, catalog) {
   };
 }
 
-function makeOffer({ slot, type, district, gfaFt2, premium, rng, catalog, levels, used }) {
+function makeOffer({ slot, type, district, gfaFt2, premium, rng, catalog, levels, used, heat }) {
   const spec = catalog.balance.landTypes[type];
   const picked = district || pickDistrict(type, rng, catalog.balance, used);
   const gfa = gfaFt2 || snapGfa(lerp(spec.gfaMin, spec.gfaMax, rng.next()));
@@ -236,6 +379,7 @@ function makeOffer({ slot, type, district, gfaFt2, premium, rng, catalog, levels
     },
     levels,
     catalog,
+    heat,
   );
 }
 
@@ -248,7 +392,7 @@ function shuffle(list, rng) {
   return copy;
 }
 
-function tutorialOffers(rng, state, catalog) {
+function tutorialOffers(rng, state, catalog, heat) {
   const guide = catalog.balance.tutorial;
   const used = new Set([guide.district]);
   const rest = shuffle(["ura", "mtr"], rng);
@@ -263,24 +407,26 @@ function tutorialOffers(rng, state, catalog) {
       catalog,
       levels: state.market,
       used,
+      heat,
     }),
-    makeOffer({ slot: "B", type: rest[0], rng, catalog, levels: state.market, used }),
-    makeOffer({ slot: "C", type: rest[1], rng, catalog, levels: state.market, used }),
+    makeOffer({ slot: "B", type: rest[0], rng, catalog, levels: state.market, used, heat }),
+    makeOffer({ slot: "C", type: rest[1], rng, catalog, levels: state.market, used, heat }),
   ];
 }
 
-function randomOffers(rng, state, catalog) {
+function randomOffers(rng, state, catalog, heat) {
   const types = shuffle(["ura", "mtr", "gov"], rng);
   const used = new Set();
   return ["A", "B", "C"].map((slot, index) =>
-    makeOffer({ slot, type: types[index], rng, catalog, levels: state.market, used }),
+    makeOffer({ slot, type: types[index], rng, catalog, levels: state.market, used, heat }),
   );
 }
 
 export function rollOffers(state, catalog) {
+  const heat = campaignHeat(state, catalog.balance);
   const { value, rngCursor } = runRng(state, (rng) => {
-    if (state.completed === 0) return tutorialOffers(rng, state, catalog);
-    return randomOffers(rng, state, catalog);
+    if (state.completed === 0) return tutorialOffers(rng, state, catalog, heat);
+    return randomOffers(rng, state, catalog, heat);
   });
   return { ...state, rngCursor, offers: value, phase: "land", project: null };
 }
@@ -319,6 +465,8 @@ export function createCampaign(catalog, { company, seed = 1 } = {}) {
     unitsLaunched: 0,
     seed: seed >>> 0,
     rngCursor,
+    poolBias: emptyBias(),
+    frozen: [],
     notice: null,
   };
   return rollOffers(state, catalog);
@@ -394,10 +542,15 @@ export function rollCollapse(spec, roll) {
   return roll < spec.collapse;
 }
 
-export function chooseContractor(catalog, state, contractorId) {
+export function chooseContractor(catalog, state, contractorId, rawMix) {
   if (state.phase !== "build") return fail(state, "bad_phase");
   const spec = catalog.balance.contractors[contractorId];
   if (!spec) return fail(state, "bad_contractor");
+  const flavour = districtFlavour(state.project.offer.district, catalog.balance);
+  const heat = campaignHeat(state, catalog.balance);
+  const mix = rawMix == null ? presetMix(state.project.offer.gfaFt2, flavour, heat, catalog.balance) : normalizeMix(rawMix);
+  if (gfaUsed(mix) <= 0) return fail(state, "empty_mix");
+  if (!mixFits(state.project.offer.gfaFt2, mix)) return fail(state, "over_gfa");
   const quote = contractorQuote(catalog, state, contractorId);
   const cashBefore = state.cash;
   const pricedAt = {
@@ -409,7 +562,8 @@ export function chooseContractor(catalog, state, contractorId) {
   const { value, rngCursor } = runRng(state, (rng) => {
     const collapsed = rollCollapse(spec, rng.next());
     const move = drawMove(state, catalog, rng);
-    return { collapsed, move };
+    const saleRoll = rng.next();
+    return { collapsed, move, saleRoll };
   });
   let quality = spec.quality;
   let leak = spec.leak;
@@ -453,6 +607,8 @@ export function chooseContractor(catalog, state, contractorId) {
         pricedAt,
         cashBefore,
       },
+      mix,
+      saleRoll: value.saleRoll,
       choices: null,
       sale: null,
     },
@@ -460,13 +616,10 @@ export function chooseContractor(catalog, state, contractorId) {
 }
 
 export function normalizeChoices(raw = {}, balance) {
-  const ask = Object.prototype.hasOwnProperty.call(balance.ask, raw.ask) ? raw.ask : "market";
-  const agents = Object.prototype.hasOwnProperty.call(balance.agents, raw.agents) ? raw.agents : "one";
-  const ads = Object.prototype.hasOwnProperty.call(balance.ads, raw.ads) ? raw.ads : "web";
-  const mix = Object.prototype.hasOwnProperty.call(balance.mixes, raw.mix) ? raw.mix : "blend";
-  const rebate = Object.prototype.hasOwnProperty.call(balance.rebates, raw.rebate) ? raw.rebate : "std";
   const cheer = clamp(Math.round(Number(raw.cheer) || 0), 0, balance.cheerMax);
-  return { ask, agents, ads, mix, rebate, cheer };
+  const showflat = Boolean(raw.showflat);
+  const leftover = raw.leftover === "hold" ? "hold" : "cut";
+  return { showflat, cheer, leftover };
 }
 
 function baseThrough(askMul, balance) {
@@ -483,104 +636,213 @@ export function priceRisk(askMul) {
   return "fail_risk";
 }
 
-export function resolveSale(catalog, state, rawChoices) {
+function activeMix(state, flavour, heat, balance) {
+  if (state.project.mix && gfaUsed(state.project.mix) > 0) return normalizeMix(state.project.mix);
+  if (state.project.offer.mixHint && gfaUsed(state.project.offer.mixHint) > 0) return normalizeMix(state.project.offer.mixHint);
+  return presetMix(state.project.offer.gfaFt2, flavour, heat, balance);
+}
+
+export function resolveSale(catalog, state, rawChoices, roll) {
   const balance = catalog.balance;
   const choices = normalizeChoices(rawChoices, balance);
   const offer = state.project.offer;
   const contractor = state.project.contractor;
+  const flavour = offer.flavour || districtFlavour(offer.district, balance);
+  const marketHeat = campaignHeat(state, balance);
+  const mix = activeMix(state, flavour, marketHeat, balance);
   const bench = gameBench(catalog, offer.district, state.market);
   const leakDrag = 1 - contractor.leak * balance.leakPriceDrag;
   const fairPerFt2 = bench.fairSalePerFt2 * contractor.quality * leakDrag;
-  const unitFt2 = offer.gfaFt2 / offer.units;
-  const fairPerUnit = fairPerFt2 * unitFt2;
-  const askMul = balance.ask[choices.ask];
-  const askPerUnit = fairPerUnit * askMul;
-  const agent = balance.agents[choices.agents];
-  const ads = balance.ads[choices.ads];
-  const mix = balance.mixes[choices.mix];
-  const rebate = balance.rebates[choices.rebate];
+  const buyer = state.market?.buyer || 1;
+  const poolsBefore = sizePools(catalog, {
+    gfaFt2: offer.gfaFt2,
+    flavour,
+    heat: marketHeat,
+    buyer,
+    bias: state.poolBias || emptyBias(),
+  });
+  const usedRoll = typeof rawChoices?.roll === "number"
+    ? rawChoices.roll
+    : typeof roll === "number"
+      ? roll
+      : typeof state.project?.saleRoll === "number"
+        ? state.project.saleRoll
+        : 1;
+  const twoAsk = fairPerFt2 * 450;
+  const bowlRaw = affordability({
+    lump: twoAsk,
+    budget: balance.starterBudget * buyer,
+    cheer: choices.cheer,
+    gains: balance.cheerBowl,
+  });
+  const studioAsk = fairPerFt2 * 280;
+  const whaleBudget = balance.whaleBudget * buyer * (marketHeat === "loose" ? balance.looseWhaleMul : balance.spicyWhaleMul);
+  const whaleSensitive = studioAsk > whaleBudget;
   let cheerBonus = 0;
-  for (let i = 0; i < choices.cheer; i += 1) cheerBonus += balance.cheerGains[i];
-  const channel = choices.mix === "retail" ? balance.retailChannel : choices.mix === "whale" ? 0.65 : 1;
-  let through = baseThrough(askMul, balance);
-  through += agent.through * channel + ads.through * channel + rebate.through + cheerBonus + mix.through;
-  if (choices.mix === "whale" && askMul >= balance.whaleWalkAt) through += balance.whaleWalk;
-  through -= contractor.leak * balance.leakThroughDrag;
-  if (contractor.collapsed) through -= balance.collapseThrough;
-  through += ((state.reputation - 50) / 50) * balance.repThrough;
-  through = clamp(through, 0.04, 1);
-  let sold = Math.round(offer.units * through);
-  if (through >= balance.clearAt) sold = offer.units;
-  sold = clamp(sold, 0, offer.units);
-  const unsold = offer.units - sold;
-  const ratio = offer.units === 0 ? 0 : sold / offer.units;
-  let outcome = "fail";
-  if (sold === offer.units || ratio >= balance.clearAt) outcome = "clear";
-  else if (ratio >= balance.partialAt) outcome = "partial";
-  const gross = money(sold * askPerUnit);
-  const afterRebate = money(gross * (1 - rebate.rate));
-  const rebateCost = gross - afterRebate;
-  const agentFee = money(afterRebate * agent.rate);
-  const adCost = money(ads.flatPerFt2 * offer.gfaFt2);
-  const partnerShare = money(afterRebate * offer.partnerRate);
-  const fireGross = money(unsold * fairPerUnit * balance.fireSale);
+  for (let i = 0; i < choices.cheer; i += 1) cheerBonus += balance.cheerGains[i] || 0;
+  const cakeSweep = rollCake({
+    heat: marketHeat,
+    roll: usedRoll,
+    chance: balance.cakeChance,
+    offered: mix.studio,
+    pool: poolsBefore.whale,
+  });
+  const byType = {};
+  const poolsAfter = { ...poolsBefore };
+  let grossExact = 0;
+  let fireExact = 0;
+  let frozenExact = 0;
+  let sold = 0;
+  let units = 0;
+  for (const spec of UNIT_SPECS) {
+    const offered = mix[spec.id];
+    units += offered;
+    const ask = fairPerFt2 * spec.ft2;
+    let convert = balance.baseConvert[spec.id] + cheerBonus;
+    if (choices.showflat) convert += balance.showflatBoost[spec.id];
+    if (spec.id === "studio" && marketHeat === "loose") convert += balance.looseStudio;
+    if (spec.id !== "studio" && marketHeat === "spicy") convert += balance.spicyLiveIn;
+    if (contractor.collapsed) convert -= balance.collapseThrough;
+    if (spec.id === "two" && !bowlRaw.ok) convert *= balance.bowlCrack;
+    if (spec.id === "studio" && whaleSensitive) convert *= balance.whalePriceCut;
+    convert = clamp(convert, 0.05, 0.98);
+    const pool = poolsBefore[spec.pool];
+    let soldN = Math.min(offered, Math.round(pool * convert));
+    if (spec.id === "studio" && cakeSweep > 0) soldN = Math.min(offered, Math.max(soldN, cakeSweep));
+    soldN = Math.max(0, Math.min(soldN, pool, offered));
+    const unsoldN = offered - soldN;
+    poolsAfter[spec.pool] = pool - soldN;
+    grossExact += soldN * ask;
+    if (unsoldN > 0 && choices.leftover === "cut") fireExact += unsoldN * ask * balance.fireSale;
+    if (unsoldN > 0 && choices.leftover === "hold") frozenExact += unsoldN * ask * balance.holdRecover;
+    sold += soldN;
+    byType[spec.id] = {
+      offered,
+      sold: soldN,
+      unsold: unsoldN,
+      ask: money(ask),
+      convert: round4(convert),
+      poolBefore: pool,
+      poolAfter: pool - soldN,
+      sensitive: spec.id === "studio" ? whaleSensitive : false,
+    };
+  }
+  const gross = money(grossExact);
+  const fireGross = money(fireExact);
+  const frozenAmount = choices.leftover === "hold" ? money(frozenExact) : 0;
+  const showflatCost = choices.showflat ? money(balance.showflatPerFt2 * offer.gfaFt2) : 0;
+  const partnerOnSales = money(gross * offer.partnerRate);
   const firePartner = money(fireGross * offer.partnerRate);
+  const partnerShare = partnerOnSales + firePartner;
   const fireNet = fireGross - firePartner;
-  const netCash = afterRebate - agentFee - adCost - partnerShare + fireNet;
+  const netCash = money(gross - showflatCost - partnerOnSales + fireNet);
   const profit = netCash - offer.landTotal - contractor.total;
+  const unsold = units - sold;
+  const ratio = units === 0 ? 0 : sold / units;
+  let outcome = "fail";
+  if (units > 0 && (sold === units || ratio >= balance.clearAt)) outcome = "clear";
+  else if (ratio >= balance.partialAt) outcome = "partial";
+  const through = units === 0 ? 0 : sold / units;
   const heat = Math.round(clamp(through, 0, 1) * 100);
   let reputationDelta = outcome === "clear" ? balance.repClear : outcome === "partial" ? balance.repPartial : balance.repFail;
   if (profit < 0) reputationDelta += balance.repLoss;
+  if (unsold > 0 && choices.leftover === "cut") reputationDelta += balance.repCut;
+  if (unsold > 0 && choices.leftover === "hold") reputationDelta += balance.repHold;
+  const perUnit = units ? money(grossExact / Math.max(sold, 1)) : 0;
   return {
     choices,
-    askMul,
-    askPerUnit: money(askPerUnit),
-    fairPerUnit: money(fairPerUnit),
+    marketHeat,
+    flavour,
+    mix,
+    byType,
+    poolsBefore,
+    poolsAfter,
+    bowl: {
+      bowl: money(bowlRaw.bowl),
+      lump: money(twoAsk),
+      ratio: round4(bowlRaw.ratio),
+      ok: bowlRaw.ok,
+      help: round4(bowlRaw.help),
+    },
+    whaleSensitive,
+    whaleBudget: money(whaleBudget),
+    cakeSweep,
+    showflatCost,
     fairPerFt2: money(fairPerFt2),
-    askPerFt2: money(askPerUnit / unitFt2),
+    askPerUnit: perUnit,
     through,
     sold,
     unsold,
-    units: offer.units,
+    units,
     outcome,
     heat,
     gross,
-    afterRebate,
-    rebateCost,
-    agentFee,
-    adCost,
-    partnerShare: partnerShare + firePartner,
-    partnerOnSales: partnerShare,
+    fireGross,
     fireNet,
+    frozenAmount,
+    partnerShare,
+    partnerOnSales,
     netCash,
     profit,
     reputationDelta,
-    risk: priceRisk(askMul),
   };
 }
 
 export function commitSale(catalog, state, choices) {
   if (state.phase !== "sell") return fail(state, "bad_phase");
   const normalized = normalizeChoices(choices, catalog.balance);
-  const sale = resolveSale(catalog, state, normalized);
+  let roll = state.project.saleRoll;
+  let rngCursor = state.rngCursor;
+  if (typeof choices?.roll === "number") roll = choices.roll;
+  else if (typeof roll !== "number") {
+    const stepped = runRng(state, (rng) => rng.next());
+    roll = stepped.value;
+    rngCursor = stepped.rngCursor;
+  }
+  const sale = resolveSale(catalog, state, { ...normalized, roll }, roll);
   return succeed({
     ...state,
+    rngCursor,
     phase: "settle",
-    project: { ...state.project, choices: normalized, sale },
+    project: { ...state.project, choices: normalized, sale, saleRoll: roll },
   });
 }
 
-function takeStory(state) {
-  const { value, rngCursor } = runRng(state, (rng) => {
-    const previous = state.story?.id;
-    const pool = STORIES.filter((story) => story.id !== previous);
-    return pool[Math.floor(rng.next() * pool.length)];
-  });
+export function pickStory(stories, rng, { previousId = null, govLand = false, weight = 4 } = {}) {
+  const pool = stories.filter((story) => story.id !== previousId);
+  const source = pool.length ? pool : stories;
+  const weights = source.map((story) => (govLand && story.controversy ? weight : 1));
+  const total = weights.reduce((sum, item) => sum + item, 0);
+  let cursor = rng.next() * total;
+  for (let i = 0; i < source.length; i += 1) {
+    cursor -= weights[i];
+    if (cursor <= 0) return source[i];
+  }
+  return source[source.length - 1];
+}
+
+function cloneStory(story) {
   return {
-    ...state,
-    rngCursor,
-    story: { id: value.id, tc: value.tc, en: value.en, choices: value.choices.map((choice) => ({ ...choice })) },
+    id: story.id,
+    tc: story.tc,
+    en: story.en,
+    controversy: Boolean(story.controversy),
+    choices: story.choices.map((choice) => ({
+      ...choice,
+      pool: choice.pool ? { ...choice.pool } : undefined,
+    })),
   };
+}
+
+function takeStory(state, catalog) {
+  const last = state.history[state.history.length - 1];
+  const govLand = Boolean(last && last.type === "gov" && !last.skipped);
+  const { value, rngCursor } = runRng(state, (rng) => pickStory(STORIES, rng, {
+    previousId: state.story?.id,
+    govLand,
+    weight: catalog.balance.controversyWeight,
+  }));
+  return { ...state, rngCursor, story: cloneStory(value) };
 }
 
 export function confirmSettle(catalog, state) {
@@ -589,6 +851,7 @@ export function confirmSettle(catalog, state) {
   let reputation = state.reputation;
   let unitsSold = state.unitsSold;
   let unitsLaunched = state.unitsLaunched;
+  const frozen = (state.frozen || []).map((item) => ({ ...item }));
   let entry;
   if (state.project?.skipped) {
     entry = {
@@ -596,11 +859,14 @@ export function confirmSettle(catalog, state) {
       skipped: true,
       district: null,
       type: null,
+      flavour: null,
+      heat: campaignHeat(state, catalog.balance),
       outcome: "skip",
       profit: 0,
       sold: 0,
       units: 0,
       partnerShare: 0,
+      cakeSweep: 0,
     };
   } else {
     const sale = state.project.sale;
@@ -608,19 +874,34 @@ export function confirmSettle(catalog, state) {
     reputation = clamp(reputation + sale.reputationDelta, 0, 100);
     unitsSold += sale.sold;
     unitsLaunched += sale.units;
+    if (sale.frozenAmount > 0) frozen.push({ releaseAt: state.completed + 2, amount: sale.frozenAmount });
     entry = {
       index: state.completed + 1,
       skipped: false,
       district: state.project.offer.district,
       type: state.project.offer.type,
+      flavour: state.project.offer.flavour || null,
+      heat: sale.marketHeat,
       outcome: sale.outcome,
       profit: sale.profit,
       sold: sale.sold,
       units: sale.units,
       partnerShare: sale.partnerShare,
+      cakeSweep: sale.cakeSweep,
     };
   }
   const completed = state.completed + 1;
+  let released = 0;
+  const keep = [];
+  for (const item of frozen) {
+    if (item.releaseAt <= completed) released += item.amount;
+    else keep.push(item);
+  }
+  if (completed >= catalog.balance.projects) {
+    for (const item of keep) released += item.amount;
+    keep.length = 0;
+  }
+  cash = money(cash + released);
   const history = [...state.history, entry];
   const base = {
     ...state,
@@ -630,13 +911,14 @@ export function confirmSettle(catalog, state) {
     unitsLaunched,
     completed,
     history,
+    frozen: keep,
     offers: null,
     project: null,
   };
   if (completed >= catalog.balance.projects) {
     return succeed({ ...base, phase: "summary", story: null });
   }
-  return succeed({ ...takeStory(base), phase: "story" });
+  return succeed({ ...takeStory(base, catalog), phase: "story" });
 }
 
 export function chooseStory(catalog, state, choiceId) {
@@ -645,9 +927,16 @@ export function chooseStory(catalog, state, choiceId) {
   if (!choice) return fail(state, "bad_choice");
   const flags = { ...state.flags };
   if (choice.flag) flags[choice.flag] = true;
+  const poolBias = { ...emptyBias(), ...(state.poolBias || {}) };
+  if (choice.pool) {
+    for (const key of POOLS) {
+      if (typeof choice.pool[key] === "number") poolBias[key] += choice.pool[key];
+    }
+  }
   const next = {
     ...state,
     flags,
+    poolBias,
     cash: money(state.cash + (choice.cash || 0)),
     reputation: clamp(state.reputation + (choice.rep || 0), 0, 100),
     story: { ...state.story, picked: choiceId },
@@ -681,6 +970,8 @@ export function serializeCampaign(state) {
     flags: state.flags,
     unitsSold: state.unitsSold,
     unitsLaunched: state.unitsLaunched,
+    poolBias: { ...emptyBias(), ...(state.poolBias || {}) },
+    frozen: (state.frozen || []).map((item) => ({ ...item })),
     history: state.history.map((item) => ({ ...item })),
     story: state.story ? { id: state.story.id, picked: state.story.picked || null } : null,
     offers: (state.offers || []).map(slimOffer),
@@ -698,7 +989,9 @@ export function serializeCampaign(state) {
                 cashBefore: state.project.contractor.cashBefore,
               }
             : null,
+          mix: state.project.mix ? { ...state.project.mix } : null,
           choices: state.project.choices || null,
+          saleRoll: typeof state.project.saleRoll === "number" ? state.project.saleRoll : null,
         }
       : null,
   };
@@ -763,41 +1056,43 @@ export function hydrateCampaign(catalog, saved) {
     flags: { ...(saved.flags || {}) },
     unitsSold: saved.unitsSold || 0,
     unitsLaunched: saved.unitsLaunched || 0,
+    poolBias: { ...emptyBias(), ...(saved.poolBias || {}) },
+    frozen: Array.isArray(saved.frozen) ? saved.frozen.map((item) => ({ ...item })) : [],
     history: Array.isArray(saved.history) ? saved.history.map((item) => ({ ...item })) : [],
     notice: null,
     offers: null,
     project: null,
     story: null,
   };
+  const heat = campaignHeat(state, catalog.balance);
   if (Array.isArray(saved.offers)) {
-    state.offers = saved.offers.map((offer) => priceOffer(offer, offer.quotedAt, catalog));
+    state.offers = saved.offers.map((offer) => priceOffer(offer, offer.quotedAt, catalog, heat));
   }
   if (saved.project?.skipped) {
     state.project = { index: saved.project.index, skipped: true, move: saved.project.move };
   } else if (saved.project?.offer) {
-    const offer = priceOffer(saved.project.offer, saved.project.offer.quotedAt, catalog);
+    const offer = priceOffer(saved.project.offer, saved.project.offer.quotedAt, catalog, heat);
     const contractor = rehydrateContractor(saved.project.contractor, offer, catalog);
     state.project = {
       index: saved.project.index,
       skipped: false,
       offer,
       contractor,
+      mix: saved.project.mix ? normalizeMix(saved.project.mix) : null,
       choices: saved.project.choices || null,
+      saleRoll: typeof saved.project.saleRoll === "number" ? saved.project.saleRoll : null,
       sale: null,
     };
     if (state.phase === "settle" && contractor) {
-      state.project.sale = resolveSale(catalog, state, saved.project.choices || {});
+      state.project.sale = resolveSale(catalog, state, {
+        ...(saved.project.choices || {}),
+        roll: state.project.saleRoll,
+      });
     }
   }
   if (saved.story?.id) {
     const found = STORIES.find((story) => story.id === saved.story.id) || STORIES[0];
-    state.story = {
-      id: found.id,
-      tc: found.tc,
-      en: found.en,
-      choices: found.choices.map((choice) => ({ ...choice })),
-      picked: saved.story.picked || null,
-    };
+    state.story = { ...cloneStory(found), picked: saved.story.picked || null };
   }
   return state;
 }

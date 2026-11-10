@@ -53,9 +53,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
+.sell-stats { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+.heat-stat.loose strong { color: var(--ok); }
+.heat-stat.spicy strong { color: var(--danger); }
+.stat strong.ok { color: var(--ok); }
+.stat strong.bad { color: var(--danger); }
 .stat {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -74,12 +79,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 .hud-actions { display: flex; gap: 6px; }
 .shell {
-  width: min(1040px, 100%);
+  width: min(920px, 100%);
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.8fr);
-  gap: 12px;
-  padding: 12px;
+  padding: 8px 12px 12px;
   flex: 1;
 }
 .stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -256,9 +258,37 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   display: block;
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #ff8b8b, #f0c27a, #5ee0a0);
+  background: var(--accent);
   transition: width 0.18s linear;
 }
+.land-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.plot { min-height: 0; }
+.plot h3 { font-size: 14px; }
+.deal { margin: 2px 0 0; font-size: 13px; font-weight: 700; }
+.mix-row {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+  margin: 4px 0;
+}
+.mix-row b { display: block; font-size: 13px; }
+.mix-row small { display: block; color: var(--muted); font-size: 11px; }
+.mix-row input[type="range"] { width: 100%; accent-color: #6ea2ff; }
+.mix-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+#gfa-live { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin-top: 6px; }
+#gfa-live.over, .bad-text { color: var(--danger); }
+.contractors { display: grid; gap: 6px; margin-top: 8px; }
+.contractor.on { border-color: #8eb6ff; background: #1a2740; }
+#gfa-live.over + .bar span { background: var(--danger); }
+.bowl { margin: 6px 0; font-weight: 800; }
+.bowl.ok { color: var(--ok); }
+.bowl.bad { color: var(--danger); }
+.toggle small, .choice small { color: var(--muted); }
+.toggle.on { background: #1a2740; border-color: #8eb6ff; }
+.toggle.on small { color: #c9dbff; }
+.story-line { font-size: 18px; line-height: 1.4; margin: 6px 0; }
+.build-card .head, .card .head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .sale-nums {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -312,8 +342,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   .brand { grid-column: 1 / -1; }
   .stats { grid-column: 1 / -1; }
   .stat strong { font-size: 12px; }
-  .shell { grid-template-columns: 1fr; padding-bottom: 8px; }
-  .side { order: 2; }
+  .land-grid { grid-template-columns: 1fr; }
+  .mix-row { grid-template-columns: 96px minmax(0, 1fr) 28px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

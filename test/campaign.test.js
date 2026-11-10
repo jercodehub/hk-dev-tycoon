@@ -129,8 +129,11 @@ test("GFA becomes a unit count and every offer is judged against the game market
   assert.equal(priceVerdict(0.84, balance), "cheap");
   const state = start(5);
   for (const offer of state.offers) {
-    assert.equal(offer.units, unitsFromGfa(offer.gfaFt2, balance));
-    assert.ok(offer.units >= balance.minUnits && offer.units <= balance.maxUnits);
+    assert.ok(offer.units > 0);
+    assert.equal(
+      offer.units,
+      offer.mixHint.studio + offer.mixHint.one + offer.mixHint.two + offer.mixHint.three + offer.mixHint.feature,
+    );
     assert.ok(["expensive", "fair", "cheap"].includes(offer.verdict));
     const spec = balance.landTypes[offer.type];
     if (offer.slot !== "A") {
@@ -213,121 +216,12 @@ test("cheap contractor can collapse into a dearer replacement; premium contracto
   assert.equal(collapsed.phase, "sell");
 });
 
-test("sales funnel: too cheap can clear at a loss, too steep can fail, cheer diminishes", () => {
-  const levels = initialMarket();
-  const dear = priceOffer(
-    { slot: "A", type: "ura", district: "中西區", gfaFt2: 20000, premium: 1.28 },
-    levels,
-    catalog,
-  );
-  const contractor = {
-    id: "huimen",
-    quality: 1,
-    leak: 0.12,
-    collapsed: false,
-    total: dear.estBuildTotal,
-  };
-  const loss = resolveSale(catalog, saleState(dear, contractor), {
-    ask: "cheap",
-    agents: "none",
-    ads: "none",
-    mix: "retail",
-    rebate: "high",
-    cheer: 0,
-  });
-  assert.equal(loss.outcome, "clear");
-  assert.equal(loss.sold, loss.units);
-  assert.ok(loss.profit < 0, `expected a loss, got ${loss.profit}`);
-  assert.equal(loss.risk, "loss_risk");
-
-  const gov = priceOffer(
-    { slot: "B", type: "gov", district: "北區", gfaFt2: 24000, premium: 1 },
-    levels,
-    catalog,
-  );
-  const steady = { id: "huimen", quality: 1, leak: 0.05, collapsed: false, total: gov.estBuildTotal };
-  const fail = resolveSale(catalog, saleState(gov, steady), {
-    ask: "steep",
-    agents: "none",
-    ads: "none",
-    mix: "whale",
-    rebate: "low",
-    cheer: 0,
-  });
-  assert.equal(fail.outcome, "fail");
-  assert.ok(fail.sold / fail.units < balance.partialAt);
-  assert.equal(fail.risk, "fail_risk");
-
-  const retail = resolveSale(catalog, saleState(gov, steady), {
-    ask: "steep",
-    agents: "many",
-    ads: "media",
-    mix: "retail",
-    rebate: "high",
-    cheer: 0,
-  });
-  const whale = resolveSale(catalog, saleState(gov, steady), {
-    ask: "steep",
-    agents: "many",
-    ads: "media",
-    mix: "whale",
-    rebate: "high",
-    cheer: 0,
-  });
-  assert.ok(whale.through < retail.through);
-  assert.ok(retail.agentFee > 0);
-  assert.ok(retail.adCost > 0);
-  assert.ok(retail.rebateCost > whale.rebateCost || retail.gross >= whale.gross);
-
-  const quietLow = resolveSale(catalog, saleState(gov, steady), {
-    ask: "stretch",
-    agents: "none",
-    ads: "none",
-    mix: "blend",
-    rebate: "low",
-    cheer: 0,
-  });
-  const quietHigh = resolveSale(catalog, saleState(gov, steady), {
-    ask: "stretch",
-    agents: "none",
-    ads: "none",
-    mix: "blend",
-    rebate: "high",
-    cheer: 0,
-  });
-  assert.ok(quietHigh.through > quietLow.through);
-  assert.ok(quietHigh.rebateCost > quietLow.rebateCost);
-  const crowdedLow = resolveSale(catalog, saleState(gov, steady), {
-    ask: "market",
-    agents: "many",
-    ads: "media",
-    mix: "blend",
-    rebate: "low",
-    cheer: 0,
-  });
-  const crowdedHigh = resolveSale(catalog, saleState(gov, steady), {
-    ask: "market",
-    agents: "many",
-    ads: "media",
-    mix: "blend",
-    rebate: "high",
-    cheer: 0,
-  });
-  assert.equal(crowdedHigh.sold, crowdedLow.sold);
-  assert.ok(crowdedHigh.profit < crowdedLow.profit);
-
-  const cheer0 = resolveSale(catalog, saleState(gov, steady), { ask: "stretch", agents: "none", ads: "none", mix: "blend", rebate: "low", cheer: 0 });
-  const cheer1 = resolveSale(catalog, saleState(gov, steady), { ask: "stretch", agents: "none", ads: "none", mix: "blend", rebate: "low", cheer: 1 });
-  const cheer2 = resolveSale(catalog, saleState(gov, steady), { ask: "stretch", agents: "none", ads: "none", mix: "blend", rebate: "low", cheer: 2 });
-  const cheer3 = resolveSale(catalog, saleState(gov, steady), { ask: "stretch", agents: "none", ads: "none", mix: "blend", rebate: "low", cheer: 3 });
-  const d1 = cheer1.through - cheer0.through;
-  const d3 = cheer3.through - cheer2.through;
-  assert.ok(d1 > d3);
-  assert.ok(cheer3.through > cheer0.through);
-  assert.ok(cheer3.heat >= cheer0.heat);
-  const clamped = normalizeChoices({ ask: "nope", cheer: 9 }, balance);
-  assert.equal(clamped.ask, "market");
+test("legacy sale fields no longer set a price, and cheer still clamps", () => {
+  const clamped = normalizeChoices({ ask: "steep", agents: "many", cheer: 9 }, balance);
   assert.equal(clamped.cheer, balance.cheerMax);
+  assert.equal(clamped.showflat, false);
+  assert.equal(clamped.leftover, "cut");
+  assert.equal(clamped.ask, undefined);
 });
 
 test("partner share skims URA and MTR more than a government tender", () => {
@@ -345,8 +239,8 @@ test("partner share skims URA and MTR more than a government tender", () => {
     return resolveSale(catalog, saleState(offer, contractor), choices).partnerShare;
   });
   assert.ok(cuts[2] > cuts[1]);
-  assert.ok(cuts[1] > cuts[0]);
-  assert.ok(cuts[0] > 0);
+  assert.ok(cuts[1] > 0);
+  assert.equal(cuts[0], 0);
 });
 
 test("a sensible first project can profit and the campaign ends on project 20", () => {
@@ -356,9 +250,11 @@ test("a sensible first project can profit and the campaign ends on project 20", 
   const beforeSaleCash = chooseContractor(catalog, state, "huimen");
   assert.equal(beforeSaleCash.ok, true);
   state = beforeSaleCash.state;
-  const preview = resolveSale(catalog, state, { ask: "market", agents: "one", ads: "web", mix: "blend", rebate: "std", cheer: 1 });
+  const choices = { showflat: false, cheer: 1, leftover: "cut" };
+  const preview = resolveSale(catalog, state, choices);
   assert.ok(preview.profit > 0, `tutorial path profit ${preview.profit}`);
-  const committed = commitSale(catalog, state, { ask: "market", agents: "one", ads: "web", mix: "blend", rebate: "std", cheer: 1 });
+  const committed = commitSale(catalog, state, choices);
+  assert.equal(committed.state.project.sale.profit, preview.profit);
   assert.equal(committed.state.cash, state.cash);
   state = confirmSettle(catalog, committed.state).state;
   assert.equal(state.completed, 1);
