@@ -134,6 +134,10 @@
     { "id": "flagship", "minWorth": 3600000000, "gfaMul": 48 }
   ],
   "siteTierWeights": { "small": 3, "mid": 4, "large": 3, "flagship": 2 },
+  "flagshipFrom": 12,
+  "jvShare": 0.35,
+  "bandSpread": 8,
+  "weakBand": 22,
   "storyRepeatCap": 2,
   "leakRepWeight": 8,
   "leakPriceDrag": 0.15,

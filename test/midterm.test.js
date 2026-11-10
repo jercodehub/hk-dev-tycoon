@@ -51,7 +51,9 @@ function start(seed = 7) {
 function finishProject(state, loan = "cash") {
   const slot = [...state.offers].sort((a, b) => a.landTotal - b.landTotal)[0];
   let next = chooseLand(catalog, state, slot.slot).state;
-  next = chooseContractor(catalog, next, "huimen", null, loan).state;
+  let built = chooseContractor(catalog, next, "huimen", null, loan);
+  if (!built.ok) built = chooseContractor(catalog, next, "huimen", null, loan === "cash" ? "big" : "cash");
+  next = built.state;
   if (next.project.contractor.remedyPending) next = chooseRemedy(catalog, next, "worse").state;
   next = commitSale(catalog, next, { price: "fair", showflat: false, cheer: 0, leftover: "cut" }).state;
   next = confirmSettle(catalog, next).state;
@@ -266,7 +268,7 @@ test("a new game and a migrated v3 save can finish two small projects without a 
   const migrated = migrateSave(legacy);
   assert.equal(migrated.ok, true);
   assert.equal(migrated.notice, null);
-  assert.equal(migrated.state.v, 5);
+  assert.equal(migrated.state.v, 6);
   let restored = hydrateCampaign(catalog, migrated.state);
   assert.equal(restored.cash, legacy.cash);
   for (let n = 0; n < 2; n += 1) {

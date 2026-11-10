@@ -2,8 +2,10 @@ import {
   COMPANY_COLORS,
   COMPANY_LOGOS,
   UNIT_SPECS,
+  JV_SHARE,
   acknowledgeMismatch,
   addUnits,
+  buildSalesBand,
   campaignHeat,
   canAddUnit,
   chooseContractor,
@@ -20,28 +22,34 @@ import {
   endSummary,
   explainForecastGap,
   formatCount,
+  fundBuild,
   gfaUsed,
   heatProjectsLeft,
   hydrateCampaign,
   isTutorial,
+  jvEligible,
   migrateSave,
+  mismatchEcho,
   mixDelta,
-  mixPoolGaps,
   mixPreset,
   popularityNote,
   priceRemedy,
   projectNumber,
-  quoteLoan,
+  remedyExtra,
   renameProject,
   resolveSale,
   saleBatches,
   saleForecast,
+  saleLedger,
   saleReveal,
   serializeCampaign,
+  settlementPreview,
   shouldTeachMismatch,
   similarProject,
   skipLand,
+  stakeOf,
   unitPopularity,
+  unitRowNote,
 } from "./campaign.js";
 import { t } from "./copy.js";
 import { STORIES } from "./stories.js";
@@ -80,7 +88,8 @@ const ui = {
   thaw: null,
   lapse: false,
   teach: null,
-  similarOpen: false,
+  similarOpen: true,
+  ignoreClick: false,
 };
 
 let saleTimer = null;
@@ -147,6 +156,9 @@ function errorText(code) {
       bad_choice: "冇呢一下。",
       over_gfa: "超咗可建樓面。",
       empty_mix: "未分配單位。",
+      short_cash: "現金唔夠你份額。",
+      need_remedy: "先揀趕工定接受差啲銷情。",
+      bad_stake: "呢幅地未開合營。",
     },
     en: {
       insufficient_cash: "Not enough cash.",
@@ -156,6 +168,9 @@ function errorText(code) {
       bad_choice: "Unknown choice.",
       over_gfa: "Over the buildable area.",
       empty_mix: "No flats allocated.",
+      short_cash: "Cash does not cover your share.",
+      need_remedy: "Choose a stall fix first.",
+      bad_stake: "This site has no venture.",
     },
   };
   return (table[ui.lang] || table.tc)[code] || code;
@@ -190,8 +205,14 @@ function siteKey(tier) {
 }
 
 function loanBaseCost() {
-  if (ui.build?.contractor) return contractorQuote(ui.catalog, ui.state, ui.build.contractor)?.cost || 0;
-  return ui.state?.project?.offer?.estBuildTotal || 0;
+  const offer = ui.state?.project?.offer;
+  const stake = stakeOf(offer);
+  if (ui.build?.contractor) return contractorQuote(ui.catalog, ui.state, ui.build.contractor)?.playerCost || 0;
+  return Math.round((offer?.estBuildTotal || 0) * stake);
+}
+
+function funding(mode = "cash") {
+  return fundBuild(ui.catalog.balance, { cash: ui.state?.cash || 0, cost: loanBaseCost(), mode });
 }
 
 function yellowBanner() {
@@ -288,12 +309,22 @@ function apply(result) {
 function beginLapse() {
   stopLapse();
   ui.lapse = true;
+  ui.ignoreClick = false;
   render();
   lapseTimer = setTimeout(() => {
     lapseTimer = null;
-    ui.lapse = false;
-    render();
+    endLapse();
   }, reducedMotion() ? 500 : 2200);
+}
+
+function endLapse() {
+  stopLapse();
+  ui.lapse = false;
+  ui.ignoreClick = true;
+  render();
+  setTimeout(() => {
+    ui.ignoreClick = false;
+  }, 320);
 }
 
 function commitBuild() {
@@ -375,19 +406,34 @@ function landCard(offer) {
   const deal = offer.partnerRate <= 0
     ? t(ui.lang, "typeGovNote")
     : `${t(ui.lang, typeNote(offer.type))} ${t(ui.lang, "shareOf", { pct: `${Math.round(offer.partnerRate * 100)}%` })}`;
-  return `<button class="choice plot" data-action="buy" data-slot="${offer.slot}" ${broke ? "disabled" : ""}>
-    <div class="head"><h3>${t(ui.lang, "slot", { slot: offer.slot })} · ${t(ui.lang, typeKey(offer.type))}</h3>${stamp(offer.verdict)}</div>
+  const body = `<div class="head"><h3>${t(ui.lang, "slot", { slot: offer.slot })} · ${t(ui.lang, typeKey(offer.type))}</h3>${stamp(offer.verdict)}</div>
     <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))}</p>
     <p class="fine">${formatCount(offer.gfaFt2)} ${t(ui.lang, "ft")} · ${t(ui.lang, "estUnits", { n: formatCount(offer.units) })} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
-    <p class="fine">${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)}</p>
-    <p class="deal">${deal}</p>
-    ${broke ? `<p class="fine">${t(ui.lang, "broke")}</p>` : ""}
-  </button>`;
+    <p class="fine plot-price">${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)}</p>
+    <p class="deal">${deal}</p>`;
+  if (!jvEligible(offer)) {
+    return `<button class="choice plot" data-action="buy" data-slot="${offer.slot}" data-stake="1" ${broke ? "disabled" : ""}>
+      ${body}
+      ${broke ? `<p class="fine">${t(ui.lang, "broke")}</p>` : ""}
+    </button>`;
+  }
+  const share = Math.round(offer.landTotal * JV_SHARE);
+  const jvBroke = ui.state.cash < share;
+  return `<article class="choice plot venture">
+    ${body}
+    <div class="pair stake-pair">
+      <button data-action="buy" data-slot="${offer.slot}" data-stake="1" ${broke ? "disabled" : ""}>${t(ui.lang, "jvFull")}<small>${compactHkd(offer.landTotal)}</small></button>
+      <button data-action="buy" data-slot="${offer.slot}" data-stake="${JV_SHARE}" ${jvBroke ? "disabled" : ""}>${t(ui.lang, "jv35")}<small>${compactHkd(share)}</small></button>
+    </div>
+    <p class="fine jv-line">${t(ui.lang, "jvLine")}</p>
+  </article>`;
 }
 
 function landView() {
+  const venture = (ui.state.offers || []).some((offer) => jvEligible(offer));
   return `${errorBanner()}${yellowBanner()}${tutorialBanner()}
     <p class="kicker">${t(ui.lang, "landKicker")}</p>
+    ${venture ? `<p class="fine jv-disclaimer">${t(ui.lang, "jvDisclaimer")}</p>` : ""}
     <div class="land-grid">${ui.state.offers.map(landCard).join("")}</div>`;
 }
 
@@ -415,8 +461,14 @@ function buildView() {
     const note = popularityNote(offer.flavour, heat, band);
     const canAdd = canAddUnit(gfa, ui.build.mix, spec.id);
     const stepLabel = step > 1 ? ` ±${formatCount(step)}` : "";
+    const caption = unitRowNote([
+      `${spec.ft2}${t(ui.lang, "ft")}`,
+      t(ui.lang, whoKey),
+      popWord(band),
+      note,
+    ]);
     return `<div class="mix-row">
-      <span><b>${t(ui.lang, nameKey)}</b><small>${spec.ft2}${t(ui.lang, "ft")} · ${t(ui.lang, whoKey)} · ${popWord(band)}${note ? ` · ${note}` : ""} · ${t(ui.lang, "costPsf", { n: formatHkd(costPsf) })}</small></span>
+      <span><b>${t(ui.lang, nameKey)}</b><small>${caption}</small></span>
       <span class="stepper">
         <button type="button" class="step" data-action="mix-step" data-unit="${spec.id}" data-delta="${-step}" ${count <= 0 ? "disabled" : ""} aria-label="−${stepLabel}">−</button>
         <strong id="count-${spec.id}">${formatCount(count)}</strong>
@@ -431,45 +483,64 @@ function buildView() {
     ["upgrade", "presetUpgrade"],
     ["luxury", "presetLuxury"],
   ].map(([id, key]) => `<button class="chip" data-action="mix-preset" data-id="${id}">${t(ui.lang, key)}</button>`).join("");
-  const loanCost = loanBaseCost();
   const loans = ["cash", "small", "big"].map((mode) => {
-    const quote = quoteLoan(loanCost, mode, ui.catalog.balance);
+    const quote = fundBuild(ui.catalog.balance, { cash: ui.state.cash, cost: loanBaseCost(), mode });
     const on = (ui.build.loan || "cash") === mode;
     const key = mode === "big" ? "creditBig" : mode === "small" ? "creditSmall" : "creditCash";
-    const sub = quote.due > 0 ? t(ui.lang, "creditDue", { due: compactHkd(quote.due) }) : t(ui.lang, "creditNone");
+    const sub = quote.principal > 0
+      ? t(ui.lang, "creditTerms", {
+        principal: compactHkd(quote.principal),
+        interest: compactHkd(quote.interest),
+        due: compactHkd(quote.due),
+      })
+      : quote.ok
+        ? t(ui.lang, "creditNone")
+        : t(ui.lang, "creditShort", { gap: compactHkd(quote.shortfall) });
     return `<button class="chip${on ? " on" : ""}" data-action="loan" data-id="${mode}" aria-pressed="${on}"><strong>${t(ui.lang, key)}</strong><small>${sub}</small></button>`;
   }).join("");
+  const selectedPlan = funding(ui.build.loan || "cash");
+  const shortLine = selectedPlan.ok
+    ? ""
+    : `<p class="fine short-cash">${t(ui.lang, "creditShort", { gap: compactHkd(selectedPlan.shortfall) })} · ${t(ui.lang, "creditShortHint", {
+      small: compactHkd(funding("small").principal),
+      big: compactHkd(funding("big").principal),
+    })}</p>`;
+  const sales = buildSalesBand(ui.catalog, ui.state, ui.build.mix, ui.build.contractor);
   const cards = ["jingjin", "huimen", "xinjing"].map((id) => {
     const quote = contractorQuote(ui.catalog, ui.state, id);
     const spec = ui.catalog.balance.contractors[id];
     const on = ui.build.contractor === id;
     const risk = spec.collapse > 0
-      ? `<p class="fine risk-preview">${t(ui.lang, "collapseRisk", { extra: compactHkd(Math.round(quote.cost * ui.catalog.balance.collapseExtra)) })}</p>`
+      ? `<p class="fine risk-preview">${t(ui.lang, "collapseRisk", { extra: compactHkd(remedyExtra(ui.catalog.balance, quote.cost, stakeOf(offer), "rush")) })}</p>`
       : "";
     return `<button class="choice contractor${on ? " on" : ""}" data-action="pick-contractor" data-id="${id}" aria-pressed="${on}">
-      <div class="head"><h3>${t(ui.lang, id)}</h3><strong>${compactHkd(quote.total)}</strong></div>
+      <div class="head"><h3>${t(ui.lang, id)}</h3><strong>${compactHkd(quote.playerCost)}</strong></div>
       ${riskMeters(id)}
       <p class="fine">${t(ui.lang, `${id}Note`)}</p>
       ${risk}
-      ${quote.overdraft && (ui.build.loan || "cash") === "cash" ? `<p class="fine">${t(ui.lang, "overdraft")}</p>` : ""}
     </button>`;
   }).join("");
   const width = Math.max(0, Math.min(100, (used / gfa) * 100));
+  const stakeNote = stakeOf(offer) < 1 ? `<p class="fine jv-line">${t(ui.lang, "jvLine")} ${t(ui.lang, "jvDisclaimer")}</p>` : "";
   return `${errorBanner()}${yellowBanner()}${tutorialBanner()}
     <section class="card build-card">
       <p class="kicker">${t(ui.lang, "buildKicker")} · ${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
+      ${stakeNote}
       ${projectNameField()}
       <div id="gfa-live" class="${left < 0 ? "over" : ""}">
         <span>${t(ui.lang, "gfa")} ${formatCount(gfa)}</span>
+        <span class="psf" id="gfa-psf">${t(ui.lang, "costPsf", { n: formatHkd(costPsf) })}</span>
         <span>${t(ui.lang, "usedGfa")} <strong id="gfa-used">${formatCount(used)}</strong></span>
         <span>${t(ui.lang, "leftGfa")} <strong id="gfa-left">${formatCount(left)}</strong></span>
       </div>
       <div class="bar"><span id="gfa-bar" style="width:${width}%"></span></div>
-      <p class="fine preset-why">${t(ui.lang, presetWhyKey(offer.flavour, heat))}</p>
+      <p class="fine build-band">${t(ui.lang, presetWhyKey(offer.flavour, heat))} · ${t(ui.lang, "salesBand", { low: sales.low, high: sales.high })}</p>
+      ${sales.weak ? `<p class="mismatch-line">${t(ui.lang, "mismatchTitle")}</p>` : ""}
       <div class="chips preset-row">${presets}</div>
       <p id="over-line" class="fine bad-text"${left < 0 ? "" : " hidden"}>${t(ui.lang, "overGfa")}</p>
       <div class="mixes">${rows}</div>
       <div class="credit-row"><span>${t(ui.lang, "creditKicker")}</span>${loans}</div>
+      ${shortLine}
       <p class="fine credit-note">${t(ui.lang, "creditNote")}</p>
       <div class="contractors">${cards}</div>
     </section>`;
@@ -494,7 +565,7 @@ function paintBuild() {
     const count = document.querySelector(`#count-${spec.id}`);
     if (count) count.textContent = formatCount(ui.build.mix[spec.id] || 0);
   }
-  const blocked = left < 0 || used <= 0 || !ui.build.contractor;
+  const blocked = left < 0 || used <= 0 || !ui.build.contractor || !funding(ui.build.loan || "cash").ok;
   const go = document.querySelector("[data-action='confirm-build']");
   if (go) {
     go.disabled = blocked;
@@ -639,14 +710,32 @@ function liveComment() {
 }
 
 function similarPeek() {
-  const open = ui.similarOpen;
-  const item = open ? similarProject(ui.state) : null;
-  const body = !open
-    ? ""
-    : item
-      ? `<p class="similar">${escapeHtml(item.name || districtLabel(ui.lang, item.district))} · ${priceWord(item.price) || "—"} ${item.askPerFt2 ? `${formatHkd(item.askPerFt2)}${t(ui.lang, "perFt")}` : ""} · ${outcomeShort(item.outcome) || "—"} ${formatCount(item.sold)}/${formatCount(item.units)}</p>`
-      : `<p class="similar">${t(ui.lang, "similarEmpty")}</p>`;
-  return `<button class="chip similar-toggle${open ? " on" : ""}" data-action="similar" aria-pressed="${open}">${t(ui.lang, "similarPeek")}</button>${body}`;
+  const item = similarProject(ui.state);
+  if (!item) return `<p class="similar">${t(ui.lang, "similarPeek")} · ${t(ui.lang, "similarEmpty")}</p>`;
+  const price = priceWord(item.price) || "—";
+  const psf = item.askPerFt2 ? `${formatHkd(item.askPerFt2)}${t(ui.lang, "perFt")}` : "";
+  const title = item.name || districtLabel(ui.lang, item.district);
+  return `<p class="similar">${t(ui.lang, "similarPeek")} · ${escapeHtml(title)} · ${price} ${psf} · ${outcomeShort(item.outcome) || "—"} ${formatCount(item.sold)}/${formatCount(item.units)}</p>`;
+}
+
+function salePnl(choices) {
+  const ledger = saleLedger(ui.catalog, ui.state, choices);
+  return `<p class="pnl">${t(ui.lang, "buildCost")} ${compactHkd(ledger.build)} · ${t(ui.lang, "promoBill")} ${compactHkd(ledger.promo)} · ${t(ui.lang, "expectMultiple", { n: ledger.multiple.toFixed(2) })}</p>`;
+}
+
+function cheerExtraLine(choices) {
+  if (!choices || (choices.cheer || 0) <= 0) return "";
+  const now = saleLedger(ui.catalog, ui.state, choices);
+  const before = saleLedger(ui.catalog, ui.state, { ...choices, cheer: 0 });
+  const extra = now.profit - before.profit;
+  const sign = extra > 0 ? "+" : "";
+  return `<p class="pnl cheer-extra">${t(ui.lang, "cheerExtra", { cash: `${sign}${compactHkd(extra)}` })}</p>`;
+}
+
+function bridgeBanner() {
+  const unpaid = ui.state?.project?.contractor?.unpaid || 0;
+  if (unpaid <= 0) return "";
+  return `<div class="banner warn">${t(ui.lang, "unpaidBridge", { cash: compactHkd(unpaid) })}</div>`;
 }
 
 function sellSetup() {
@@ -657,12 +746,13 @@ function sellSetup() {
   const hold = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, leftover: "hold" });
   const heat = quote.marketHeat;
   const showOn = ui.sale.choices.showflat;
-  return `${tutorialBanner()}${yellowBanner()}${collapseBanner()}
+  return `${tutorialBanner()}${yellowBanner()}${bridgeBanner()}${collapseBanner()}
     <section class="card sell-setup showroom">
       <p class="kicker">${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</p>
       <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
       <div class="chips price-chips">${priceChips()}</div>
       ${forecastBlock(forecast)}
+      ${salePnl(ui.sale.choices)}
       ${similarPeek()}
       ${promoRow()}
       ${unitBars(forecast.bars)}
@@ -748,6 +838,7 @@ function sellLive() {
       <div class="pops" id="pops"></div>
       <p class="fine" id="cake-line">${quote.cakeSweep > 0 && shown > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : ""}</p>
       <p class="fine">${t(ui.lang, "floorCash")} <strong id="tally">${compactHkd(shown && quote.sold ? Math.round((quote.gross * shown) / quote.sold) : 0)}</strong></p>
+      ${cheerExtraLine(ui.sale.choices)}
       ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : `<p class="kicker">${t(ui.lang, "selling")}</p>`}
     </section>`;
 }
@@ -859,13 +950,21 @@ function settleView() {
     </section>`;
   }
   const sale = project.sale;
-  const after = ui.state.cash + sale.netCash;
+  const preview = settlementPreview(ui.catalog, ui.state);
   const cls = sale.profit >= 0 ? "ok" : "bad";
   const sign = sale.profit >= 0 ? "+" : "";
-  const partner = project.offer.partnerRate <= 0
-    ? row(t(ui.lang, "partnerShare"), t(ui.lang, "noShareLine"))
-    : row(t(ui.lang, "partnerShare"), formatHkd(sale.partnerShare));
-  return `<section class="card"><h2>${t(ui.lang, "settleKicker")}</h2>
+  const partner = stakeOf(project.offer) < 1 || project.offer.partnerRate > 0
+    ? row(t(ui.lang, "partnerShare"), formatHkd(sale.partnerShare))
+    : row(t(ui.lang, "partnerShare"), t(ui.lang, "noShareLine"));
+  const owed = preview.owed > 0 ? `<p class="mismatch-line owed-line">${t(ui.lang, "stillOwed", { owed: compactHkd(preview.owed) })}</p>` : "";
+  const loanLine = project.loan?.principal > 0
+    ? row(t(ui.lang, "loanRow"), t(ui.lang, "creditTerms", {
+      principal: compactHkd(project.loan.principal),
+      interest: compactHkd(project.loan.interest),
+      due: compactHkd(project.loan.due),
+    }))
+    : "";
+  return `${bridgeBanner()}<section class="card"><h2>${t(ui.lang, "settleKicker")}</h2>
     ${outcomeLine(sale)}
     <div class="big-profit ${cls}">${sign}${formatHkd(sale.profit)}</div>
     <p class="fine">${escapeHtml(districtLabel(ui.lang, project.offer.district))} · ${t(ui.lang, flavourKey(project.offer.flavour))} · ${t(ui.lang, typeKey(project.offer.type))}</p>
@@ -878,14 +977,17 @@ function settleView() {
     ${sale.unsold > 0 && sale.fireNet ? row(t(ui.lang, "fireSale"), formatHkd(sale.fireNet)) : ""}
     ${sale.frozenAmount ? `<p class="fine">${t(ui.lang, "frozenLine", { cash: formatHkd(sale.frozenAmount) })}</p>` : ""}
     ${gapLine(sale)}
-    ${row(t(ui.lang, "landCost"), formatHkd(project.offer.landTotal))}
-    ${project.contractor.collapsed ? `${row(t(ui.lang, "quoteCost"), formatHkd(project.contractor.cost))}${row(t(ui.lang, "remedyExtra"), formatHkd(project.contractor.total - project.contractor.cost))}` : ""}
+    ${mismatchEcho(project) ? `<p class="mismatch-line">${t(ui.lang, "mismatchTitle")}</p>` : ""}
+    ${row(t(ui.lang, "landCost"), formatHkd(project.offer.landPaid ?? project.offer.landTotal))}
+    ${project.contractor.collapsed ? `${row(t(ui.lang, "quoteCost"), formatHkd(project.contractor.cost))}${row(t(ui.lang, "remedyExtra"), formatHkd(project.contractor.extra || (project.contractor.total - project.contractor.cost)))}` : ""}
     ${row(t(ui.lang, "buildCost"), formatHkd(project.contractor.total))}
-    ${project.loan?.principal > 0 ? row(t(ui.lang, "loanRow"), `${t(ui.lang, project.loan.mode === "big" ? "creditBig" : "creditSmall")} · ${compactHkd(project.loan.due)}`) : ""}
+    ${loanLine}
     ${row(t(ui.lang, "repChange"), `${sale.reputationDelta >= 0 ? "+" : ""}${sale.reputationDelta}`)}
     ${liveComment() ? `<p class="rep-line">${escapeHtml(t(ui.lang, liveComment()))}</p>` : ""}
     ${row(t(ui.lang, "soldNow"), `${sale.sold} / ${sale.units}`)}
-    ${row(t(ui.lang, "cashNow"), formatHkd(after))}
+    ${row(t(ui.lang, "cashNow"), compactHkd(preview.cash))}
+    ${owed}
+    ${preview.paid > 0 ? row(t(ui.lang, "bankPaid"), compactHkd(preview.paid)) : ""}
   </section>`;
 }
 
@@ -953,7 +1055,7 @@ function remedyView() {
   const rush = priceRemedy(ui.catalog.balance, { ...contractor, collapsed: true, remedy: "rush" });
   const worse = priceRemedy(ui.catalog.balance, { ...contractor, collapsed: true, remedy: "worse" });
   const extra = Math.max(0, rush.total - contractor.cost);
-  return `${yellowBanner()}
+  return `${yellowBanner()}${bridgeBanner()}
     <section class="card remedy-card">
       <p class="kicker">${t(ui.lang, "remedyKicker")}</p>
       <p class="story-line">${t(ui.lang, "remedyLead", { extra: compactHkd(extra) })}</p>
@@ -1013,6 +1115,8 @@ function companyView() {
 function buildHint(left) {
   if (left < 0) return t(ui.lang, "overGfa");
   if (!ui.build?.contractor) return t(ui.lang, "pickContractor");
+  const plan = funding(ui.build.loan || "cash");
+  if (!plan.ok) return t(ui.lang, "creditShort", { gap: compactHkd(plan.shortfall) });
   return `${t(ui.lang, "leftGfa")} ${left.toLocaleString("en-US")} ${t(ui.lang, "ft")}`;
 }
 
@@ -1040,7 +1144,7 @@ function dock() {
     ensureBuild();
     const used = gfaUsed(ui.build.mix);
     const left = ui.state.project.offer.gfaFt2 - used;
-    const blocked = left < 0 || used <= 0 || !ui.build.contractor;
+    const blocked = left < 0 || used <= 0 || !ui.build.contractor || !funding(ui.build.loan || "cash").ok;
     return `<footer class="dock"><button class="go${blocked ? " is-blocked" : ""}" data-action="confirm-build" ${blocked ? "disabled" : ""}>${t(ui.lang, "confirmBuild")}<small id="build-small">${buildHint(left)}</small></button></footer>`;
   }
   if (phase === "sell") {
@@ -1205,7 +1309,7 @@ function render() {
     <div class="shell" data-phase="${phase}">
       <main class="stack" id="main">${mainView()}</main>
     </div>
-    <p class="legal"><span>${t(ui.lang, "disclaimer")}</span><span class="legal-en"> · ${t(ui.lang, "disclaimerEn")}</span></p>
+    <p class="legal"><span>${t(ui.lang, "disclaimer")}</span><span class="legal-en"> · ${t(ui.lang, "disclaimerEn")}</span>${jvVisible() ? `<span class="legal-jv"> · ${t(ui.lang, "jvDisclaimer")}</span>` : ""}</p>
     ${dock()}
     ${menuOverlay()}
     ${historyDrawer()}`;
@@ -1247,9 +1351,16 @@ function newGame() {
   render();
 }
 
+function jvVisible() {
+  if (!ui.state) return false;
+  if (ui.state.phase === "land" && (ui.state.offers || []).some((offer) => jvEligible(offer))) return true;
+  return stakeOf(ui.state.project?.offer) < 1;
+}
+
 function onClick(event) {
   const target = event.target.closest("[data-action]");
   if (!target || target.disabled) return;
+  if (ui.ignoreClick && target.dataset.action !== "skip-lapse") return;
   if (target.dataset.action !== "confirm-settle") ui.thaw = null;
   const { action, id, slot } = target.dataset;
   if (action === "lang") {
@@ -1317,7 +1428,10 @@ function onClick(event) {
     return;
   }
   if (!ui.state) return;
-  if (action === "buy") apply(chooseLand(ui.catalog, ui.state, slot));
+  if (action === "buy") {
+    const stake = target.dataset.stake ? Number(target.dataset.stake) : 1;
+    apply(chooseLand(ui.catalog, ui.state, slot, stake));
+  }
   if (action === "skip") apply(skipLand(ui.catalog, ui.state));
   if (action === "pick-contractor") {
     ensureBuild();
@@ -1349,8 +1463,11 @@ function onClick(event) {
   }
   if (action === "confirm-build") {
     ensureBuild();
-    const gaps = mixPoolGaps(ui.catalog, ui.state, ui.build.mix);
-    if (shouldTeachMismatch(ui.state, gaps)) {
+    const sales = buildSalesBand(ui.catalog, ui.state, ui.build.mix, ui.build.contractor);
+    const gaps = sales.gaps?.length
+      ? sales.gaps
+      : UNIT_SPECS.filter((spec) => (ui.build.mix[spec.id] || 0) > 0).map((spec) => ({ unit: spec.id }));
+    if (shouldTeachMismatch(ui.state, sales)) {
       ui.teach = gaps;
       render();
       return;
@@ -1372,9 +1489,7 @@ function onClick(event) {
     return;
   }
   if (action === "skip-lapse") {
-    stopLapse();
-    ui.lapse = false;
-    render();
+    endLapse();
     return;
   }
   if (action === "remedy") {

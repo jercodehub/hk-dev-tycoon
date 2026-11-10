@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   chooseContractor,
   chooseLand,
+  chooseRemedy,
   chooseStory,
   commitSale,
   confirmSettle,
@@ -272,8 +273,11 @@ test("a sensible first project can profit and the campaign ends on project 20", 
       if (affordable[0].landTotal <= state.cash) state = chooseLand(catalog, state, affordable[0].slot).state;
       else state = skipLand(catalog, state).state;
     } else if (state.phase === "build") {
-      state = chooseContractor(catalog, state, "huimen").state;
+      let built = chooseContractor(catalog, state, "huimen");
+      if (!built.ok) built = chooseContractor(catalog, state, "huimen", null, "big");
+      state = built.state;
     } else if (state.phase === "sell") {
+      if (state.project.contractor?.remedyPending) state = chooseRemedy(catalog, state, "rush").state;
       state = commitSale(catalog, state, { ask: "market", agents: "one", ads: "none", mix: "blend", rebate: "low", cheer: 0 }).state;
     } else if (state.phase === "settle") {
       state = confirmSettle(catalog, state).state;
