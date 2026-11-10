@@ -108,6 +108,33 @@
   "collapseLeakAdd": 0.14,
   "collapseRep": -12,
   "collapseThrough": 0.12,
+  "remedy": {
+    "worseExtra": 0.16,
+    "worseQuality": 0.64,
+    "worseLeak": 0.22,
+    "worseRep": -8,
+    "worseThrough": 0.28,
+    "rushThrough": 0.12
+  },
+  "riskScale": { "leak": 0.4, "collapse": 0.3 },
+  "credit": {
+    "minPrincipalFraction": 0.25,
+    "forcedMul": 0.7,
+    "survivalCash": 120000000,
+    "modes": {
+      "cash": { "principal": 0, "rate": 0 },
+      "small": { "principal": 0.32, "rate": 0.08 },
+      "big": { "principal": 0.68, "rate": 0.18 }
+    }
+  },
+  "siteTiers": [
+    { "id": "small", "minWorth": 0, "gfaMul": 1 },
+    { "id": "mid", "minWorth": 520000000, "gfaMul": 4 },
+    { "id": "large", "minWorth": 1500000000, "gfaMul": 12 },
+    { "id": "flagship", "minWorth": 3600000000, "gfaMul": 48 }
+  ],
+  "siteTierWeights": { "small": 3, "mid": 4, "large": 3, "flagship": 2 },
+  "storyRepeatCap": 2,
   "leakRepWeight": 8,
   "leakPriceDrag": 0.15,
   "leakThroughDrag": 0.22,

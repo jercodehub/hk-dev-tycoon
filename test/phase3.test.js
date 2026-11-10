@@ -274,7 +274,7 @@ test("government land skims nothing and draws more controversy than a skip", () 
 });
 
 test("side stories move reputation, cash, and a buyer pool", () => {
-  assert.ok(STORIES.length >= 6 && STORIES.length <= 10);
+  assert.ok(STORIES.length >= 12 && STORIES.length <= 16);
   const ballot = STORIES.find((story) => story.id === "ballot");
   const choice = ballot.choices.find((item) => item.id === "b");
   assert.ok(choice.rep < 0);
@@ -381,7 +381,7 @@ test("a renamed project stays in the save, and a phase 3 save upgrades", () => {
   const migrated = migrateSave(legacy);
   assert.equal(migrated.ok, true);
   assert.equal(migrated.notice, null);
-  assert.equal(migrated.state.v, 4);
+  assert.equal(migrated.state.v, 5);
   const upgraded = hydrateCampaign(catalog, migrated.state);
   assert.equal(upgraded.cash, state.cash);
   assert.equal(upgraded.phase, "build");

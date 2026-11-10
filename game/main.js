@@ -2,32 +2,44 @@ import {
   COMPANY_COLORS,
   COMPANY_LOGOS,
   UNIT_SPECS,
+  acknowledgeMismatch,
+  addUnits,
   campaignHeat,
   canAddUnit,
   chooseContractor,
   chooseLand,
+  chooseRemedy,
   chooseStory,
   commentForPhase,
   commitSale,
   confirmSettle,
   contractorQuote,
+  contractorRisk,
   createCampaign,
   createCampaignCatalog,
   endSummary,
   explainForecastGap,
+  formatCount,
   gfaUsed,
   heatProjectsLeft,
   hydrateCampaign,
   isTutorial,
   migrateSave,
+  mixDelta,
+  mixPoolGaps,
   mixPreset,
   popularityNote,
+  priceRemedy,
   projectNumber,
+  quoteLoan,
   renameProject,
   resolveSale,
+  saleBatches,
   saleForecast,
   saleReveal,
   serializeCampaign,
+  shouldTeachMismatch,
+  similarProject,
   skipLand,
   unitPopularity,
 } from "./campaign.js";
@@ -66,9 +78,13 @@ const ui = {
   drawer: null,
   historyFocus: null,
   thaw: null,
+  lapse: false,
+  teach: null,
+  similarOpen: false,
 };
 
 let saleTimer = null;
+let lapseTimer = null;
 const app = document.querySelector("#app");
 
 function escapeHtml(value) {
@@ -88,7 +104,11 @@ function compactHkd(value) {
     if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}m`;
     return formatHkd(value);
   }
-  if (abs >= 100000000) return `${sign}$${(abs / 100000000).toFixed(2)}億`;
+  if (abs >= 100000000) {
+    const yi = abs / 100000000;
+    const digits = yi >= 100 ? 0 : yi >= 10 ? 1 : 2;
+    return `${sign}$${yi.toFixed(digits).replace(/\.0+$/, "")}億`;
+  }
   if (abs >= 10000) return `${sign}$${Math.round(abs / 10000).toLocaleString("en-US")}萬`;
   return formatHkd(value);
 }
@@ -124,7 +144,7 @@ function errorText(code) {
       bad_phase: "而家未到呢一步。",
       bad_slot: "冇呢幅地。",
       bad_contractor: "冇呢間承建商。",
-      bad_choice: "冇呢個選擇。",
+      bad_choice: "冇呢一下。",
       over_gfa: "超咗可建樓面。",
       empty_mix: "未分配單位。",
     },
@@ -149,6 +169,7 @@ function stepKey(phase) {
     settle: "stepSettle",
     story: "stepStory",
     summary: "stepSummary",
+    gameover: "stepGameOver",
   }[phase] || "stepCompany";
 }
 
@@ -162,6 +183,31 @@ function typeNote(type) {
 
 function flavourKey(flavour) {
   return flavour === "uni" ? "flavourUni" : flavour === "core" ? "flavourCore" : "flavourStarter";
+}
+
+function siteKey(tier) {
+  return { mid: "siteMid", large: "siteLarge", flagship: "siteFlagship" }[tier] || "siteSmall";
+}
+
+function loanBaseCost() {
+  if (ui.build?.contractor) return contractorQuote(ui.catalog, ui.state, ui.build.contractor)?.cost || 0;
+  return ui.state?.project?.offer?.estBuildTotal || 0;
+}
+
+function yellowBanner() {
+  if (!ui.state?.credit?.yellow || !ui.state.credit.owed) return "";
+  return `<div class="banner warn">${t(ui.lang, "yellowBanner", { owed: compactHkd(ui.state.credit.owed) })}</div>`;
+}
+
+function riskMeters(id) {
+  const spec = ui.catalog.balance.contractors[id];
+  const risk = contractorRisk(spec, ui.catalog.balance);
+  const bar = (key, ratio) => `<span class="risk"><em>${t(ui.lang, key)}</em><b><i style="width:${Math.round(ratio * 100)}%"></i></b></span>`;
+  return `<span class="risks">${bar("leak", risk.leak)}${bar("collapse", risk.collapse)}</span>`;
+}
+
+function needsRemedy() {
+  return Boolean(ui.state?.phase === "sell" && ui.state.project?.contractor?.remedyPending && !ui.lapse && !ui.teach);
 }
 
 function leakWord(leak) {
@@ -187,6 +233,17 @@ function stopSaleTimer() {
     clearInterval(saleTimer);
     saleTimer = null;
   }
+}
+
+function stopLapse() {
+  if (lapseTimer) {
+    clearTimeout(lapseTimer);
+    lapseTimer = null;
+  }
+}
+
+function reducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function persist() {
@@ -218,10 +275,50 @@ function apply(result) {
   ui.state = result.state;
   ui.error = null;
   ui.thaw = released > 0 ? released : null;
-  if (ui.state.phase !== "sell") ui.sale = null;
+  if (ui.state.phase !== "sell") {
+    ui.sale = null;
+    ui.similarOpen = false;
+  }
   if (ui.state.phase !== "build") ui.build = null;
+  if (ui.state.phase !== "sell") ui.lapse = false;
   persist();
   render();
+}
+
+function beginLapse() {
+  stopLapse();
+  ui.lapse = true;
+  render();
+  lapseTimer = setTimeout(() => {
+    lapseTimer = null;
+    ui.lapse = false;
+    render();
+  }, reducedMotion() ? 500 : 2200);
+}
+
+function commitBuild() {
+  ensureBuild();
+  const result = chooseContractor(
+    ui.catalog,
+    ui.state,
+    ui.build.contractor,
+    ui.build.mix,
+    ui.build.loan || "cash",
+  );
+  if (!result.ok) {
+    ui.error = result.error;
+    ui.teach = null;
+    render();
+    return;
+  }
+  ui.state = result.state;
+  ui.error = null;
+  ui.thaw = null;
+  ui.build = null;
+  ui.teach = null;
+  ui.similarOpen = false;
+  persist();
+  beginLapse();
 }
 
 function ensureBuild() {
@@ -231,6 +328,7 @@ function ensureBuild() {
     index: ui.state.project.index,
     mix: { ...ui.state.project.offer.mixHint },
     contractor: null,
+    loan: "cash",
   };
 }
 
@@ -280,7 +378,7 @@ function landCard(offer) {
   return `<button class="choice plot" data-action="buy" data-slot="${offer.slot}" ${broke ? "disabled" : ""}>
     <div class="head"><h3>${t(ui.lang, "slot", { slot: offer.slot })} · ${t(ui.lang, typeKey(offer.type))}</h3>${stamp(offer.verdict)}</div>
     <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))}</p>
-    <p class="fine">${offer.gfaFt2.toLocaleString("en-US")} ${t(ui.lang, "ft")} · ${t(ui.lang, "estUnits", { n: offer.units })}</p>
+    <p class="fine">${formatCount(offer.gfaFt2)} ${t(ui.lang, "ft")} · ${t(ui.lang, "estUnits", { n: formatCount(offer.units) })} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
     <p class="fine">${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)}</p>
     <p class="deal">${deal}</p>
     ${broke ? `<p class="fine">${t(ui.lang, "broke")}</p>` : ""}
@@ -288,7 +386,7 @@ function landCard(offer) {
 }
 
 function landView() {
-  return `${errorBanner()}${tutorialBanner()}
+  return `${errorBanner()}${yellowBanner()}${tutorialBanner()}
     <p class="kicker">${t(ui.lang, "landKicker")}</p>
     <div class="land-grid">${ui.state.offers.map(landCard).join("")}</div>`;
 }
@@ -309,18 +407,21 @@ function buildView() {
   const popularity = unitPopularity(offer.flavour, heat, ui.catalog.balance);
   const picked = ui.build.contractor ? contractorQuote(ui.catalog, ui.state, ui.build.contractor) : null;
   const costPsf = picked ? picked.buildPerFt2 : offer.estBuildPerFt2;
+  const step = mixDelta(gfa);
   const rows = UNIT_SPECS.map((spec) => {
     const [nameKey, whoKey] = UNIT_KEYS[spec.id];
     const count = ui.build.mix[spec.id] || 0;
     const band = popularity[spec.id]?.band || "mid";
     const note = popularityNote(offer.flavour, heat, band);
     const canAdd = canAddUnit(gfa, ui.build.mix, spec.id);
+    const stepLabel = step > 1 ? ` ±${formatCount(step)}` : "";
     return `<div class="mix-row">
       <span><b>${t(ui.lang, nameKey)}</b><small>${spec.ft2}${t(ui.lang, "ft")} · ${t(ui.lang, whoKey)} · ${popWord(band)}${note ? ` · ${note}` : ""} · ${t(ui.lang, "costPsf", { n: formatHkd(costPsf) })}</small></span>
       <span class="stepper">
-        <button type="button" class="step" data-action="mix-step" data-unit="${spec.id}" data-delta="-1" ${count <= 0 ? "disabled" : ""} aria-label="−">−</button>
-        <strong id="count-${spec.id}">${count}</strong>
-        <button type="button" class="step" data-action="mix-step" data-unit="${spec.id}" data-delta="1" ${canAdd ? "" : "disabled"} aria-label="+">+</button>
+        <button type="button" class="step" data-action="mix-step" data-unit="${spec.id}" data-delta="${-step}" ${count <= 0 ? "disabled" : ""} aria-label="−${stepLabel}">−</button>
+        <strong id="count-${spec.id}">${formatCount(count)}</strong>
+        ${step > 1 ? `<small class="step-size">${stepLabel}</small>` : ""}
+        <button type="button" class="step" data-action="mix-step" data-unit="${spec.id}" data-delta="${step}" ${canAdd ? "" : "disabled"} aria-label="+${stepLabel}">+</button>
       </span>
     </div>`;
   }).join("");
@@ -330,40 +431,46 @@ function buildView() {
     ["upgrade", "presetUpgrade"],
     ["luxury", "presetLuxury"],
   ].map(([id, key]) => `<button class="chip" data-action="mix-preset" data-id="${id}">${t(ui.lang, key)}</button>`).join("");
+  const loanCost = loanBaseCost();
+  const loans = ["cash", "small", "big"].map((mode) => {
+    const quote = quoteLoan(loanCost, mode, ui.catalog.balance);
+    const on = (ui.build.loan || "cash") === mode;
+    const key = mode === "big" ? "creditBig" : mode === "small" ? "creditSmall" : "creditCash";
+    const sub = quote.due > 0 ? t(ui.lang, "creditDue", { due: compactHkd(quote.due) }) : t(ui.lang, "creditNone");
+    return `<button class="chip${on ? " on" : ""}" data-action="loan" data-id="${mode}" aria-pressed="${on}"><strong>${t(ui.lang, key)}</strong><small>${sub}</small></button>`;
+  }).join("");
   const cards = ["jingjin", "huimen", "xinjing"].map((id) => {
     const quote = contractorQuote(ui.catalog, ui.state, id);
     const spec = ui.catalog.balance.contractors[id];
     const on = ui.build.contractor === id;
     const risk = spec.collapse > 0
-      ? `<p class="fine">${t(ui.lang, "collapseRisk", { extra: compactHkd(Math.round(quote.cost * ui.catalog.balance.collapseExtra)) })}</p>`
+      ? `<p class="fine risk-preview">${t(ui.lang, "collapseRisk", { extra: compactHkd(Math.round(quote.cost * ui.catalog.balance.collapseExtra)) })}</p>`
       : "";
     return `<button class="choice contractor${on ? " on" : ""}" data-action="pick-contractor" data-id="${id}" aria-pressed="${on}">
       <div class="head"><h3>${t(ui.lang, id)}</h3><strong>${compactHkd(quote.total)}</strong></div>
-      <p class="fine">${t(ui.lang, `${id}Note`)} ${t(ui.lang, "leak")}${leakWord(spec.leak)} · ${t(ui.lang, "collapse")}${collapseWord(spec.collapse)}</p>
+      ${riskMeters(id)}
+      <p class="fine">${t(ui.lang, `${id}Note`)}</p>
       ${risk}
-      ${quote.overdraft ? `<p class="fine">${t(ui.lang, "overdraft")}</p>` : ""}
+      ${quote.overdraft && (ui.build.loan || "cash") === "cash" ? `<p class="fine">${t(ui.lang, "overdraft")}</p>` : ""}
     </button>`;
   }).join("");
   const width = Math.max(0, Math.min(100, (used / gfa) * 100));
-  return `${errorBanner()}${tutorialBanner()}
+  return `${errorBanner()}${yellowBanner()}${tutorialBanner()}
     <section class="card build-card">
-      <div class="head">
-        <div>
-          <p class="kicker">${t(ui.lang, "buildKicker")}</p>
-          <h3>${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))}</h3>
-        </div>
-      </div>
+      <p class="kicker">${t(ui.lang, "buildKicker")} · ${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
       ${projectNameField()}
       <div id="gfa-live" class="${left < 0 ? "over" : ""}">
-        <span>${t(ui.lang, "gfa")} ${gfa.toLocaleString("en-US")}</span>
-        <span>${t(ui.lang, "usedGfa")} <strong id="gfa-used">${used.toLocaleString("en-US")}</strong></span>
-        <span>${t(ui.lang, "leftGfa")} <strong id="gfa-left">${left.toLocaleString("en-US")}</strong></span>
+        <span>${t(ui.lang, "gfa")} ${formatCount(gfa)}</span>
+        <span>${t(ui.lang, "usedGfa")} <strong id="gfa-used">${formatCount(used)}</strong></span>
+        <span>${t(ui.lang, "leftGfa")} <strong id="gfa-left">${formatCount(left)}</strong></span>
       </div>
       <div class="bar"><span id="gfa-bar" style="width:${width}%"></span></div>
       <p class="fine preset-why">${t(ui.lang, presetWhyKey(offer.flavour, heat))}</p>
       <div class="chips preset-row">${presets}</div>
       <p id="over-line" class="fine bad-text"${left < 0 ? "" : " hidden"}>${t(ui.lang, "overGfa")}</p>
       <div class="mixes">${rows}</div>
+      <div class="credit-row"><span>${t(ui.lang, "creditKicker")}</span>${loans}</div>
+      <p class="fine credit-note">${t(ui.lang, "creditNote")}</p>
       <div class="contractors">${cards}</div>
     </section>`;
 }
@@ -376,16 +483,16 @@ function paintBuild() {
   const live = document.querySelector("#gfa-live");
   if (live) live.classList.toggle("over", left < 0);
   const usedEl = document.querySelector("#gfa-used");
-  if (usedEl) usedEl.textContent = used.toLocaleString("en-US");
+  if (usedEl) usedEl.textContent = formatCount(used);
   const leftEl = document.querySelector("#gfa-left");
-  if (leftEl) leftEl.textContent = left.toLocaleString("en-US");
+  if (leftEl) leftEl.textContent = formatCount(left);
   const bar = document.querySelector("#gfa-bar");
   if (bar) bar.style.width = `${Math.max(0, Math.min(100, (used / gfa) * 100))}%`;
   const over = document.querySelector("#over-line");
   if (over) over.hidden = left >= 0;
   for (const spec of UNIT_SPECS) {
     const count = document.querySelector(`#count-${spec.id}`);
-    if (count) count.textContent = String(ui.build.mix[spec.id] || 0);
+    if (count) count.textContent = formatCount(ui.build.mix[spec.id] || 0);
   }
   const blocked = left < 0 || used <= 0 || !ui.build.contractor;
   const go = document.querySelector("[data-action='confirm-build']");
@@ -439,7 +546,7 @@ function unitBars(bars) {
     const width = row.offered ? Math.max(0, Math.min(100, row.pct)) : 0;
     const stuck = row.offered > 0 && row.pct < 45;
     const meta = row.offered
-      ? t(ui.lang, "barMeta", { n: row.offered, sold: row.sold, left: row.unsold })
+      ? t(ui.lang, "barMeta", { n: formatCount(row.offered), sold: formatCount(row.sold), left: formatCount(row.unsold) })
       : t(ui.lang, "barEmpty");
     return `<div class="unit-bar${stuck ? " stuck" : ""}${row.offered ? "" : " none"}" data-bar="${spec.id}" data-sold="${row.sold}" data-offered="${row.offered}">
       <span>${t(ui.lang, UNIT_KEYS[spec.id][0])}</span>
@@ -531,6 +638,17 @@ function liveComment() {
   return commentForPhase(state.phase, null, state.voice);
 }
 
+function similarPeek() {
+  const open = ui.similarOpen;
+  const item = open ? similarProject(ui.state) : null;
+  const body = !open
+    ? ""
+    : item
+      ? `<p class="similar">${escapeHtml(item.name || districtLabel(ui.lang, item.district))} · ${priceWord(item.price) || "—"} ${item.askPerFt2 ? `${formatHkd(item.askPerFt2)}${t(ui.lang, "perFt")}` : ""} · ${outcomeShort(item.outcome) || "—"} ${formatCount(item.sold)}/${formatCount(item.units)}</p>`
+      : `<p class="similar">${t(ui.lang, "similarEmpty")}</p>`;
+  return `<button class="chip similar-toggle${open ? " on" : ""}" data-action="similar" aria-pressed="${open}">${t(ui.lang, "similarPeek")}</button>${body}`;
+}
+
 function sellSetup() {
   const offer = ui.state.project.offer;
   const quote = currentQuote();
@@ -539,29 +657,25 @@ function sellSetup() {
   const hold = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, leftover: "hold" });
   const heat = quote.marketHeat;
   const showOn = ui.sale.choices.showflat;
-  return `${tutorialBanner()}${collapseBanner()}
-    <section class="card sell-setup">
-      <p class="kicker">${t(ui.lang, "sellKicker")} · ${escapeHtml(ui.state.project.name || "")}</p>
-      <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))}</p>
-      ${projectNameField()}
-      <p class="fine">${mixLine(quote.mix)}</p>
+  return `${tutorialBanner()}${yellowBanner()}${collapseBanner()}
+    <section class="card sell-setup showroom">
+      <p class="kicker">${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</p>
+      <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
       <div class="chips price-chips">${priceChips()}</div>
-      <p class="fine stance-line">${t(ui.lang, "stanceLine")}</p>
       ${forecastBlock(forecast)}
+      ${similarPeek()}
       ${promoRow()}
       ${unitBars(forecast.bars)}
-      <p class="bowl ${quote.bowl.ok ? "ok" : "bad"}">${t(ui.lang, "bowl")} ${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")} · ${t(ui.lang, "twoBed")} ${compactHkd(quote.bowl.lump)} / ${compactHkd(quote.bowl.bowl)}</p>
-      ${quote.bowl.ok ? "" : `<p class="fine">${t(ui.lang, "bowlCrackNote")}</p>`}
-      <p class="fine">${t(ui.lang, "poolLeft")} ${poolLine(quote.poolsAfter)}</p>
+      <p class="bowl ${quote.bowl.ok ? "ok" : "bad"}">${t(ui.lang, "bowl")} ${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")} · ${t(ui.lang, "twoBed")} ${compactHkd(quote.bowl.lump)}</p>
       <button class="chip toggle${showOn ? " on" : ""}" data-action="showflat" aria-pressed="${showOn}">
         <strong>${t(ui.lang, "showflat")}${showOn ? ` · ${t(ui.lang, "picked")}` : ""}</strong>
-        <small>${compactHkd(ui.catalog.balance.showflatPerFt2 * offer.gfaFt2)} · ${t(ui.lang, "showflatSub")}</small>
+        <small>${compactHkd(ui.catalog.balance.showflatPerFt2 * offer.gfaFt2)}</small>
       </button>
       <div class="pair">
         ${leftoverButton("cut", cut, quote)}
         ${leftoverButton("hold", hold, quote)}
       </div>
-      <p class="fine">${heat === "loose" ? t(ui.lang, "looseHint") : t(ui.lang, "spicyHint")}</p>
+      <p class="fine heat-hint">${heat === "loose" ? t(ui.lang, "looseHint") : t(ui.lang, "spicyHint")}</p>
     </section>`;
 }
 
@@ -605,27 +719,35 @@ function barsFromQuote(quote) {
   return bars;
 }
 
+function fillMarks(quote, shown) {
+  const batch = saleBatches(quote.units);
+  if (!batch) {
+    const dots = 24;
+    const lit = quote.units ? Math.round((dots * shown) / quote.units) : 0;
+    return `<div class="dots" id="dots">${Array.from({ length: dots }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("")}</div>`;
+  }
+  const lit = quote.units ? Math.round((batch.blocks * shown) / quote.units) : 0;
+  return `<p class="fine">${t(ui.lang, "batchLabel")} · ${t(ui.lang, "batchEach", { n: formatCount(batch.per) })}</p>
+    <div class="blocks" id="blocks">${Array.from({ length: batch.blocks }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("")}</div>`;
+}
+
 function sellLive() {
   const quote = currentQuote();
   const showOutcome = ui.sale.mode === "done";
   const shown = showOutcome ? quote.sold : ui.sale.shownSold;
   const heat = showOutcome ? quote.heat : Math.round(quote.heat * 0.15);
-  const cheerLeft = ui.catalog.balance.cheerMax - ui.sale.choices.cheer;
-  const dots = 24;
-  const lit = quote.units ? Math.round((dots * shown) / quote.units) : 0;
-  return `<section class="card sale-stage">
-      <p class="kicker">${escapeHtml(ui.state.project.name || "")}</p>
-      <button class="go cheer-stage" data-action="cheer" ${cheerLeft <= 0 ? "disabled" : ""}>${t(ui.lang, "cheer")}<small id="cheer-left">${cheerNote(cheerLeft)}</small></button>
+  return `<section class="card sale-stage showroom">
+      <p class="kicker">${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</p>
       <div class="heat" aria-hidden="true"><span id="heat-fill" style="width:${heat}%"></span></div>
       <div class="sale-nums">
         <div><span>${t(ui.lang, "heat")}</span><strong id="heat-num">${heat}</strong></div>
-        <div><span>${t(ui.lang, "soldNow")}</span><strong id="sold-num">${shown}</strong></div>
-        <div><span>${t(ui.lang, "unitsLeft")}</span><strong id="left-num">${Math.max(0, quote.units - shown)}</strong></div>
+        <div><span>${t(ui.lang, "soldNow")}</span><strong id="sold-num">${formatCount(shown)}</strong></div>
+        <div><span>${t(ui.lang, "unitsLeft")}</span><strong id="left-num">${formatCount(Math.max(0, quote.units - shown))}</strong></div>
       </div>
-      <div class="dots" id="dots">${Array.from({ length: dots }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("")}</div>
+      ${fillMarks(quote, shown)}
       <div class="pops" id="pops"></div>
       <p class="fine" id="cake-line">${quote.cakeSweep > 0 && shown > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : ""}</p>
-      <p class="fine">${t(ui.lang, "floorCash")} <strong id="tally">${formatHkd(shown && quote.sold ? Math.round((quote.gross * shown) / quote.sold) : 0)}</strong></p>
+      <p class="fine">${t(ui.lang, "floorCash")} <strong id="tally">${compactHkd(shown && quote.sold ? Math.round((quote.gross * shown) / quote.sold) : 0)}</strong></p>
       ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : `<p class="kicker">${t(ui.lang, "selling")}</p>`}
     </section>`;
 }
@@ -661,7 +783,9 @@ function launchSale() {
     const live = currentQuote();
     const reveal = revealNow(live);
     const tProgress = Math.min(1, (performance.now() - ui.sale.started) / 7000);
-    const target = Math.min(reveal.shown, Math.round(reveal.shown * Math.min(1, 0.25 + 0.75 * tProgress)));
+    const batch = saleBatches(live.units);
+    let target = Math.min(reveal.shown, Math.round(reveal.shown * Math.min(1, 0.25 + 0.75 * tProgress)));
+    if (batch && target > 0) target = Math.min(reveal.shown, Math.ceil(target / batch.per) * batch.per);
     if (target > ui.sale.shownSold) {
       ui.sale.pops.unshift({ text: `+${target - ui.sale.shownSold}` });
       ui.sale.pops = ui.sale.pops.slice(0, 3);
@@ -685,13 +809,13 @@ function paintSale(quote, tProgress) {
   const heatNum = document.querySelector("#heat-num");
   if (heatNum) heatNum.textContent = String(Math.min(100, shownHeat));
   const sold = document.querySelector("#sold-num");
-  if (sold) sold.textContent = String(ui.sale.shownSold);
+  if (sold) sold.textContent = formatCount(ui.sale.shownSold);
   const left = document.querySelector("#left-num");
-  if (left) left.textContent = String(Math.max(0, quote.units - ui.sale.shownSold));
+  if (left) left.textContent = formatCount(Math.max(0, quote.units - ui.sale.shownSold));
   const tally = document.querySelector("#tally");
   if (tally) {
     const cash = quote.sold ? Math.round((quote.gross * ui.sale.shownSold) / quote.sold) : 0;
-    tally.textContent = formatHkd(cash);
+    tally.textContent = compactHkd(cash);
   }
   const pops = document.querySelector("#pops");
   if (pops) pops.innerHTML = ui.sale.pops.map((pop) => `<span class="pop">${escapeHtml(pop.text)}</span>`).join("");
@@ -699,6 +823,12 @@ function paintSale(quote, tProgress) {
   if (dots) {
     const lit = quote.units ? Math.round((24 * ui.sale.shownSold) / quote.units) : 0;
     dots.innerHTML = Array.from({ length: 24 }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("");
+  }
+  const blocks = document.querySelector("#blocks");
+  if (blocks) {
+    const batch = saleBatches(quote.units);
+    const lit = batch && quote.units ? Math.round((batch.blocks * ui.sale.shownSold) / quote.units) : 0;
+    blocks.innerHTML = Array.from({ length: batch?.blocks || 0 }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("");
   }
   const cheerLeftText = cheerNote(ui.catalog.balance.cheerMax - ui.sale.choices.cheer);
   for (const note of document.querySelectorAll("[data-action='cheer'] small")) note.textContent = cheerLeftText;
@@ -751,6 +881,7 @@ function settleView() {
     ${row(t(ui.lang, "landCost"), formatHkd(project.offer.landTotal))}
     ${project.contractor.collapsed ? `${row(t(ui.lang, "quoteCost"), formatHkd(project.contractor.cost))}${row(t(ui.lang, "remedyExtra"), formatHkd(project.contractor.total - project.contractor.cost))}` : ""}
     ${row(t(ui.lang, "buildCost"), formatHkd(project.contractor.total))}
+    ${project.loan?.principal > 0 ? row(t(ui.lang, "loanRow"), `${t(ui.lang, project.loan.mode === "big" ? "creditBig" : "creditSmall")} · ${compactHkd(project.loan.due)}`) : ""}
     ${row(t(ui.lang, "repChange"), `${sale.reputationDelta >= 0 ? "+" : ""}${sale.reputationDelta}`)}
     ${liveComment() ? `<p class="rep-line">${escapeHtml(t(ui.lang, liveComment()))}</p>` : ""}
     ${row(t(ui.lang, "soldNow"), `${sale.sold} / ${sale.units}`)}
@@ -808,13 +939,58 @@ function summaryView() {
   </section>`;
 }
 
+function lapseView() {
+  const name = ui.state?.project?.name || "";
+  return `<section class="card lapse-card">
+    <p class="kicker">${t(ui.lang, "lapseKicker")}</p>
+    <div class="lapse-site" aria-hidden="true"><i></i><i></i><i></i></div>
+    <p class="story-line">${escapeHtml(t(ui.lang, "lapseBody", { name }))}</p>
+  </section>`;
+}
+
+function remedyView() {
+  const contractor = ui.state.project.contractor;
+  const rush = priceRemedy(ui.catalog.balance, { ...contractor, collapsed: true, remedy: "rush" });
+  const worse = priceRemedy(ui.catalog.balance, { ...contractor, collapsed: true, remedy: "worse" });
+  const extra = Math.max(0, rush.total - contractor.cost);
+  return `${yellowBanner()}
+    <section class="card remedy-card">
+      <p class="kicker">${t(ui.lang, "remedyKicker")}</p>
+      <p class="story-line">${t(ui.lang, "remedyLead", { extra: compactHkd(extra) })}</p>
+      <p class="fine">${t(ui.lang, "collapseCompare", { quote: compactHkd(contractor.cost), remedy: compactHkd(rush.total) })}</p>
+      <p class="fine">${t(ui.lang, "remedyRush")} ${compactHkd(rush.total)} · ${t(ui.lang, "remedyWorse")} ${compactHkd(worse.total)}</p>
+    </section>`;
+}
+
+function mismatchView() {
+  const types = (ui.teach || []).map((gap) => t(ui.lang, UNIT_KEYS[gap.unit][0])).join("、");
+  return `<section class="card mismatch-card">
+    <p class="kicker">${t(ui.lang, "buildKicker")}</p>
+    <h3>${t(ui.lang, "mismatchTitle")}</h3>
+    <p class="story-line">${t(ui.lang, "mismatchBody", { types: types || "—" })}</p>
+  </section>`;
+}
+
+function gameOverView() {
+  const owed = ui.state.credit?.owed || 0;
+  return `<section class="card">
+    <h2>${t(ui.lang, "gameOverTitle")}</h2>
+    <p class="story-line">${t(ui.lang, "gameOverBody", { owed: compactHkd(owed) })}</p>
+    <p class="fine">${t(ui.lang, "gameOverNote")}</p>
+  </section>`;
+}
+
 function mainView() {
   if (!ui.state) return companyView();
+  if (ui.lapse) return lapseView();
+  if (ui.teach) return mismatchView();
+  if (needsRemedy()) return remedyView();
   if (ui.state.phase === "land") return landView();
   if (ui.state.phase === "build") return buildView();
   if (ui.state.phase === "sell") return sellView();
   if (ui.state.phase === "settle") return settleView();
   if (ui.state.phase === "story") return storyView();
+  if (ui.state.phase === "gameover") return gameOverView();
   return summaryView();
 }
 
@@ -843,6 +1019,19 @@ function buildHint(left) {
 function dock() {
   if (ui.menu) return "";
   if (!ui.state) return `<footer class="dock"><button class="go" data-action="found">${t(ui.lang, "found")}</button></footer>`;
+  if (ui.lapse) return `<footer class="dock"><button class="go" data-action="skip-lapse">${t(ui.lang, "lapseSkip")}</button></footer>`;
+  if (ui.teach) {
+    return `<footer class="dock cols-2"><button data-action="mismatch-edit">${t(ui.lang, "mismatchEdit")}</button><button class="go" data-action="mismatch-keep">${t(ui.lang, "mismatchKeep")}</button></footer>`;
+  }
+  if (needsRemedy()) {
+    const contractor = ui.state.project.contractor;
+    const rush = priceRemedy(ui.catalog.balance, { ...contractor, collapsed: true, remedy: "rush" });
+    const worse = priceRemedy(ui.catalog.balance, { ...contractor, collapsed: true, remedy: "worse" });
+    return `<footer class="dock cols-2">
+      <button data-action="remedy" data-id="rush">${t(ui.lang, "remedyRush")}<small>${t(ui.lang, "remedyRushSub", { extra: compactHkd(rush.total - contractor.cost) })}</small></button>
+      <button data-action="remedy" data-id="worse">${t(ui.lang, "remedyWorse")}<small>${t(ui.lang, "remedyWorseSub", { extra: compactHkd(worse.total - contractor.cost) })}</small></button>
+    </footer>`;
+  }
   const phase = ui.state.phase;
   if (phase === "land") {
     return `<footer class="dock"><button class="wide" data-action="skip">${t(ui.lang, "skip")}<small>${t(ui.lang, "skipSub")}</small></button></footer>`;
@@ -852,8 +1041,7 @@ function dock() {
     const used = gfaUsed(ui.build.mix);
     const left = ui.state.project.offer.gfaFt2 - used;
     const blocked = left < 0 || used <= 0 || !ui.build.contractor;
-    const small = buildHint(left);
-    return `<footer class="dock"><p class="dock-reason${blocked ? "" : " quiet"}" id="build-small">${small}</p><button class="go${blocked ? " is-blocked" : ""}" data-action="confirm-build" ${blocked ? "disabled" : ""}>${t(ui.lang, "confirmBuild")}</button></footer>`;
+    return `<footer class="dock"><button class="go${blocked ? " is-blocked" : ""}" data-action="confirm-build" ${blocked ? "disabled" : ""}>${t(ui.lang, "confirmBuild")}<small id="build-small">${buildHint(left)}</small></button></footer>`;
   }
   if (phase === "sell") {
     ensureSale();
@@ -870,6 +1058,7 @@ function dock() {
     const cols = ui.state.story.choices.length > 1 ? "cols-2" : "";
     return `<footer class="dock ${cols}">${buttons}</footer>`;
   }
+  if (phase === "gameover") return `<footer class="dock"><button class="go" data-action="new-game">${t(ui.lang, "again")}</button></footer>`;
   return `<footer class="dock"><button class="go" data-action="new-game">${t(ui.lang, "again")}</button></footer>`;
 }
 
@@ -1009,14 +1198,14 @@ function menuOverlay() {
 
 function render() {
   if (!ui.catalog) return;
-  if (ui.state?.phase !== "sell") stopSaleTimer();
+  if (ui.state?.phase !== "sell" || ui.lapse || ui.teach) stopSaleTimer();
   document.documentElement.lang = ui.lang === "en" ? "en" : "zh-Hant";
-  const phase = ui.state?.phase || "company";
+  const phase = !ui.state ? "company" : ui.lapse ? "lapse" : ui.teach ? "mismatch" : needsRemedy() ? "remedy" : ui.state.phase;
   app.innerHTML = `${hud()}
     <div class="shell" data-phase="${phase}">
       <main class="stack" id="main">${mainView()}</main>
     </div>
-    <p class="legal">${t(ui.lang, "disclaimer")} · ${t(ui.lang, "disclaimerEn")}</p>
+    <p class="legal"><span>${t(ui.lang, "disclaimer")}</span><span class="legal-en"> · ${t(ui.lang, "disclaimerEn")}</span></p>
     ${dock()}
     ${menuOverlay()}
     ${historyDrawer()}`;
@@ -1033,6 +1222,10 @@ function foundCompany() {
   ui.error = null;
   ui.build = null;
   ui.sale = null;
+  ui.lapse = false;
+  ui.teach = null;
+  ui.similarOpen = false;
+  stopLapse();
   persist();
   render();
 }
@@ -1046,6 +1239,10 @@ function newGame() {
   ui.drawer = null;
   ui.historyFocus = null;
   ui.error = null;
+  ui.lapse = false;
+  ui.teach = null;
+  ui.similarOpen = false;
+  stopLapse();
   localStorage.removeItem(SAVE_KEY);
   render();
 }
@@ -1139,15 +1336,54 @@ function onClick(event) {
     const unit = target.dataset.unit;
     const delta = Number(target.dataset.delta) || 0;
     const gfa = ui.state.project.offer.gfaFt2;
-    const next = Math.max(0, (ui.build.mix[unit] || 0) + delta);
     if (delta > 0 && !canAddUnit(gfa, ui.build.mix, unit)) return;
-    ui.build.mix = { ...ui.build.mix, [unit]: next };
+    ui.build.mix = addUnits(gfa, ui.build.mix, unit, delta);
+    render();
+    return;
+  }
+  if (action === "loan") {
+    ensureBuild();
+    if (id === "cash" || id === "small" || id === "big") ui.build.loan = id;
     render();
     return;
   }
   if (action === "confirm-build") {
     ensureBuild();
-    apply(chooseContractor(ui.catalog, ui.state, ui.build.contractor, ui.build.mix));
+    const gaps = mixPoolGaps(ui.catalog, ui.state, ui.build.mix);
+    if (shouldTeachMismatch(ui.state, gaps)) {
+      ui.teach = gaps;
+      render();
+      return;
+    }
+    commitBuild();
+    return;
+  }
+  if (action === "mismatch-edit") {
+    ui.teach = null;
+    render();
+    return;
+  }
+  if (action === "mismatch-keep") {
+    const noted = acknowledgeMismatch(ui.state);
+    if (noted.ok) ui.state = noted.state;
+    ui.teach = null;
+    persist();
+    commitBuild();
+    return;
+  }
+  if (action === "skip-lapse") {
+    stopLapse();
+    ui.lapse = false;
+    render();
+    return;
+  }
+  if (action === "remedy") {
+    apply(chooseRemedy(ui.catalog, ui.state, id));
+    return;
+  }
+  if (action === "similar") {
+    ui.similarOpen = !ui.similarOpen;
+    render();
     return;
   }
   if (action === "price") {
