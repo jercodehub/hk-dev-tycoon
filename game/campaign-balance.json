@@ -144,6 +144,17 @@
     "std": { "through": 0.04, "rate": 0.02 },
     "high": { "through": 0.1, "rate": 0.06 }
   },
+  "promo": {
+    "rebate": {
+      "none": { "through": 0, "rate": 0 },
+      "std": { "through": 0.05, "rate": 0.02 },
+      "high": { "through": 0.11, "rate": 0.055 }
+    },
+    "ad": {
+      "low": { "through": 0.14, "perFt2": 180 },
+      "high": { "through": 0.26, "perFt2": 460 }
+    }
+  },
   "cheerMax": 3,
   "cheerGains": [0.06, 0.032, 0.014],
   "clearAt": 0.97,
