@@ -79,4 +79,63 @@ export const STORIES = [
       { id: "b", tc: "乘勢賣", en: "Sell into it", rep: -1, cash: 0, pool: { whale: 2 }, flag: "sell_through" },
     ],
   },
+  {
+    id: "lamp",
+    controversy: true,
+    tc: "夜光招牌太猛，對面茶餐廳話刺眼。無人講過邊個批准。",
+    en: "The night sign is glaring. The cafe across the street says it hurts their eyes.",
+    choices: [
+      { id: "a", tc: "調暗個鐘", en: "Dim it for an hour", rep: 2, cash: -200000, flag: "dim_sign" },
+      { id: "b", tc: "照亮", en: "Leave it bright", rep: -2, cash: 0, flag: "bright_sign" },
+    ],
+  },
+  {
+    id: "truck",
+    controversy: true,
+    tc: "泥頭車塞住條巷。街坊叫你改路由後門出。",
+    en: "A dump truck blocks the lane. The street asks you to leave by the back gate.",
+    choices: [
+      { id: "a", tc: "改行後門", en: "Use the back gate", rep: 2, cash: -450000, flag: "back_gate" },
+      { id: "b", tc: "照行正門", en: "Keep the front lane", rep: -2, cash: 0, flag: "front_lane" },
+    ],
+  },
+  {
+    id: "cat",
+    controversy: false,
+    tc: "地盤出咗隻貓。工人想留低，監工想即刻送走。",
+    en: "A cat turned up on site. The crew wants to keep it. The foreman wants it gone.",
+    choices: [
+      { id: "a", tc: "留一晚", en: "Keep it for a night", rep: 1, cash: 0, flag: "site_cat" },
+      { id: "b", tc: "送去茶餐廳", en: "Walk it to the cafe", rep: 0, cash: 0, flag: "cafe_cat" },
+    ],
+  },
+  {
+    id: "lift",
+    controversy: false,
+    tc: "示範單位部電梯音樂太大。有客掩住耳仔行過。",
+    en: "The show-flat lift music is too loud. A buyer walks past with a hand over one ear.",
+    choices: [
+      { id: "a", tc: "關細聲", en: "Turn it down", rep: 1, cash: 0, flag: "quiet_lift" },
+      { id: "b", tc: "話氣氛", en: "Call it atmosphere", rep: -1, cash: 0, flag: "loud_lift" },
+    ],
+  },
+  {
+    id: "rain",
+    controversy: false,
+    tc: "落雨，樣板間門口濕滑。有人差啲滑倒。",
+    en: "Rain made the show-flat doorway slick. Someone nearly slipped.",
+    choices: [
+      { id: "a", tc: "即刻鋪地毯", en: "Lay a mat now", rep: 2, cash: -180000, flag: "rain_mat" },
+      { id: "b", tc: "等雨停", en: "Wait out the rain", rep: -1, cash: 0, flag: "wait_rain" },
+    ],
+  },
+  {
+    id: "tea",
+    controversy: false,
+    tc: "茶餐廳有人排隊講你個盤。伙計問你請唔請一圍檸茶。",
+    en: "The cafe queue is talking about your flats. The waiter asks if you are buying a round of lemon tea.",
+    choices: [
+      { id: "a", tc: "請一圍", en: "Buy the round", rep: 2, cash: -80000, pool: { starter: 1 }, flag: "lemon_tea" },
+    ],
+  },
 ];
