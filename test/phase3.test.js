@@ -7,6 +7,7 @@ import {
   campaignHeat,
   chooseContractor,
   chooseLand,
+  chooseRemedy,
   chooseStory,
   commitSale,
   confirmSettle,
@@ -260,7 +261,10 @@ test("government land skims nothing and draws more controversy than a skip", () 
       let state = start(seed);
       if (kind === "gov") {
         state = chooseLand(catalog, state, "A").state;
-        state = chooseContractor(catalog, state, "huimen").state;
+        let built = chooseContractor(catalog, state, "huimen");
+        if (!built.ok) built = chooseContractor(catalog, state, "huimen", null, "big");
+        state = built.state;
+        if (state.project.contractor.remedyPending) state = chooseRemedy(catalog, state, "rush").state;
         state = commitSale(catalog, state, { showflat: false, cheer: 0, leftover: "cut" }).state;
       } else {
         state = skipLand(catalog, state).state;
@@ -311,8 +315,14 @@ test("a full 20-project run still closes", () => {
       const affordable = [...state.offers].sort((a, b) => a.landTotal - b.landTotal);
       if (affordable[0].landTotal <= state.cash) state = chooseLand(catalog, state, affordable[0].slot).state;
       else state = skipLand(catalog, state).state;
-    } else if (state.phase === "build") state = chooseContractor(catalog, state, "huimen").state;
-    else if (state.phase === "sell") state = commitSale(catalog, state, { showflat: false, cheer: 0, leftover: "cut" }).state;
+    } else if (state.phase === "build") {
+      let built = chooseContractor(catalog, state, "huimen");
+      if (!built.ok) built = chooseContractor(catalog, state, "huimen", null, "big");
+      state = built.state;
+    } else if (state.phase === "sell") {
+      if (state.project.contractor?.remedyPending) state = chooseRemedy(catalog, state, "rush").state;
+      state = commitSale(catalog, state, { showflat: false, cheer: 0, leftover: "cut" }).state;
+    }
     else if (state.phase === "settle") state = confirmSettle(catalog, state).state;
     else throw new Error(`stuck in ${state.phase}`);
   }
@@ -381,7 +391,7 @@ test("a renamed project stays in the save, and a phase 3 save upgrades", () => {
   const migrated = migrateSave(legacy);
   assert.equal(migrated.ok, true);
   assert.equal(migrated.notice, null);
-  assert.equal(migrated.state.v, 5);
+  assert.equal(migrated.state.v, 6);
   const upgraded = hydrateCampaign(catalog, migrated.state);
   assert.equal(upgraded.cash, state.cash);
   assert.equal(upgraded.phase, "build");
@@ -580,6 +590,7 @@ test("history keeps the contractor and a collapse, and a stalled quote is dearer
   assert.ok(bill.extra > 0);
   assert.ok(bill.total > bill.cost);
   assert.ok(bill.total - bill.cost >= bill.extra);
+  if (collapsed.project.contractor.remedyPending) collapsed = chooseRemedy(catalog, collapsed, "rush").state;
   collapsed = commitSale(catalog, collapsed, { price: "fair", showflat: false, cheer: 0, leftover: "cut" }).state;
   collapsed = confirmSettle(catalog, collapsed).state;
   assert.equal(collapsed.history[0].collapsed, true);

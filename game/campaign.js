@@ -8,7 +8,8 @@
 import { DISTRICTS } from "./i18n.js";
 import { STORIES } from "./stories.js";
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
+export const JV_SHARE = 0.35;
 export const UNIT_SPECS = [
   { id: "studio", ft2: 280, pool: "whale" },
   { id: "one", ft2: 350, pool: "couple" },
@@ -37,8 +38,8 @@ function round4(value) {
   return Math.round(value * 10000) / 10000;
 }
 
-function fail(state, error) {
-  return { ok: false, error, state };
+function fail(state, error, details = null) {
+  return { ok: false, error, state, ...(details || {}) };
 }
 
 function succeed(state) {
@@ -522,6 +523,58 @@ export function quoteLoan(buildCost, mode, balance) {
   return { mode: use, principal, interest, rate: Number(spec.rate) || 0, due: principal + interest };
 }
 
+export function stakeOf(offer) {
+  return Number(offer?.stake) === JV_SHARE ? JV_SHARE : 1;
+}
+
+export function jvEligible(offer) {
+  if (!offer) return false;
+  if ((Number(offer.partnerRate) || 0) > 0) return false;
+  if (offer.type === "ura" || offer.type === "mtr") return false;
+  const tier = offer.siteTier || "small";
+  if (tier === "small") return false;
+  return offer.verdict === "expensive" || tier === "mid" || tier === "large" || tier === "flagship";
+}
+
+export function fundBuild(balance, { cash, cost, mode }) {
+  const quote = quoteLoan(cost, mode, balance);
+  const have = Math.max(0, money(cash));
+  const bill = Math.max(0, money(cost));
+  let principal = quote.principal;
+  if (quote.mode !== "cash") {
+    const gap = Math.max(0, bill - have);
+    if (principal < gap) principal = gap;
+  }
+  principal = money(principal);
+  const interest = money(principal * (quote.rate || 0));
+  const shortfall = money(Math.max(0, bill - (have + principal)));
+  return {
+    mode: quote.mode,
+    principal,
+    interest,
+    rate: quote.rate,
+    due: money(principal + interest),
+    shortfall,
+    ok: shortfall === 0,
+    cashAfter: shortfall === 0 ? money(have + principal - bill) : have,
+  };
+}
+
+export function remedyExtra(balance, grossCost, stake = 1, remedy = "rush") {
+  const rates = remedyRates(balance, remedy === "worse" ? "worse" : "rush");
+  const share = stake === JV_SHARE ? JV_SHARE : 1;
+  return money((Number(grossCost) || 0) * (Number(rates.extra) || 0) * share);
+}
+
+export function lapseExit(state) {
+  const pending = Boolean(state?.project?.contractor?.collapsed && state?.project?.contractor?.remedyPending);
+  return { screen: pending ? "remedy" : "sale", remedyPending: pending };
+}
+
+export function unitRowNote(parts) {
+  return (parts || []).filter((part) => part != null && String(part) !== "").join(" · ");
+}
+
 function remedyRates(balance, remedy) {
   const table = balance.remedy || {};
   if (remedy === "worse") {
@@ -664,7 +717,14 @@ export function mixPoolGaps(catalog, state, mix) {
 }
 
 export function shouldTeachMismatch(state, gaps) {
+  if (gaps && !Array.isArray(gaps) && typeof gaps === "object") {
+    return Boolean(gaps.weak) && !state?.flags?.mismatchTaught;
+  }
   return Array.isArray(gaps) && gaps.length > 0 && !state?.flags?.mismatchTaught;
+}
+
+export function mismatchEcho(project) {
+  return Boolean(project && !project.skipped && project.mixWeak && project.sale?.outcome === "fail");
 }
 
 export function acknowledgeMismatch(state) {
@@ -786,6 +846,70 @@ function randomOffers(rng, state, catalog, heat, tier, forceSmall) {
   );
 }
 
+function liftFlagshipOffer(offers, state, catalog, heat) {
+  const from = catalog.balance.flagshipFrom ?? 12;
+  if ((state.completed || 0) + 1 < from) return offers;
+  if (state.credit?.forceSmall) return offers;
+  const row = (catalog.balance.siteTiers || []).find((item) => item.id === "flagship");
+  if (!row || campaignWorth(state) < row.minWorth) return offers;
+  if (offers.some((offer) => offer.siteTier === "flagship")) return offers;
+  const index = Math.max(0, offers.findIndex((offer) => offer.type === "gov"));
+  const current = offers[index];
+  const mul = tierRow(catalog.balance, current.siteTier || "small").gfaMul || 1;
+  const raw = Math.max(64000, current.gfaFt2 / mul);
+  const gfaFt2 = scaleGfa(raw, "flagship", catalog.balance, false);
+  const priced = priceOffer(
+    {
+      slot: current.slot,
+      type: current.type,
+      district: current.district,
+      gfaFt2,
+      premium: current.premium,
+    },
+    state.market,
+    catalog,
+    heat,
+  );
+  const next = offers.slice();
+  next[index] = { ...priced, siteTier: "flagship", forcedSmall: false };
+  return next;
+}
+
+function offerBuyable(offer, cash) {
+  if (!offer) return false;
+  if (offer.landTotal <= cash) return true;
+  return jvEligible(offer) && money(offer.landTotal * JV_SHARE) <= cash;
+}
+
+function ensureAffordableOffer(offers, state, catalog, heat) {
+  const cash = Math.max(0, money(state.cash || 0));
+  if (offers.some((offer) => offerBuyable(offer, cash))) return offers;
+  if (cash < 8000000) return offers;
+  const budget = money(cash * 0.58);
+  const premium = catalog.balance.landTypes.gov.premiumMin;
+  let best = null;
+  for (let gfaFt2 = 8000; gfaFt2 <= 28000; gfaFt2 += 200) {
+    const priced = priceOffer(
+      { slot: "B", type: "gov", district: "離島區", gfaFt2, premium },
+      state.market,
+      catalog,
+      heat,
+    );
+    if (priced.landTotal <= budget) best = priced;
+    else break;
+  }
+  if (!best || best.landTotal <= 0) return offers;
+  const index = Math.max(0, offers.findIndex((offer) => offer.siteTier !== "flagship"));
+  const next = offers.slice();
+  next[index] = {
+    ...best,
+    slot: offers[index].slot,
+    siteTier: "small",
+    forcedSmall: Boolean(state.credit?.forceSmall),
+  };
+  return next;
+}
+
 export function rollOffers(state, catalog) {
   const heat = campaignHeat(state, catalog.balance);
   const forceSmall = Boolean(state.credit?.forceSmall);
@@ -794,7 +918,9 @@ export function rollOffers(state, catalog) {
     if (state.completed === 0) return tutorialOffers(rng, state, catalog, heat, tier, forceSmall);
     return randomOffers(rng, state, catalog, heat, tier, forceSmall);
   });
-  return { ...state, rngCursor, offers: value, phase: "land", project: null, siteTier: tier };
+  const lifted = liftFlagshipOffer(value, state, catalog, heat);
+  const offers = ensureAffordableOffer(lifted, state, catalog, heat);
+  return { ...state, rngCursor, offers, phase: "land", project: null, siteTier: tier };
 }
 
 export function projectNumber(state) {
@@ -856,17 +982,22 @@ export function skipLand(catalog, state) {
   });
 }
 
-export function chooseLand(catalog, state, slot) {
+export function chooseLand(catalog, state, slot, rawStake = 1) {
   if (state.phase !== "land") return fail(state, "bad_phase");
   const offer = (state.offers || []).find((item) => item.slot === slot);
   if (!offer) return fail(state, "bad_slot");
-  if (state.cash < offer.landTotal) return fail(state, "insufficient_cash");
+  const requested = rawStake == null || rawStake === "full" ? 1 : Number(rawStake);
+  const stake = requested === JV_SHARE ? JV_SHARE : requested === 1 ? 1 : null;
+  if (stake == null) return fail(state, "bad_stake");
+  if (stake < 1 && !jvEligible(offer)) return fail(state, "bad_stake");
+  const landPaid = money(offer.landTotal * stake);
+  if (state.cash < landPaid) return fail(state, "insufficient_cash");
   const { value: move, rngCursor } = runRng(state, (rng) => drawMove(state, catalog, rng));
   const market = tickMarket(state.market, move, catalog.balance);
   return succeed({
     ...state,
     rngCursor,
-    cash: money(state.cash - offer.landTotal),
+    cash: money(state.cash - landPaid),
     market,
     offers: null,
     phase: "build",
@@ -876,6 +1007,8 @@ export function chooseLand(catalog, state, slot) {
       name: defaultProjectName(offer.district, offer.flavour),
       offer: {
         ...offer,
+        stake,
+        landPaid,
         quotedAt: { ...offer.quotedAt },
         openData: { ...offer.openData },
       },
@@ -892,8 +1025,8 @@ export function contractorQuote(catalog, state, contractorId) {
   const bench = gameBench(catalog, state.project.offer.district, state.market);
   const base = money(bench.fairBuildPerFt2 * state.project.offer.gfaFt2);
   const cost = money(base * spec.costMul);
-  const shortfall = Math.max(0, cost - state.cash);
-  const financeFee = shortfall > 0 ? money(shortfall * catalog.balance.financeRate) : 0;
+  const stake = stakeOf(state.project.offer);
+  const playerCost = money(cost * stake);
   return {
     id: contractorId,
     costMul: spec.costMul,
@@ -903,9 +1036,10 @@ export function contractorQuote(catalog, state, contractorId) {
     rep: spec.rep,
     buildPerFt2: money(bench.fairBuildPerFt2 * spec.costMul),
     cost,
-    financeFee,
-    total: cost + financeFee,
-    overdraft: shortfall > 0,
+    playerCost,
+    financeFee: 0,
+    total: playerCost,
+    overdraft: false,
   };
 }
 
@@ -923,8 +1057,26 @@ export function chooseContractor(catalog, state, contractorId, rawMix, loanMode 
   if (gfaUsed(mix) <= 0) return fail(state, "empty_mix");
   if (!mixFits(state.project.offer.gfaFt2, mix)) return fail(state, "over_gfa");
   const quote = contractorQuote(catalog, state, contractorId);
-  const loan = quoteLoan(quote.cost, loanMode, catalog.balance);
-  const cashBefore = state.cash + loan.principal;
+  const stake = stakeOf(state.project.offer);
+  const playerCost = quote.playerCost;
+  const plan = fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: loanMode });
+  if (!plan.ok) {
+    return fail(state, "short_cash", {
+      shortfall: plan.shortfall,
+      playerCost,
+      loans: {
+        small: fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: "small" }),
+        big: fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: "big" }),
+      },
+    });
+  }
+  const loan = {
+    mode: plan.mode,
+    principal: plan.principal,
+    interest: plan.interest,
+    rate: plan.rate,
+    due: plan.due,
+  };
   const pricedAt = {
     price: state.market.price,
     land: state.market.land,
@@ -937,37 +1089,56 @@ export function chooseContractor(catalog, state, contractorId, rawMix, loanMode 
     const saleRoll = rng.next();
     return { collapsed, move, saleRoll };
   });
-  const bill = priceRemedy(catalog.balance, {
+  const calm = priceRemedy(catalog.balance, {
     cost: quote.cost,
     id: contractorId,
-    cashBefore,
-    collapsed: value.collapsed,
-    remedy: "rush",
+    cashBefore: Number.MAX_SAFE_INTEGER,
+    collapsed: false,
   });
+  const rush = value.collapsed
+    ? priceRemedy(catalog.balance, {
+      cost: quote.cost,
+      id: contractorId,
+      cashBefore: Number.MAX_SAFE_INTEGER,
+      collapsed: true,
+      remedy: "rush",
+    })
+    : null;
+  const bill = rush || calm;
+  const extra = value.collapsed ? remedyExtra(catalog.balance, quote.cost, stake, "rush") : 0;
+  const cashAfterQuote = plan.cashAfter;
+  const payExtra = Math.min(cashAfterQuote, extra);
+  const unpaid = money(extra - payExtra);
   const market = tickMarket(state.market, value.move, catalog.balance);
+  const band = buildSalesBand(catalog, state, mix, contractorId);
   return succeed({
     ...state,
     rngCursor,
-    cash: money(cashBefore - bill.total),
+    cash: money(cashAfterQuote - payExtra),
     reputation: clamp(state.reputation + bill.rep, 0, 100),
     market,
     phase: "sell",
     project: {
       ...state.project,
       loan,
+      mixWeak: band.weak,
       contractor: {
         id: contractorId,
         collapsed: value.collapsed,
         quality: bill.quality,
         leak: bill.leak,
-        cost: quote.cost,
-        extra: bill.extra,
-        financeFee: bill.financeFee,
-        total: bill.total,
+        cost: playerCost,
+        grossCost: quote.cost,
+        extra,
+        financeFee: 0,
+        total: playerCost + extra,
+        playerCost,
         repDelta: bill.rep,
-        overdraft: bill.financeFee > 0,
+        overdraft: false,
+        unpaid,
         pricedAt,
-        cashBefore,
+        cashBefore: state.cash + plan.principal,
+        cashAfterQuote,
         remedy: bill.remedy,
         remedyPending: value.collapsed,
         saleDrag: bill.saleDrag,
@@ -985,18 +1156,23 @@ export function chooseRemedy(catalog, state, choice) {
   const contractor = state.project?.contractor;
   if (!contractor?.collapsed || !contractor.remedyPending) return fail(state, "bad_choice");
   if (choice !== "rush" && choice !== "worse") return fail(state, "bad_choice");
+  const stake = stakeOf(state.project.offer);
+  const gross = contractor.grossCost || contractor.cost;
   const bill = priceRemedy(catalog.balance, {
-    cost: contractor.cost,
+    cost: gross,
     id: contractor.id,
-    cashBefore: contractor.cashBefore,
+    cashBefore: Number.MAX_SAFE_INTEGER,
     collapsed: true,
     remedy: choice,
   });
-  const refund = contractor.total - bill.total;
-  const repAdjust = bill.rep - contractor.repDelta;
+  const extra = remedyExtra(catalog.balance, gross, stake, choice);
+  const cashAfterQuote = typeof contractor.cashAfterQuote === "number" ? contractor.cashAfterQuote : state.cash;
+  const pay = Math.min(Math.max(0, cashAfterQuote), extra);
+  const unpaid = money(extra - pay);
+  const repAdjust = bill.rep - (contractor.repDelta || 0);
   return succeed({
     ...state,
-    cash: money(state.cash + refund),
+    cash: money(cashAfterQuote - pay),
     reputation: clamp(state.reputation + repAdjust, 0, 100),
     project: {
       ...state.project,
@@ -1004,11 +1180,12 @@ export function chooseRemedy(catalog, state, choice) {
         ...contractor,
         quality: bill.quality,
         leak: bill.leak,
-        extra: bill.extra,
-        financeFee: bill.financeFee,
-        total: bill.total,
+        extra,
+        financeFee: 0,
+        total: (contractor.playerCost || contractor.cost) + extra,
         repDelta: bill.rep,
-        overdraft: bill.financeFee > 0,
+        overdraft: false,
+        unpaid,
         remedy: choice,
         remedyPending: false,
         saleDrag: bill.saleDrag,
@@ -1189,16 +1366,26 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   }
   const gross = money(grossExact);
   const fireGross = money(fireExact);
-  const frozenAmount = choices.leftover === "hold" ? money(frozenExact) : 0;
-  const showflatCost = choices.showflat ? money(balance.showflatPerFt2 * offer.gfaFt2) : 0;
-  const rebateCost = money(gross * promo.rebateRate);
-  const adCost = money(promo.adPerFt2 * offer.gfaFt2);
-  const partnerOnSales = money(gross * offer.partnerRate);
-  const firePartner = money(fireGross * offer.partnerRate);
+  const frozenAmount = choices.leftover === "hold" ? money(frozenExact * stakeOf(offer)) : 0;
+  const stake = stakeOf(offer);
+  const showflatFull = choices.showflat ? money(balance.showflatPerFt2 * offer.gfaFt2) : 0;
+  const rebateFull = money(gross * promo.rebateRate);
+  const adFull = money(promo.adPerFt2 * offer.gfaFt2);
+  const showflatCost = money(showflatFull * stake);
+  const rebateCost = money(rebateFull * stake);
+  const adCost = money(adFull * stake);
+  const partnerRate = stake < 1 ? (1 - stake) : offer.partnerRate;
+  const partnerOnSales = money(gross * partnerRate);
+  const firePartner = money(fireGross * partnerRate);
   const partnerShare = partnerOnSales + firePartner;
-  const fireNet = fireGross - firePartner;
-  const netCash = money(gross - showflatCost - rebateCost - adCost - partnerOnSales + fireNet);
-  const profit = netCash - offer.landTotal - contractor.total;
+  const playerGross = stake < 1 ? money(gross * stake) : gross;
+  const playerFire = stake < 1 ? money(fireGross * stake) : fireGross - firePartner;
+  const fireNet = playerFire;
+  const netCash = stake < 1
+    ? money(playerGross - showflatCost - rebateCost - adCost + fireNet)
+    : money(gross - showflatCost - rebateCost - adCost - partnerOnSales + fireNet);
+  const landPaid = offer.landPaid != null ? offer.landPaid : money(offer.landTotal * stake);
+  const profit = netCash - landPaid - contractor.total;
   const unsold = units - sold;
   const ratio = units === 0 ? 0 : sold / units;
   let outcome = "fail";
@@ -1417,6 +1604,7 @@ export function commentSample(project) {
 
 export function commitSale(catalog, state, choices) {
   if (state.phase !== "sell") return fail(state, "bad_phase");
+  if (state.project?.contractor?.remedyPending) return fail(state, "need_remedy");
   const normalized = normalizeChoices(choices, catalog.balance);
   let roll = state.project.saleRoll;
   let rngCursor = state.rngCursor;
@@ -1554,7 +1742,12 @@ export function confirmSettle(catalog, state) {
   }
   cash = money(cash + released);
   const loan = state.project?.skipped ? null : state.project?.loan || null;
-  const creditResult = settleCredit(cash, loan, state.credit || emptyCredit(), catalog.balance);
+  const bridge = state.project?.skipped ? 0 : money(state.project?.contractor?.unpaid || 0);
+  const creditIn = {
+    ...(state.credit || emptyCredit()),
+    carried: money((state.credit?.carried || 0) + bridge),
+  };
+  const creditResult = settleCredit(cash, loan, creditIn, catalog.balance);
   if (!entry.skipped && loan) {
     entry.profit = money(entry.profit + (loan.principal || 0) - creditResult.paidPrincipal - creditResult.paidInterest);
     entry.loanMode = loan.mode;
@@ -1628,6 +1821,8 @@ function slimOffer(offer) {
     quotedAt: offer.quotedAt,
     siteTier: offer.siteTier || "small",
     forcedSmall: Boolean(offer.forcedSmall),
+    stake: stakeOf(offer),
+    landPaid: offer.landPaid != null ? offer.landPaid : null,
   };
 }
 
@@ -1669,9 +1864,14 @@ export function serializeCampaign(state) {
                 cashBefore: state.project.contractor.cashBefore,
                 remedy: state.project.contractor.remedy || null,
                 remedyPending: Boolean(state.project.contractor.remedyPending),
+                unpaid: money(state.project.contractor.unpaid || 0),
+                cashAfterQuote: typeof state.project.contractor.cashAfterQuote === "number"
+                  ? state.project.contractor.cashAfterQuote
+                  : null,
               }
             : null,
           loan: state.project.loan ? { ...state.project.loan } : null,
+          mixWeak: Boolean(state.project.mixWeak),
           mix: state.project.mix ? { ...state.project.mix } : null,
           choices: state.project.choices || null,
           saleRoll: typeof state.project.saleRoll === "number" ? state.project.saleRoll : null,
@@ -1689,31 +1889,41 @@ function rehydrateContractor(saved, offer, catalog) {
     { cash: Number.MAX_SAFE_INTEGER, project: { offer }, market: saved.pricedAt },
     saved.id,
   );
-  const cashBefore = typeof saved.cashBefore === "number" ? saved.cashBefore : quote.cost;
-  const remedy = saved.remedy === "worse" ? "worse" : "rush";
+  const stake = stakeOf(offer);
+  const gross = quote.cost;
+  const playerCost = money(gross * stake);
+  const collapsed = Boolean(saved.collapsed);
+  const pending = Boolean(saved.remedyPending);
+  const remedy = pending ? "rush" : saved.remedy === "worse" ? "worse" : "rush";
   const bill = priceRemedy(catalog.balance, {
-    cost: quote.cost,
+    cost: gross,
     id: saved.id,
-    cashBefore,
-    collapsed: Boolean(saved.collapsed),
+    cashBefore: Number.MAX_SAFE_INTEGER,
+    collapsed,
     remedy,
   });
+  const extra = collapsed ? remedyExtra(catalog.balance, gross, stake, remedy) : 0;
+  const cashBefore = typeof saved.cashBefore === "number" ? saved.cashBefore : playerCost;
   return {
     id: saved.id,
-    collapsed: Boolean(saved.collapsed),
+    collapsed,
     quality: bill.quality,
     leak: bill.leak,
-    cost: quote.cost,
-    extra: bill.extra,
-    financeFee: bill.financeFee,
-    total: bill.total,
+    cost: playerCost,
+    grossCost: gross,
+    extra,
+    financeFee: 0,
+    total: playerCost + extra,
+    playerCost,
     repDelta: bill.rep,
-    overdraft: bill.financeFee > 0,
+    overdraft: false,
+    unpaid: money(saved.unpaid || 0),
     pricedAt: saved.pricedAt,
     cashBefore,
-    remedy: bill.remedy,
-    remedyPending: Boolean(saved.remedyPending),
-    saleDrag: bill.saleDrag,
+    cashAfterQuote: typeof saved.cashAfterQuote === "number" ? saved.cashAfterQuote : null,
+    remedy: collapsed ? bill.remedy : null,
+    remedyPending: pending,
+    saleDrag: collapsed ? bill.saleDrag : 0,
   };
 }
 
@@ -1751,11 +1961,18 @@ export function hydrateCampaign(catalog, saved) {
     story: null,
   };
   const heat = campaignHeat(state, catalog.balance);
-  const attachScale = (offer) => ({
-    ...priceOffer(offer, offer.quotedAt, catalog, heat),
-    siteTier: offer.siteTier || "small",
-    forcedSmall: Boolean(offer.forcedSmall),
-  });
+  const attachScale = (offer) => {
+    const priced = priceOffer(offer, offer.quotedAt, catalog, heat);
+    const stake = offer.stake === JV_SHARE ? JV_SHARE : 1;
+    const landPaid = typeof offer.landPaid === "number" ? money(offer.landPaid) : money(priced.landTotal * stake);
+    return {
+      ...priced,
+      siteTier: offer.siteTier || "small",
+      forcedSmall: Boolean(offer.forcedSmall),
+      stake,
+      landPaid,
+    };
+  };
   if (Array.isArray(saved.offers)) {
     state.offers = saved.offers.map(attachScale);
   }
@@ -1780,6 +1997,7 @@ export function hydrateCampaign(catalog, saved) {
       offer,
       contractor,
       loan,
+      mixWeak: Boolean(saved.project.mixWeak),
       mix: saved.project.mix ? normalizeMix(saved.project.mix) : null,
       choices: saved.project.choices || null,
       saleRoll: typeof saved.project.saleRoll === "number" ? saved.project.saleRoll : null,
@@ -1826,20 +2044,114 @@ function upgradeV3(raw) {
 function withMidterm(raw) {
   return {
     ...raw,
-    v: SAVE_VERSION,
+    v: 5,
     credit: { ...emptyCredit(), ...(raw.credit || {}) },
     storyCounts: raw.storyCounts && typeof raw.storyCounts === "object" ? { ...raw.storyCounts } : {},
     storyLog: Array.isArray(raw.storyLog) ? [...raw.storyLog] : [],
   };
 }
 
+function withVenture(raw) {
+  const project = raw.project ? { ...raw.project } : raw.project ?? null;
+  if (project?.offer && project.offer.stake == null) {
+    project.offer = { ...project.offer, stake: 1 };
+  }
+  return { ...raw, v: SAVE_VERSION, project };
+}
+
 export function migrateSave(raw) {
   if (!raw) return { ok: false, notice: null, state: null };
   if (raw.goals || raw.v === 1 || raw.v === 2) return { ok: false, notice: "phase1_reset", state: null };
   if (raw.v === SAVE_VERSION) return { ok: true, notice: null, state: raw };
-  if (raw.v === 4) return { ok: true, notice: null, state: withMidterm(raw) };
-  if (raw.v === 3) return { ok: true, notice: null, state: withMidterm(upgradeV3(raw)) };
+  if (raw.v === 5) return { ok: true, notice: null, state: withVenture(raw) };
+  if (raw.v === 4) return { ok: true, notice: null, state: withVenture(withMidterm(raw)) };
+  if (raw.v === 3) return { ok: true, notice: null, state: withVenture(withMidterm(upgradeV3(raw))) };
   return { ok: false, notice: "phase1_reset", state: null };
+}
+
+export function settlementPreview(catalog, state) {
+  if (!state?.project || state.project.skipped || state.phase !== "settle") {
+    return {
+      cash: state?.cash || 0,
+      owed: state?.credit?.owed || 0,
+      yellow: Boolean(state?.credit?.yellow),
+      due: 0,
+      paid: 0,
+      gameOver: false,
+    };
+  }
+  const sale = state.project.sale;
+  let cash = money((state.cash || 0) + (sale?.netCash || 0));
+  const completed = (state.completed || 0) + 1;
+  let released = 0;
+  for (const item of state.frozen || []) {
+    if (item.releaseAt <= completed || completed >= catalog.balance.projects) released += item.amount || 0;
+  }
+  cash = money(cash + released);
+  const loan = state.project.loan || null;
+  const bridge = money(state.project.contractor?.unpaid || 0);
+  const creditResult = settleCredit(cash, loan, {
+    ...(state.credit || emptyCredit()),
+    carried: money((state.credit?.carried || 0) + bridge),
+  }, catalog.balance);
+  return {
+    cash: creditResult.cash,
+    owed: creditResult.owed,
+    yellow: Boolean(creditResult.yellow) && !creditResult.gameOver,
+    due: loan?.due || 0,
+    paid: money(creditResult.paidCarried + creditResult.paidInterest + creditResult.paidPrincipal),
+    gameOver: creditResult.gameOver,
+  };
+}
+
+export function buildSalesBand(catalog, state, mix, contractorId) {
+  const clean = normalizeMix(mix);
+  const id = contractorId && catalog.balance.contractors[contractorId] ? contractorId : "huimen";
+  const spec = catalog.balance.contractors[id];
+  const draft = {
+    ...state,
+    project: {
+      ...state.project,
+      mix: clean,
+      contractor: {
+        id,
+        quality: spec.quality,
+        leak: spec.leak,
+        collapsed: false,
+        total: 0,
+        cost: 0,
+        saleDrag: 0,
+      },
+    },
+  };
+  const sale = resolveSale(catalog, draft, {
+    price: "fair",
+    cheer: 0,
+    leftover: "cut",
+    rebate: "none",
+    adBudget: "none",
+    showflat: false,
+    roll: 1,
+  });
+  const pct = sale.units ? Math.round((sale.sold / sale.units) * 100) : 0;
+  const spread = catalog.balance.bandSpread ?? 8;
+  const low = Math.max(0, pct - spread);
+  const high = Math.min(99, Math.max(low, pct + spread));
+  const gaps = mixPoolGaps(catalog, draft, clean);
+  const weakAt = catalog.balance.weakBand ?? 22;
+  return { low, high, pct, weak: gaps.length > 0 || high <= weakAt, gaps };
+}
+
+export function saleLedger(catalog, state, rawChoices) {
+  const sale = resolveSale(catalog, state, rawChoices);
+  const offer = state.project.offer;
+  const stake = stakeOf(offer);
+  const land = offer.landPaid != null ? offer.landPaid : money(offer.landTotal * stake);
+  const build = state.project.contractor?.total || 0;
+  const promo = (sale.rebateCost || 0) + (sale.adCost || 0) + (sale.showflatCost || 0);
+  const outlay = land + build + promo;
+  const multiple = outlay > 0 ? Math.round(((sale.netCash + promo) / outlay) * 100) / 100 : 0;
+  return { build, promo, land, outlay, multiple, profit: sale.profit, netCash: sale.netCash, sale };
 }
 
 export function endSummary(state) {

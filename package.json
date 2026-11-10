@@ -5,7 +5,7 @@
   "type": "module",
   "description": "HK Dev Tycoon — 20-project entertainment sim",
   "scripts": {
-    "test": "node --test test/economy.test.js test/campaign.test.js test/phase3.test.js test/midterm.test.js",
+    "test": "node --test test/economy.test.js test/campaign.test.js test/phase3.test.js test/midterm.test.js test/nextpack.test.js",
     "refresh-data": "python3 scripts/refresh_data.py",
     "start": "python3 -m http.server 8080"
   },
