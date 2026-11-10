@@ -1,11 +1,11 @@
 {
   "name": "hk-dev-tycoon",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "HK Dev Tycoon Phase 2 — 20-project entertainment sim calibrated with RVD open data",
+  "description": "HK Dev Tycoon Phase 3 — 20-project entertainment sim",
   "scripts": {
-    "test": "node --test test/economy.test.js test/campaign.test.js",
+    "test": "node --test test/economy.test.js test/campaign.test.js test/phase3.test.js",
     "refresh-data": "python3 scripts/refresh_data.py",
     "start": "python3 -m http.server 8080"
   },
