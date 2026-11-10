@@ -268,7 +268,7 @@ test("a new game and a migrated v3 save can finish two small projects without a 
   const migrated = migrateSave(legacy);
   assert.equal(migrated.ok, true);
   assert.equal(migrated.notice, null);
-  assert.equal(migrated.state.v, 6);
+  assert.equal(migrated.state.v, 7);
   let restored = hydrateCampaign(catalog, migrated.state);
   assert.equal(restored.cash, legacy.cash);
   for (let n = 0; n < 2; n += 1) {

@@ -97,25 +97,36 @@ test("land A/B/C mixes the three land types and skip spends the round without bu
   assert.equal(projectNumber(again.state), 2);
 });
 
-test("district mix follows the land brief: URA mostly urban, MTR split, government anywhere", () => {
+test("district mix follows the land brief: URA always urban, MTR split, government mostly remote", () => {
   const rng = createRng(4);
   let uraUrban = 0;
   let mtrTown = 0;
+  let govTown = 0;
   const checks = 400;
   for (let i = 0; i < checks; i += 1) {
     const district = pickDistrict("ura", rng, balance);
+    assert.ok(balance.urbanDistricts.includes(district));
+    assert.equal(balance.newTownDistricts.includes(district), false);
     if (balance.urbanDistricts.includes(district)) uraUrban += 1;
   }
   for (let i = 0; i < checks; i += 1) {
     const district = pickDistrict("mtr", rng, balance);
     if (balance.newTownDistricts.includes(district)) mtrTown += 1;
   }
-  assert.ok(uraUrban / checks > 0.75, `URA urban share ${uraUrban / checks}`);
-  assert.ok(mtrTown / checks > 0.35 && mtrTown / checks < 0.65, `MTR new-town share ${mtrTown / checks}`);
-  const seen = new Set();
   const govRng = createRng(9);
-  for (let i = 0; i < 80; i += 1) seen.add(pickDistrict("gov", govRng, balance));
-  assert.ok(seen.size >= 12);
+  for (let i = 0; i < checks; i += 1) {
+    const district = pickDistrict("gov", govRng, balance);
+    if (balance.newTownDistricts.includes(district)) govTown += 1;
+  }
+  assert.equal(uraUrban, checks);
+  assert.ok(mtrTown / checks > 0.35 && mtrTown / checks < 0.65, `MTR new-town share ${mtrTown / checks}`);
+  assert.ok(govTown / checks > 0.7 && govTown / checks < 0.9, `government new-town share ${govTown / checks}`);
+  const used = new Set(balance.urbanDistricts);
+  for (let i = 0; i < 40; i += 1) {
+    const district = pickDistrict("ura", rng, balance, used);
+    assert.ok(balance.urbanDistricts.includes(district));
+    assert.equal(["離島區", "北區", "元朗區", "屯門區", "大埔區", "沙田區", "西貢區", "荃灣區", "葵青區"].includes(district), false);
+  }
 });
 
 test("GFA becomes a unit count and every offer is judged against the game market", () => {

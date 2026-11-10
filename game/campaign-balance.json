@@ -20,7 +20,9 @@
   "supplyMax": 1.05,
   "expensiveAt": 1.08,
   "cheapAt": 0.93,
-  "uraUrbanChance": 0.85,
+  "uraUrbanChance": 1,
+  "govTownChance": 0.8,
+  "govControversyWeight": 1,
   "tutorial": {
     "district": "沙田區",
     "gfaFt2": 22000,
@@ -39,7 +41,8 @@
       "premiumMax": 1.16,
       "gfaMin": 46000,
       "gfaMax": 120000,
-      "partnerRate": 0.14
+      "partnerRate": 0.14,
+      "sellBoost": 0.1
     },
     "gov": {
       "premiumMin": 0.84,
@@ -97,7 +100,7 @@
   "holdRecover": 0.78,
   "repCut": -2,
   "repHold": -1,
-  "controversyWeight": 5,
+  "controversyWeight": 1,
   "contractors": {
     "jingjin": { "costMul": 0.74, "leak": 0.36, "collapse": 0.24, "quality": 0.88, "rep": -3 },
     "huimen": { "costMul": 1, "leak": 0.12, "collapse": 0.04, "quality": 1, "rep": 1 },
@@ -135,7 +138,7 @@
   ],
   "siteTierWeights": { "small": 3, "mid": 4, "large": 3, "flagship": 2 },
   "flagshipFrom": 12,
-  "jvShare": 0.35,
+  "jvShares": [0.25, 0.35, 0.5],
   "bandSpread": 8,
   "weakBand": 22,
   "storyRepeatCap": 2,
