@@ -12,17 +12,29 @@ import {
   confirmSettle,
   createCampaign,
   createCampaignCatalog,
+  defaultProjectName,
   districtFlavour,
+  emptyVoice,
   gfaRemaining,
   gfaUsed,
+  heatProjectsLeft,
+  hydrateCampaign,
   initialMarket,
+  marketComment,
+  migrateSave,
   mixFits,
   presetMix,
   priceOffer,
+  pushVoice,
+  renameProject,
   resolveSale,
+  saleForecast,
+  saleReveal,
+  serializeCampaign,
   sizePools,
   skipLand,
   unitTotal,
+  voiceComment,
 } from "../game/campaign.js";
 import { playerFacingCopy } from "../game/copy.js";
 import { STORIES } from "../game/stories.js";
@@ -39,7 +51,7 @@ function start(seed = 7) {
   return createCampaign(catalog, { seed, company: { name: "啟岸發展", logo: "tower", color: "#e2b15a" } });
 }
 
-function projectSale(district, { seed = 1, cheer = 0, showflat = false, leftover = "cut", mix = null, roll = 1, gfaFt2 = 22000 } = {}) {
+function projectContext(district, { seed = 1, mix = null, roll = 1, gfaFt2 = 22000 } = {}) {
   const heat = campaignHeat({ completed: 0, seed }, balance);
   const offer = priceOffer(
     { slot: "A", type: "gov", district, gfaFt2, premium: 1 },
@@ -48,15 +60,20 @@ function projectSale(district, { seed = 1, cheer = 0, showflat = false, leftover
     heat,
   );
   const contractor = { id: "huimen", quality: 1, leak: 0.12, collapsed: false, total: offer.estBuildTotal };
-  const state = {
+  return {
     seed,
     completed: 0,
     reputation: 58,
     market: initialMarket(),
     poolBias: {},
+    voice: emptyVoice(),
     project: { offer, contractor, mix: mix || offer.mixHint, saleRoll: roll },
   };
-  return resolveSale(catalog, state, { showflat, cheer, leftover, roll });
+}
+
+function projectSale(district, options = {}) {
+  const { cheer = 0, showflat = false, leftover = "cut", roll = 1, price = "fair" } = options;
+  return resolveSale(catalog, projectContext(district, options), { showflat, cheer, leftover, roll, price });
 }
 
 test("unit areas and slider GFA block an over-allocation", () => {
@@ -297,6 +314,127 @@ test("a full 20-project run still closes", () => {
   assert.equal(state.completed, 20);
   assert.equal(state.history.length, 20);
   assert.ok(state.unitsSold > 0);
+});
+
+test("asking price moves margin, conversion, the bowl, and the forecast in one direction", () => {
+  const mix = { studio: 8, one: 6, two: 6, three: 2, feature: 1 };
+  const gfaFt2 = 8 * 280 + 6 * 350 + 6 * 450 + 2 * 600 + 1000;
+  const base = { seed: 2, mix, gfaFt2, showflat: false, cheer: 0, leftover: "cut" };
+  const cheap = projectSale("東區", { ...base, price: "cheap" });
+  const fair = projectSale("東區", { ...base, price: "fair" });
+  const dear = projectSale("東區", { ...base, price: "expensive" });
+  assert.ok(cheap.byType.two.ask < fair.byType.two.ask);
+  assert.ok(fair.byType.two.ask < dear.byType.two.ask);
+  assert.ok(cheap.byType.two.convert >= fair.byType.two.convert);
+  assert.ok(fair.byType.two.convert >= dear.byType.two.convert);
+  assert.ok(cheap.sold >= fair.sold);
+  assert.ok(fair.sold >= dear.sold);
+  assert.ok(cheap.unsold <= fair.unsold);
+  assert.ok(fair.unsold <= dear.unsold);
+  assert.ok(dear.bowl.lump > fair.bowl.lump);
+  assert.ok(dear.bowl.ratio > fair.bowl.ratio);
+  assert.equal(fair.choices.price, "fair");
+  assert.equal(dear.choices.askMul, balance.ask.stretch);
+  assert.equal(cheap.choices.ask, undefined);
+
+  const state = projectContext("東區", base);
+  const cast = (price) => saleForecast(catalog, state, { price, showflat: false, leftover: "cut", roll: 0 });
+  const fCheap = cast("cheap");
+  const fFair = cast("fair");
+  const fDear = cast("expensive");
+  assert.ok(fCheap.leftRank <= fFair.leftRank);
+  assert.ok(fFair.leftRank <= fDear.leftRank);
+  assert.equal(Math.sign(dear.unsold - cheap.unsold), Math.sign(fDear.leftRank - fCheap.leftRank));
+  assert.equal(fDear.sold, undefined);
+  assert.notEqual(dear.unsold, fDear.leftRank);
+  assert.notEqual(cheap.unsold, fCheap.leftRank);
+  const fitted = saleForecast(catalog, state, { price: "expensive", showflat: true, leftover: "cut" });
+  assert.ok(fitted.leftRank <= fDear.leftRank);
+
+  let flipped = false;
+  for (const district of ["沙田區", "東區", "北區", "觀塘區", "葵青區", "荃灣區", "大埔區", "黃大仙區", "中西區"]) {
+    const calm = projectSale(district, { seed: 2, price: "fair" });
+    const hot = projectSale(district, { seed: 2, price: "expensive" });
+    if (calm.bowl.ok && !hot.bowl.ok) flipped = true;
+  }
+  assert.equal(flipped, true);
+});
+
+test("a renamed project stays in the save, and a phase 3 save upgrades", () => {
+  let state = start(6);
+  state = chooseLand(catalog, state, "A").state;
+  assert.equal(state.project.name, defaultProjectName("沙田區", "uni"));
+  state = renameProject(catalog, state, "  學舍一號  ").state;
+  assert.equal(state.project.name, "學舍一號");
+  assert.equal(hydrateCampaign(catalog, serializeCampaign(state)).project.name, "學舍一號");
+
+  const legacy = serializeCampaign(state);
+  legacy.v = 3;
+  delete legacy.voice;
+  delete legacy.project.name;
+  const migrated = migrateSave(legacy);
+  assert.equal(migrated.ok, true);
+  assert.equal(migrated.notice, null);
+  assert.equal(migrated.state.v, 4);
+  const upgraded = hydrateCampaign(catalog, migrated.state);
+  assert.equal(upgraded.cash, state.cash);
+  assert.equal(upgraded.phase, "build");
+  assert.equal(upgraded.project.name, defaultProjectName(upgraded.project.offer.district, upgraded.project.offer.flavour));
+});
+
+test("settled history keeps the name, price, and a market comment", () => {
+  let state = start(6);
+  state = chooseLand(catalog, state, "A").state;
+  state = renameProject(catalog, state, "學舍一號").state;
+  state = chooseContractor(catalog, state, "xinjing", { studio: 2, one: 0, two: 2, three: 0, feature: 0 }).state;
+  state = commitSale(catalog, state, { price: "cheap", showflat: true, cheer: 0, leftover: "hold" }).state;
+  assert.equal(state.project.sale.choices.price, "cheap");
+  state = confirmSettle(catalog, state).state;
+  const item = state.history[0];
+  assert.equal(item.name, "學舍一號");
+  assert.equal(item.price, "cheap");
+  assert.equal(item.type, "gov");
+  assert.equal(item.flavour, "uni");
+  assert.equal(item.leftover, "hold");
+  assert.equal(typeof item.reputationDelta, "number");
+  assert.ok(item.mix.two > 0);
+  assert.ok(item.comment);
+  assert.equal(state.voice.n, 1);
+  const again = hydrateCampaign(catalog, serializeCampaign(state));
+  assert.equal(again.history[0].name, "學舍一號");
+  assert.equal(again.history[0].price, "cheap");
+  assert.equal(again.history[0].comment, item.comment);
+  assert.equal(again.voice.n, 1);
+  assert.equal(again.history[0].reputationDelta, item.reputationDelta);
+});
+
+test("market comments come from price times quality and shift after repeated behaviour", () => {
+  assert.equal(marketComment({ price: "cheap", quality: 0.86, unsoldRatio: 0.1 }), "cheapBad");
+  assert.equal(marketComment({ price: "expensive", quality: 1.12, unsoldRatio: 0.05 }), "dearGood");
+  assert.equal(marketComment({ price: "cheap", quality: 1.16, unsoldRatio: 0 }), "valueGood");
+  assert.equal(marketComment({ price: "expensive", quality: 0.9, unsoldRatio: 0.4 }), "dearEmpty");
+  let voice = emptyVoice();
+  const bad = { price: "cheap", quality: 0.86, unsoldRatio: 0.1 };
+  voice = pushVoice(voice, bad);
+  assert.notEqual(marketComment({ price: "fair", quality: 1, unsoldRatio: 0 }, voice), "cheapBad");
+  voice = pushVoice(voice, bad);
+  assert.equal(marketComment({ price: "fair", quality: 1, unsoldRatio: 0 }, voice), "cheapBad");
+  assert.equal(voiceComment(voice), "cheapBad");
+});
+
+test("the sale stays open until the cheer count is used", () => {
+  assert.equal(saleReveal(20, 0, 3).done, false);
+  assert.equal(saleReveal(20, 1, 3).done, false);
+  assert.equal(saleReveal(20, 2, 3).done, false);
+  assert.equal(saleReveal(20, 3, 3).done, true);
+  assert.equal(saleReveal(20, 3, 3).cheerLeft, 0);
+  assert.ok(saleReveal(20, 2, 3).cheerLeft > 0);
+  assert.ok(saleReveal(20, 1, 3).shown > saleReveal(20, 0, 3).shown);
+  assert.ok(saleReveal(20, 2, 3).shown > saleReveal(20, 1, 3).shown);
+  assert.equal(saleReveal(20, 3, 3).shown, 20);
+  assert.equal(heatProjectsLeft({ completed: 0 }, balance), 3);
+  assert.equal(heatProjectsLeft({ completed: 2 }, balance), 1);
+  assert.equal(heatProjectsLeft({ completed: 3 }, balance), 3);
 });
 
 test("player-facing copy does not print banned labels", () => {
