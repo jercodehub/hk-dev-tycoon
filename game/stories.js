@@ -197,7 +197,7 @@ export const STORIES = [
         rep: 3,
         cash: 0,
         flag: "hold_accept",
-        effects: [{ kind: "frozen-up", frozenMul: 1.15, left: 2, loosen: true, note: "留貨較易套" }],
+        effects: [{ kind: "frozen-up", frozenMul: 1.15, left: 2, note: "留貨加凍" }],
       },
     ],
   },

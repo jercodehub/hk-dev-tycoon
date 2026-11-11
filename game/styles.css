@@ -923,7 +923,7 @@ button:disabled {
     overflow: visible;
     text-overflow: clip;
   }
-  .hud-actions .ghost { min-height: 28px; padding: 2px 6px; }
+  .hud-actions .ghost { min-height: 44px; padding: 2px 6px; }
   .shell { padding: 4px 6px; }
   .card { padding: 6px; }
   .build-card .kicker { margin: 0; }
@@ -948,7 +948,7 @@ button:disabled {
   .preset-row { margin-top: 2px; }
   .preset-row .chip { min-height: 30px; padding: 2px; }
   .credit-row { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 4px; }
-  .credit-row .chip { min-height: 34px; padding: 2px 4px; }
+  .credit-row .chip { min-height: 44px; padding: 2px 4px; }
   .credit-note, .loan-compare, .loan-warn { margin: 1px 0 0; line-height: 1.2; }
   .contractor { padding: 4px; }
   .contractor .head { display: flex; align-items: baseline; }
@@ -963,7 +963,7 @@ button:disabled {
   .price-chip em { display: block; }
   .promo { gap: 2px; margin: 2px 0; }
   .promo-line { gap: 2px; }
-  .promo-line .chip { min-height: 26px; padding: 1px 4px; font-size: 11px; }
+  .promo-line .chip { min-height: 44px; padding: 1px 4px; font-size: 11px; }
   .promo-line > span { min-width: 0; }
   .sell-setup .chip.toggle { min-height: 30px; padding: 2px 6px; }
   .shell[data-phase="sell"] .banner { font-size: 11px; padding: 3px 6px; }
@@ -1003,7 +1003,7 @@ button:disabled {
   #gfa-live span { white-space: nowrap; }
   .psf { font-size: 10px; }
   .stepper .step { width: 36px; height: 32px; font-size: 1.2rem; }
-  .credit-row .chip { min-height: 30px; }
+  .credit-row .chip { min-height: 44px; }
   .credit-row .chip small { font-size: 10px; line-height: 1.15; white-space: normal; overflow: visible; }
   .contractor { padding: 2px 3px; }
   .risk b { height: 5px; }
