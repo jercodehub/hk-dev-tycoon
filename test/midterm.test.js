@@ -129,9 +129,9 @@ test("the previous similar project is a pricing hint", () => {
   assert.equal(similarProject({ project: { offer: { flavour: "uni", heat: "loose" } }, history: [] }), null);
 });
 
-test("stories do not repeat back to back, and none plays more than twice", () => {
-  assert.ok(STORIES.length >= 12);
-  assert.ok(STORIES.every((story) => story.choices.length >= 1 && story.choices.length <= 2));
+test("stories do not repeat back to back, and none plays more than the cap", () => {
+  assert.equal(STORIES.length, 10);
+  assert.ok(STORIES.every((story) => story.choices.length === 2));
   let state = start(9);
   while (state.phase !== "summary") {
     if (state.phase === "land") state = skipLand(catalog, state).state;
@@ -139,12 +139,12 @@ test("stories do not repeat back to back, and none plays more than twice", () =>
     else if (state.phase === "story") state = chooseStory(catalog, state, state.story.choices[0].id).state;
     else throw new Error(state.phase);
   }
-  assert.equal(state.storyLog.length, 19);
+  assert.equal(state.storyLog.length, balance.projects - 1);
   for (let i = 1; i < state.storyLog.length; i += 1) {
     assert.notEqual(state.storyLog[i], state.storyLog[i - 1]);
   }
-  for (const count of Object.values(state.storyCounts)) assert.ok(count <= 2);
-  assert.equal(Object.values(state.storyCounts).reduce((sum, n) => sum + n, 0), 19);
+  for (const count of Object.values(state.storyCounts)) assert.ok(count <= balance.storyRepeatCap);
+  assert.equal(Object.values(state.storyCounts).reduce((sum, n) => sum + n, 0), balance.projects - 1);
 });
 
 test("the first zero-pool mix is taught once", () => {
@@ -220,7 +220,7 @@ test("sites start small, later tiers follow net worth, and 10,000 units are flag
   assert.equal(rollSiteTier(9_000_000_000, opening.seed, 1, balance, false), "small");
   assert.equal(rollSiteTier(9_000_000_000, opening.seed, 6, balance, true), "small");
   const seen = new Set();
-  for (let seed = 1; seed <= 30; seed += 1) seen.add(rollSiteTier(9_000_000_000, seed, 8, balance, false));
+  for (let seed = 1; seed <= 30; seed += 1) seen.add(rollSiteTier(9_000_000_000, seed, 15, balance, false));
   assert.ok(seen.has("flagship"));
   assert.ok(seen.size > 1);
 
@@ -268,7 +268,7 @@ test("a new game and a migrated v3 save can finish two small projects without a 
   const migrated = migrateSave(legacy);
   assert.equal(migrated.ok, true);
   assert.equal(migrated.notice, null);
-  assert.equal(migrated.state.v, 7);
+  assert.equal(migrated.state.v, 8);
   let restored = hydrateCampaign(catalog, migrated.state);
   assert.equal(restored.cash, legacy.cash);
   for (let n = 0; n < 2; n += 1) {

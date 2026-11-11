@@ -1,5 +1,5 @@
 {
-  "projects": 20,
+  "projects": 30,
   "calibrationClass": "B",
   "startingCash": 260000000,
   "startingReputation": 58,
@@ -30,29 +30,38 @@
   },
   "landTypes": {
     "ura": {
-      "premiumMin": 1.12,
-      "premiumMax": 1.32,
-      "gfaMin": 14000,
-      "gfaMax": 42000,
-      "partnerRate": 0.22
+      "premiumMin": 0.9,
+      "premiumMax": 1.08,
+      "gfaMin": 12000,
+      "gfaMax": 34000,
+      "profitShareMin": 0.3,
+      "profitShareMax": 0.4,
+      "mixRigid": 0.02
     },
     "mtr": {
       "premiumMin": 0.97,
       "premiumMax": 1.16,
       "gfaMin": 46000,
       "gfaMax": 120000,
-      "partnerRate": 0.14,
+      "profitShareMin": 0.2,
+      "profitShareMax": 0.3,
       "sellBoost": 0.1
     },
     "gov": {
-      "premiumMin": 0.84,
-      "premiumMax": 1.02,
+      "premiumMin": 0.72,
+      "premiumMax": 1.32,
+      "townPremiumMin": 0.72,
+      "townPremiumMax": 0.92,
+      "urbanPremiumMin": 1.1,
+      "urbanPremiumMax": 1.32,
       "gfaMin": 18000,
-      "gfaMax": 86000,
-      "partnerRate": 0
+      "gfaMax": 90000,
+      "partnerRate": 0,
+      "profitShareMin": 0,
+      "profitShareMax": 0
     }
   },
-  "heatEvery": 3,
+  "heatEvery": 5,
   "poolShare": { "whale": 0.3, "couple": 0.22, "starter": 0.28, "upgrader": 0.14, "feature": 0.06 },
   "heatMod": {
     "loose": { "whale": 1.48, "couple": 0.92, "starter": 0.84, "upgrader": 0.9, "feature": 0.92 },
@@ -137,11 +146,11 @@
     { "id": "flagship", "minWorth": 3600000000, "gfaMul": 48 }
   ],
   "siteTierWeights": { "small": 3, "mid": 4, "large": 3, "flagship": 2 },
-  "flagshipFrom": 12,
+  "flagshipFrom": 16,
   "jvShares": [0.25, 0.35, 0.5],
   "bandSpread": 8,
   "weakBand": 22,
-  "storyRepeatCap": 2,
+  "storyRepeatCap": 6,
   "leakRepWeight": 8,
   "leakPriceDrag": 0.15,
   "leakThroughDrag": 0.22,
@@ -195,7 +204,9 @@
   "partialAt": 0.4,
   "repThrough": 0.05,
   "fireSale": 0.55,
-  "repClear": 4,
+  "repClear": 6,
+  "repAlmost": 1,
+  "clearBonus": 0.02,
   "repPartial": 1,
   "repFail": -5,
   "repLoss": -2,

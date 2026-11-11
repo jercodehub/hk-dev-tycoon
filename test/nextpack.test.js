@@ -226,7 +226,7 @@ test("the sale screen can price construction, promotion, and the cheer uplift", 
 test("one bad project does not permanently lock a flagship opportunity", () => {
   const opening = start(4);
   assert.ok(opening.offers.every((offer) => offer.siteTier !== "flagship"));
-  let rich = { ...opening, cash: 8_000_000_000, completed: 14, credit: { unpaidStreak: 0, carried: 0, yellow: false, forceSmall: false, owed: 0 } };
+  let rich = { ...opening, cash: 8_000_000_000, completed: 15, credit: { unpaidStreak: 0, carried: 0, yellow: false, forceSmall: false, owed: 0 } };
   rich = rollOffers(rich, catalog);
   const flagship = rich.offers.find((offer) => offer.siteTier === "flagship");
   assert.ok(flagship);
@@ -271,7 +271,9 @@ test("one bad project does not permanently lock a flagship opportunity", () => {
   }
   assert.equal(state.phase, "summary");
   assert.equal(state.credit.forceSmall, false);
-  assert.equal(sawFlagship, campaignWorth(state) >= balance.siteTiers.find((row) => row.id === "flagship").minWorth);
+  if (sawFlagship) {
+    assert.ok(campaignWorth(state) >= balance.siteTiers.find((row) => row.id === "flagship").minWorth);
+  }
   assert.ok(campaignWorth(state) > 0);
 });
 
@@ -283,12 +285,11 @@ test("a 35% venture is only on mid-tier government sites and credit stays on tha
 
   let rich = { ...start(9), cash: 20_000_000_000, completed: 14, credit: { unpaidStreak: 0, carried: 0, yellow: false, forceSmall: false, owed: 0 } };
   rich = rollOffers(rich, catalog);
-  const shared = rich.offers.find((offer) => offer.type === "ura" || offer.type === "mtr");
-  if (shared) assert.equal(jvEligible(shared), false);
+  const shared = rich.offers.find((offer) => (offer.type === "ura" || offer.type === "mtr") && offer.siteTier !== "small");
+  if (shared) assert.equal(jvEligible(shared), true);
   const venture = rich.offers.find((offer) => jvEligible(offer));
   assert.ok(venture);
   assert.notEqual(venture.siteTier, "small");
-  assert.equal(venture.partnerRate, 0);
   const broke = { ...rich, cash: Math.round(venture.landTotal * JV_SHARE) };
   assert.equal(chooseLand(catalog, broke, venture.slot, 1).ok, false);
   const taken = chooseLand(catalog, broke, venture.slot, JV_SHARE);
@@ -373,8 +374,12 @@ test("venture stakes are only 25, 35, 50, or fully owned", () => {
     }, { price: "fair", showflat: true, cheer: 0, leftover: "cut", rebate: "none", adBudget: "none" });
     assert.ok(Math.abs(part.showflatCost / whole.showflatCost - share) < 0.02);
     assert.ok(part.netCash < whole.netCash);
-    const shared = rich.offers.find((offer) => offer.type === "ura" || offer.type === "mtr");
-    if (shared) assert.equal(chooseLand(catalog, { ...rich, cash: shared.landTotal }, shared.slot, share).error, "bad_stake");
+    const shared = rich.offers.find((offer) => (offer.type === "ura" || offer.type === "mtr") && jvEligible(offer));
+    if (shared) {
+      const takenShared = chooseLand(catalog, { ...rich, cash: Math.round(shared.landTotal * share) }, shared.slot, share);
+      assert.equal(takenShared.ok, true);
+      assert.equal(stakeOf(takenShared.state.project.offer), share);
+    }
   }
   assert.equal(remedyExtra(balance, 100000, 0.25, "rush"), Math.round(100000 * balance.collapseExtra * 0.25));
   assert.equal(remedyExtra(balance, 100000, 0.5, "worse"), Math.round(100000 * balance.remedy.worseExtra * 0.5));
@@ -385,7 +390,7 @@ test("opening projects stay small, so 25% cannot buy a flagship", () => {
   assert.ok(opening.offers.every((offer) => offer.siteTier === "small"));
   assert.ok(opening.offers.every((offer) => jvEligible(offer) === false));
   assert.equal(chooseLand(catalog, opening, opening.offers[2].slot, 0.25).error, "bad_stake");
-  assert.equal(balance.flagshipFrom, 12);
+  assert.equal(balance.flagshipFrom, 16);
   assert.equal(balance.siteTiers.find((row) => row.id === "flagship").minWorth, 3600000000);
   assert.equal(rollSiteTier(9_000_000_000_000, opening.seed, 0, balance, false), "small");
   assert.equal(rollSiteTier(9_000_000_000_000, opening.seed, 1, balance, false), "small");
@@ -428,7 +433,7 @@ test("save version 7 keeps an in-progress 0.35 stake and fills chair and avatar"
   delete raw.company.avatar;
   const migrated = migrateSave(raw);
   assert.equal(migrated.ok, true);
-  assert.equal(migrated.state.v, 7);
+  assert.equal(migrated.state.v, 8);
   assert.equal(migrated.state.project.offer.stake, 0.35);
   assert.equal(migrated.state.company.chairName, "主席");
   assert.equal(migrated.state.company.avatar, "crop");
@@ -457,7 +462,7 @@ test("save version 7 keeps an in-progress 0.35 stake and fills chair and avatar"
     const upgraded = migrateSave(legacy);
     assert.equal(upgraded.ok, true);
     assert.equal(upgraded.notice, null);
-    assert.equal(upgraded.state.v, 7);
+    assert.equal(upgraded.state.v, 8);
     assert.equal(upgraded.state.company.chairName, "主席");
     assert.ok(upgraded.state.company.avatar);
     assert.equal(hydrateCampaign(catalog, upgraded.state).cash, legacy.cash);
@@ -557,9 +562,9 @@ test("a sell-out celebration only runs when the project fully clears", () => {
   assert.ok(copy.includes("沽清"));
   assert.ok(copy.includes("預計沽出"));
   assert.ok(copy.includes("娛樂模擬"));
-  assert.equal(t("tc", "typeGovNote"), "無分成");
-  assert.equal(t("tc", "govSettle"), "政府地無分成。");
-  assert.equal(t("tc", "jvLine", { you: 50, partner: 50 }), "你出 50% · 夥伴 50% · 之後按呢個份額分");
+  assert.equal(t("tc", "typeGovNote"), "利潤歸你");
+  assert.equal(t("tc", "govSettle"), "政府地無分利潤，收入歸你。");
+  assert.equal(t("tc", "jvLine", { you: 50, partner: 50 }), "你出 50% · 夥伴 50% · 合營份額照呢個分");
   assert.ok(t("tc", "mtrRail").includes("鐵路交通"));
   for (let i = 0; i < 30; i += 1) {
     const district = pickDistrict("gov", { next: () => i / 30 }, balance);

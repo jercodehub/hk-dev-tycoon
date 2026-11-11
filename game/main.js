@@ -11,6 +11,7 @@ import {
   campaignHeat,
   canAddUnit,
   celebrateClear,
+  closingLine,
   chooseContractor,
   chooseLand,
   chooseRemedy,
@@ -29,6 +30,7 @@ import {
   gfaUsed,
   heatProjectsLeft,
   hydrateCampaign,
+  loanAdjustments,
   isTutorial,
   jvEligible,
   migrateSave,
@@ -37,12 +39,13 @@ import {
   mixPreset,
   popularityNote,
   priceRemedy,
+  policyNotes,
+  poolMultipliers,
   projectNumber,
   projectPresetMix,
   remedyExtra,
   renameProject,
   resolveSale,
-  saleBatches,
   saleForecast,
   saleLedger,
   saleReveal,
@@ -53,7 +56,11 @@ import {
   sizePools,
   skipLand,
   stakeOf,
+  towerShares,
+  towerWord,
   unitPopularity,
+  unlockedAchievements,
+  victoryTitle,
   unitRowNote,
   updateCompany,
 } from "./campaign.js";
@@ -95,6 +102,10 @@ const ui = {
   historyFocus: null,
   thaw: null,
   lapse: false,
+  ceremony: false,
+  flourish: false,
+  toast: null,
+  toastQueue: [],
   teach: null,
   similarOpen: true,
   ignoreClick: false,
@@ -102,6 +113,9 @@ const ui = {
 
 let saleTimer = null;
 let lapseTimer = null;
+let ceremonyTimer = null;
+let toastTimer = null;
+let flourishTimer = null;
 const app = document.querySelector("#app");
 
 function escapeHtml(value) {
@@ -237,7 +251,12 @@ function loanBaseCost() {
 }
 
 function funding(mode = "cash") {
-  return fundBuild(ui.catalog.balance, { cash: ui.state?.cash || 0, cost: loanBaseCost(), mode });
+  return fundBuild(ui.catalog.balance, {
+    cash: ui.state?.cash || 0,
+    cost: loanBaseCost(),
+    mode,
+    adjust: loanAdjustments(ui.state),
+  });
 }
 
 function yellowBanner() {
@@ -311,12 +330,95 @@ function frozenInfo(state) {
   return { amount, left };
 }
 
+function freshAchievements(before, after) {
+  const seen = new Set(before?.seenAchievements || []);
+  return unlockedAchievements(after, ui.catalog.balance).filter((id) => !seen.has(id));
+}
+
+function remember(ids) {
+  if (!ui.state || !ids?.length) return;
+  const seen = new Set(ui.state.seenAchievements || []);
+  for (const id of ids) seen.add(id);
+  ui.state = { ...ui.state, seenAchievements: [...seen] };
+}
+
+function stopCeremony() {
+  if (ceremonyTimer) {
+    clearTimeout(ceremonyTimer);
+    ceremonyTimer = null;
+  }
+}
+
+function stopToast() {
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+}
+
+function stopFlourish() {
+  if (flourishTimer) {
+    clearTimeout(flourishTimer);
+    flourishTimer = null;
+  }
+}
+
+function armToast() {
+  if (ui.ceremony || ui.toast || !(ui.toastQueue || []).length) return;
+  const id = ui.toastQueue.shift();
+  remember([id]);
+  ui.toast = id;
+  stopToast();
+  toastTimer = setTimeout(() => {
+    ui.toast = null;
+    armToast();
+    render();
+  }, reducedMotion() ? 400 : 1600);
+}
+
+function queueToasts(before, after) {
+  const fresh = freshAchievements(before, after);
+  const sellout = after.phase === "settle" && celebrateClear(after.project?.sale?.outcome);
+  if (sellout) {
+    remember(fresh.filter((id) => id === "clear"));
+    ui.toastQueue = fresh.filter((id) => id !== "clear");
+    if (!ui.ceremony) armToast();
+    return;
+  }
+  ui.toastQueue = fresh.filter((id) => id !== "clear" || after.phase !== "settle");
+  if (!ui.ceremony) armToast();
+}
+
+function beginCeremony() {
+  stopCeremony();
+  ui.ceremony = !reducedMotion();
+  if (!ui.ceremony) return;
+  ceremonyTimer = setTimeout(() => {
+    ceremonyTimer = null;
+    ui.ceremony = false;
+    armToast();
+    render();
+  }, 1600);
+}
+
+function beginFlourish() {
+  stopFlourish();
+  ui.flourish = !reducedMotion();
+  if (!ui.flourish) return;
+  flourishTimer = setTimeout(() => {
+    flourishTimer = null;
+    ui.flourish = false;
+    render();
+  }, 1600);
+}
+
 function apply(result) {
   if (!result.ok) {
     ui.error = result.error;
     render();
     return;
   }
+  const before = ui.state;
   const released = Math.max(0, frozenTotal(ui.state) - frozenTotal(result.state));
   ui.state = result.state;
   ui.error = null;
@@ -327,6 +429,15 @@ function apply(result) {
   }
   if (ui.state.phase !== "build") ui.build = null;
   if (ui.state.phase !== "sell") ui.lapse = false;
+  ui.ceremony = false;
+  stopCeremony();
+  if (ui.state.phase === "settle" && celebrateClear(ui.state.project?.sale?.outcome)) beginCeremony();
+  if (ui.state.phase === "summary") beginFlourish();
+  else {
+    ui.flourish = false;
+    stopFlourish();
+  }
+  queueToasts(before, ui.state);
   persist();
   render();
 }
@@ -434,15 +545,19 @@ function shareSentence(stake) {
 
 function landCard(offer) {
   const broke = ui.state.cash < offer.landTotal;
-  const deal = offer.partnerRate <= 0
-    ? t(ui.lang, "typeGovNote")
-    : `${t(ui.lang, typeNote(offer.type))} ${t(ui.lang, "shareOf", { pct: `${Math.round(offer.partnerRate * 100)}%` })}`;
-  const rail = offer.type === "mtr"
-    ? `<p class="deal rail">${t(ui.lang, "mtrRail")} <span class="badge badge-game">${t(ui.lang, "gameMark")}</span></p>`
-    : "";
+  const pct = Math.round((offer.profitShare || 0) * 100);
+  const deal = offer.type === "mtr"
+    ? `${t(ui.lang, "mtrCut")} ${pct}%`
+    : offer.type === "ura"
+      ? `${t(ui.lang, "uraCut")} ${pct}%`
+      : t(ui.lang, "typeGovNote");
+  const venture = jvEligible(offer) ? ` · ${t(ui.lang, "partnerShare")}` : "";
+  const priceName = offer.type === "ura" ? t(ui.lang, "upfrontCost") : t(ui.lang, "landCost");
+  const rail = offer.type === "mtr" ? `<p class="deal rail">${t(ui.lang, "mtrRail")}</p>` : "";
   const body = `<div class="head"><h3>${t(ui.lang, "slot", { slot: offer.slot })} · ${t(ui.lang, typeKey(offer.type))}</h3>${stamp(offer.verdict)}</div>
     <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${formatCount(offer.gfaFt2)} ${t(ui.lang, "ft")} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
-    <p class="fine plot-price">${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)} · ${deal}</p>${rail}`;
+    <p class="fine plot-price">${priceName} ${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)}</p>
+    <p class="fine ledger-preview">${deal}${venture}</p>${rail}`;
   if (!jvEligible(offer)) {
     return `<button class="choice plot" data-action="buy" data-slot="${offer.slot}" data-stake="1" ${broke ? "disabled" : ""}>
       ${body}
@@ -510,6 +625,7 @@ function buildView() {
     heat,
     buyer: ui.state.market?.buyer || 1,
     bias: ui.state.poolBias || {},
+    poolMul: poolMultipliers(ui.state),
   });
   const picked = ui.build.contractor ? contractorQuote(ui.catalog, ui.state, ui.build.contractor) : null;
   const costPsf = picked ? picked.buildPerFt2 : offer.estBuildPerFt2;
@@ -545,7 +661,7 @@ function buildView() {
     ["luxury", "presetLuxury"],
   ].map(([id, key]) => `<button class="chip" data-action="mix-preset" data-id="${id}">${t(ui.lang, key)}</button>`).join("");
   const loans = ["cash", "small", "big"].map((mode) => {
-    const quote = fundBuild(ui.catalog.balance, { cash: ui.state.cash, cost: loanBaseCost(), mode });
+    const quote = funding(mode);
     const on = (ui.build.loan || "cash") === mode;
     const key = mode === "big" ? "creditBig" : mode === "small" ? "creditSmall" : "creditCash";
     const sub = quote.principal > 0
@@ -831,6 +947,7 @@ function sellSetup() {
       <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
       <div class="chips price-chips">${priceChips()}</div>
       ${forecastBlock(forecast)}
+      ${towerRow(offer.units || quote.units, 0, { empty: true })}
       ${salePnl(ui.sale.choices)}
       ${similarPeek()}
       ${promoRow()}
@@ -888,16 +1005,22 @@ function barsFromQuote(quote) {
   return bars;
 }
 
-function fillMarks(quote, shown) {
-  const batch = saleBatches(quote.units);
-  if (!batch) {
-    const dots = 24;
-    const lit = quote.units ? Math.round((dots * shown) / quote.units) : 0;
-    return `<div class="dots" id="dots">${Array.from({ length: dots }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("")}</div>`;
+function towerRow(units, sold, { empty = false, gold = false } = {}) {
+  if (empty) {
+    const count = Math.max(2, towerShares(units || 0, 0).length);
+    return `<div class="towers towers-empty" data-towers>${Array.from({ length: count }, (_, index) => `<button type="button" class="tower empty" data-action="floor" data-index="${index}"><i></i><b>—</b><small>${t(ui.lang, "planEmpty")}</small></button>`).join("")}</div>`;
   }
-  const lit = quote.units ? Math.round((batch.blocks * shown) / quote.units) : 0;
-  return `<p class="fine">${t(ui.lang, "batchLabel")} · ${t(ui.lang, "batchEach", { n: formatCount(batch.per) })}</p>
-    <div class="blocks" id="blocks">${Array.from({ length: batch.blocks }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("")}</div>`;
+  const rows = towerShares(units, sold);
+  return `<div class="towers${gold ? " towers-gold" : ""}" data-towers>${rows.map((row) => {
+    const word = towerWord(row.pct);
+    const key = word === "clear" ? "outcomeClear" : word === "hot" ? "toneHot" : word === "steady" ? "toneSteady" : "toneQuiet";
+    const tone = word === "clear" ? "gold" : word;
+    return `<button type="button" class="tower ${tone}" data-action="floor" data-index="${row.index}"><i></i><b data-tower-pct="${row.index}">${row.pct}%</b><small data-tower-word="${row.index}">${t(ui.lang, key)}</small></button>`;
+  }).join("")}</div>`;
+}
+
+function fillMarks(quote, shown) {
+  return towerRow(quote.units, shown, { gold: quote.outcome === "clear" && shown >= quote.units && quote.units > 0 });
 }
 
 function sellLive() {
@@ -953,9 +1076,7 @@ function launchSale() {
     const live = currentQuote();
     const reveal = revealNow(live);
     const tProgress = Math.min(1, (performance.now() - ui.sale.started) / 7000);
-    const batch = saleBatches(live.units);
-    let target = Math.min(reveal.shown, Math.round(reveal.shown * Math.min(1, 0.25 + 0.75 * tProgress)));
-    if (batch && target > 0) target = Math.min(reveal.shown, Math.ceil(target / batch.per) * batch.per);
+    const target = Math.min(reveal.shown, Math.round(reveal.shown * Math.min(1, 0.25 + 0.75 * tProgress)));
     if (target > ui.sale.shownSold) {
       ui.sale.pops.unshift({ text: `+${target - ui.sale.shownSold}` });
       ui.sale.pops = ui.sale.pops.slice(0, 3);
@@ -989,16 +1110,19 @@ function paintSale(quote, tProgress) {
   }
   const pops = document.querySelector("#pops");
   if (pops) pops.innerHTML = ui.sale.pops.map((pop) => `<span class="pop">${escapeHtml(pop.text)}</span>`).join("");
-  const dots = document.querySelector("#dots");
-  if (dots) {
-    const lit = quote.units ? Math.round((24 * ui.sale.shownSold) / quote.units) : 0;
-    dots.innerHTML = Array.from({ length: 24 }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("");
-  }
-  const blocks = document.querySelector("#blocks");
-  if (blocks) {
-    const batch = saleBatches(quote.units);
-    const lit = batch && quote.units ? Math.round((batch.blocks * ui.sale.shownSold) / quote.units) : 0;
-    blocks.innerHTML = Array.from({ length: batch?.blocks || 0 }, (_, index) => `<i class="${index < lit ? "sold" : ""}"></i>`).join("");
+  const towers = document.querySelector("[data-towers]");
+  if (towers) {
+    const rows = towerShares(quote.units, ui.sale.shownSold);
+    rows.forEach((row) => {
+      const pct = towers.querySelector(`[data-tower-pct="${row.index}"]`);
+      const word = towers.querySelector(`[data-tower-word="${row.index}"]`);
+      const button = word?.closest(".tower");
+      const tone = towerWord(row.pct);
+      const key = tone === "clear" ? "outcomeClear" : tone === "hot" ? "toneHot" : tone === "steady" ? "toneSteady" : "toneQuiet";
+      if (pct) pct.textContent = `${row.pct}%`;
+      if (word) word.textContent = t(ui.lang, key);
+      if (button) button.className = `tower ${tone === "clear" ? "gold" : tone}`;
+    });
   }
   const cheerLeftText = cheerNote(ui.catalog.balance.cheerMax - ui.sale.choices.cheer);
   for (const note of document.querySelectorAll("[data-action='cheer'] small")) note.textContent = cheerLeftText;
@@ -1032,9 +1156,6 @@ function settleView() {
   const preview = settlementPreview(ui.catalog, ui.state);
   const cls = sale.profit >= 0 ? "ok" : "bad";
   const sign = sale.profit >= 0 ? "+" : "";
-  const partner = stakeOf(project.offer) < 1 || project.offer.partnerRate > 0
-    ? row(t(ui.lang, "partnerShare"), formatHkd(sale.partnerShare))
-    : row(t(ui.lang, "partnerShare"), t(ui.lang, "noShareLine"));
   const owed = preview.owed > 0 ? `<p class="mismatch-line owed-line">${t(ui.lang, "stillOwed", { owed: compactHkd(preview.owed) })}</p>` : "";
   const loanLine = project.loan?.principal > 0
     ? row(t(ui.lang, "loanRow"), t(ui.lang, "creditTerms", {
@@ -1044,31 +1165,43 @@ function settleView() {
     }))
     : "";
   const party = celebrateClear(sale.outcome);
-  const confetti = party
+  const motion = party && ui.ceremony && !reducedMotion();
+  const confetti = motion
     ? `<div class="confetti" aria-hidden="true">${Array.from({ length: 10 }, () => "<i></i>").join("")}</div>`
     : "";
-  const stampClear = party ? `<p class="clear-stamp">${t(ui.lang, "outcomeClear")}</p>` : "";
-  return `${bridgeBanner()}<section class="card${party ? " clear-card" : ""}"><h2>${t(ui.lang, "settleKicker")}</h2>
+  const stampClear = party ? `<p class="clear-stamp${motion ? "" : " is-static"}">${t(ui.lang, "outcomeClear")}</p>` : "";
+  const landKey = project.offer.type === "ura" ? "upfrontCost" : "landCost";
+  const cut = project.offer.type === "ura" ? "uraCut" : project.offer.type === "mtr" ? "mtrCut" : "";
+  const pct = Math.round((sale.profitShare || 0) * 100);
+  const shareLine = cut && sale.partnerShare > 0
+    ? row(`${t(ui.lang, cut)} ${pct}%`, formatHkd(sale.partnerShare))
+    : project.offer.type === "gov"
+      ? row(t(ui.lang, "mtrCut"), t(ui.lang, "noShareLine"))
+      : "";
+  const stake = stakeOf(project.offer);
+  const youLine = stake < 1 ? row(t(ui.lang, "partnerShare"), t(ui.lang, "ledgerYou", { pct: Math.round(stake * 100) })) : "";
+  const promo = (sale.promoFull || 0) > 0 ? row(t(ui.lang, "promoBill"), formatHkd(sale.promoFull)) : "";
+  return `${bridgeBanner()}<section class="card${party ? " clear-card" : ""}" data-action="skip-ceremony"><h2>${t(ui.lang, "settleKicker")}</h2>
     ${stampClear}
     ${confetti}
+    ${towerRow(sale.units, sale.sold, { gold: party })}
     ${outcomeLine(sale)}
-    <div class="big-profit ${cls}">${sign}${formatHkd(sale.profit)}</div>
+    ${row(t(ui.lang, "repChange"), `${sale.reputationDelta >= 0 ? "+" : ""}${sale.reputationDelta}`)}
+    ${sale.clearBonus ? row(t(ui.lang, "clearBonus"), `+${formatHkd(sale.clearBonus)}`) : ""}
     <p class="fine">${escapeHtml(districtLabel(ui.lang, project.offer.district))} · ${t(ui.lang, flavourKey(project.offer.flavour))} · ${t(ui.lang, typeKey(project.offer.type))}</p>
     ${project.offer.type === "gov" ? `<p class="deal">${t(ui.lang, "govSettle")}</p>` : ""}
-    ${row(t(ui.lang, "saleIn"), formatHkd(sale.gross))}
-    ${sale.showflatCost ? row(t(ui.lang, "showflatCost"), formatHkd(sale.showflatCost)) : ""}
-    ${sale.rebateCost ? row(t(ui.lang, "rebate"), formatHkd(sale.rebateCost)) : ""}
-    ${sale.adCost ? row(t(ui.lang, "ad"), formatHkd(sale.adCost)) : ""}
-    ${partner}
-    ${sale.unsold > 0 && sale.fireNet ? row(t(ui.lang, "fireSale"), formatHkd(sale.fireNet)) : ""}
+    ${row(t(ui.lang, "saleIn"), formatHkd(sale.revenue || sale.gross))}
+    ${row(t(ui.lang, landKey), formatHkd(sale.landFull || project.offer.landTotal))}
+    ${row(t(ui.lang, "buildCost"), formatHkd(sale.buildFull || project.contractor.total))}
+    ${promo}
+    ${shareLine}
+    ${youLine}
+    <div class="big-profit ${cls}">${sign}${formatHkd(sale.profit)}</div>
     ${sale.frozenAmount ? `<p class="fine">${t(ui.lang, "frozenLine", { cash: formatHkd(sale.frozenAmount) })}</p>` : ""}
     ${gapLine(sale)}
     ${mismatchEcho(project) ? `<p class="mismatch-line">${t(ui.lang, "mismatchTitle")}</p>` : ""}
-    ${row(t(ui.lang, "landCost"), formatHkd(project.offer.landPaid ?? project.offer.landTotal))}
     ${project.contractor.collapsed ? `${row(t(ui.lang, "quoteCost"), formatHkd(project.contractor.cost))}${row(t(ui.lang, "remedyExtra"), formatHkd(project.contractor.extra || (project.contractor.total - project.contractor.cost)))}` : ""}
-    ${row(t(ui.lang, "buildCost"), formatHkd(project.contractor.total))}
     ${loanLine}
-    ${row(t(ui.lang, "repChange"), `${sale.reputationDelta >= 0 ? "+" : ""}${sale.reputationDelta}`)}
     ${liveComment() ? `<p class="rep-line">${escapeHtml(t(ui.lang, liveComment()))}</p>` : ""}
     ${row(t(ui.lang, "soldNow"), `${sale.sold} / ${sale.units}`)}
     ${row(t(ui.lang, "cashNow"), compactHkd(preview.cash))}
@@ -1086,6 +1219,8 @@ function storyView() {
 }
 
 function effectLine(choice) {
+  if (ui.lang === "en" && choice.costEn) return choice.costEn;
+  if (choice.cost) return choice.cost;
   const bits = [];
   if (choice.rep) bits.push(`${t(ui.lang, "reputation")} ${choice.rep > 0 ? "+" : ""}${choice.rep}`);
   if (choice.cash) bits.push(compactHkd(choice.cash));
@@ -1108,22 +1243,68 @@ function flagText(id) {
   return id;
 }
 
+function titleKey(id) {
+  return {
+    megaChair: "titleMegaChair",
+    mega: "titleMega",
+    comeback: "titleComeback",
+    clear: "titleClear",
+    flagship: "titleFlagship",
+    chair: "titleChair",
+  }[id] || "";
+}
+
+function achievementKey(id) {
+  return { clear: "achClear", mega: "achMega", flagship: "achFlagship", comeback: "achComeback", finished: "achDone" }[id] || "";
+}
+
+function skylineMarkup(history, { boarded = false } = {}) {
+  if (boarded) {
+    return `<div class="skyline boarded" aria-hidden="true">${[34, 52, 70, 44].map((height) => `<i style="height:${height}px"></i>`).join("")}</div>`;
+  }
+  const groups = { small: 0, mid: 0, large: 0, flagship: 0, mega: 0 };
+  for (const item of history || []) {
+    if (!item || item.skipped) continue;
+    if ((item.units || 0) >= 10000) groups.mega += 1;
+    else groups[item.siteTier || "small"] += 1;
+  }
+  const specs = [["small", 28], ["mid", 40], ["large", 56], ["flagship", 72], ["mega", 88]];
+  const towers = specs.filter(([id]) => groups[id] > 0).map(([id, height]) => `<i class="sky ${id}" style="height:${height}px"><b>${groups[id]}</b></i>`);
+  const body = towers.length ? towers.join("") : `<i class="sky small" style="height:36px"></i>`;
+  return `<div class="skyline" aria-hidden="true">${body}</div>`;
+}
+
 function summaryView() {
   const summary = endSummary(ui.state);
-  const flags = Object.keys(summary.flags);
-  const rows = summary.history.map((item) => {
-    if (item.skipped) return `<li><span>${item.index} · ${t(ui.lang, "skip")}</span><strong>0</strong></li>`;
-    const sign = item.profit >= 0 ? "+" : "";
-    const title = item.name || districtLabel(ui.lang, item.district);
-    return `<li><span>${item.index} · ${escapeHtml(title)}</span><strong>${sign}${compactHkd(item.profit)}</strong></li>`;
-  }).join("");
-  return `<section class="card"><h2>${t(ui.lang, "summaryKicker")}</h2>
-    <p class="note">${escapeHtml(ui.state.company.name)}</p>
-    ${row(t(ui.lang, "cash"), formatHkd(summary.cash))}
-    ${row(t(ui.lang, "reputation"), String(summary.reputation))}
-    ${row(t(ui.lang, "summarySold"), String(summary.unitsSold))}
-    <p class="fine">${t(ui.lang, "summaryFlags")} · ${flags.length ? flags.map((id) => escapeHtml(flagText(id))).join(" · ") : t(ui.lang, "noFlags")}</p>
-    <ul class="history">${rows}</ul>
+  const company = ui.state.company;
+  const titleId = victoryTitle(ui.state, ui.catalog.balance);
+  const seal = titleId ? `<p class="title-seal${ui.flourish ? " live" : ""}">${t(ui.lang, titleKey(titleId))}</p>` : "";
+  const chips = [];
+  if ((summary.history || []).some((item) => item.outcome === "clear")) chips.push(t(ui.lang, "achClear"));
+  if ((summary.history || []).some((item) => !item.skipped && (item.units || 0) >= 10000)) chips.push(t(ui.lang, "achMega"));
+  if (ui.state.credit?.hadYellow) chips.push(t(ui.lang, "achComeback"));
+  const chipRow = chips.length ? `<div class="chips highlight-chips">${chips.slice(0, 3).map((chip) => `<span class="chip on">${escapeHtml(chip)}</span>`).join("")}</div>` : "";
+  const seals = unlockedAchievements(ui.state, ui.catalog.balance);
+  const sealRow = seals.length
+    ? `<div class="seal-row">${seals.map((id) => `<span class="mini-seal">${t(ui.lang, achievementKey(id))}</span>`).join("")}</div>`
+    : "";
+  const startCash = ui.catalog.balance.startingCash;
+  const startRep = ui.catalog.balance.startingReputation;
+  return `<section class="card ending-card${ui.flourish ? " flourish" : ""}" data-action="skip-flourish">
+    <div class="ending-brand">${logoSvg(company.logo, company.color, company.name)}<h2>${escapeHtml(company.name)}</h2></div>
+    ${skylineMarkup(summary.history)}
+    <p class="story-line">${escapeHtml(closingLine(ui.state, ui.catalog.balance))}</p>
+    ${chipRow}
+    ${seal}
+    <div class="compare">
+      <div><span>${t(ui.lang, "compareStart")}</span><strong>${compactHkd(startCash)}</strong><small>${t(ui.lang, "reputation")} ${startRep}</small></div>
+      <div><span>${t(ui.lang, "compareEnd")}</span><strong>${compactHkd(summary.cash)}</strong><small>${t(ui.lang, "reputation")} ${summary.reputation}</small></div>
+    </div>
+    ${sealRow}
+    <div class="record-links">
+      <button type="button" class="ghost" data-action="history">${t(ui.lang, "records")}</button>
+      <button type="button" class="ghost" data-action="locked">${t(ui.lang, "locked")}</button>
+    </div>
   </section>`;
 }
 
@@ -1161,9 +1342,16 @@ function mismatchView() {
 
 function gameOverView() {
   const owed = ui.state.credit?.owed || 0;
-  return `<section class="card">
-    <h2>${t(ui.lang, "gameOverTitle")}</h2>
+  const company = ui.state.company;
+  return `<section class="card ending-card muted">
+    <div class="ending-brand">${logoSvg(company.logo, company.color, company.name)}<h2>${escapeHtml(company.name)}</h2></div>
+    ${skylineMarkup(ui.state.history, { boarded: true })}
+    <h3>${t(ui.lang, "gameOverTitle")}</h3>
     <p class="story-line">${t(ui.lang, "gameOverBody", { owed: compactHkd(owed) })}</p>
+    <div class="compare">
+      <div><span>${t(ui.lang, "cash")}</span><strong>${compactHkd(ui.state.cash)}</strong></div>
+      <div><span>${t(ui.lang, "reputation")}</span><strong>${ui.state.reputation}</strong></div>
+    </div>
     <p class="fine">${t(ui.lang, "gameOverNote")}</p>
   </section>`;
 }
@@ -1201,8 +1389,14 @@ function identityFields() {
 
 function companyView() {
   return `<section class="card company-card">
-      <p class="kicker">${t(ui.lang, "companyKicker")}</p>
-      <p class="note">${t(ui.lang, "companyLead")}</p>
+      <div class="hoarding" style="--brand:${ui.draft.color}">
+        ${skylineMarkup([], { boarded: true })}
+        <div class="hoarding-sign">${logoSvg(ui.draft.logo, ui.draft.color, ui.draft.name)}<strong>${escapeHtml(ui.draft.name || t(ui.lang, "gameTitle"))}</strong></div>
+      </div>
+      <h1 class="game-title">${t(ui.lang, "gameTitle")}</h1>
+      <p class="game-sub">${t(ui.lang, "gameSub")}</p>
+      <p class="note">${t(ui.lang, "disclaimer")}</p>
+      <p class="fine">${t(ui.lang, "companyLead")}</p>
       ${identityFields()}
     </section>`;
 }
@@ -1270,7 +1464,10 @@ function hud() {
   const step = ui.state ? t(ui.lang, stepKey(ui.state.phase)) : t(ui.lang, "stepCompany");
   const heat = ui.state ? campaignHeat(ui.state, ui.catalog.balance) : null;
   const heatWord = heat === "loose" ? t(ui.lang, "heatLoose") : heat === "spicy" ? t(ui.lang, "heatSpicy") : "—";
+  const heatNote = heat === "loose" ? t(ui.lang, "heatLooseNote") : heat === "spicy" ? t(ui.lang, "heatSpicyNote") : "";
   const heatLeft = ui.state ? t(ui.lang, "heatLeft", { n: heatProjectsLeft(ui.state, ui.catalog.balance) }) : "";
+  const heatSmall = heatNote ? `${heatNote}${heatLeft ? ` · ${heatLeft}` : ""}` : heatLeft;
+  const policy = ui.state ? policyNotes(ui.state) : [];
   const comment = ui.state ? liveComment() : null;
   const frozen = ui.state ? frozenInfo(ui.state) : null;
   const thaw = ui.thaw ? `<small class="thaw">${t(ui.lang, "thawTick", { cash: compactHkd(ui.thaw) })}</small>` : "";
@@ -1291,7 +1488,7 @@ function hud() {
     <div class="stats">
       <div class="stat stat-cash"><span class="k">${t(ui.lang, "cash")}</span><strong>${compactHkd(cash)}</strong>${thaw}</div>
       <div class="stat stat-rep"><span class="k">${t(ui.lang, "reputation")}</span><strong>${rep}</strong></div>
-      <div class="stat stat-heat heat-stat ${heat || ""}"><span class="k">${t(ui.lang, "heatName")}</span><strong>${heatWord}</strong>${heatLeft ? `<small>${heatLeft}</small>` : ""}</div>
+      <div class="stat stat-heat heat-stat ${heat || ""}"><span class="k">${t(ui.lang, "heatName")}</span><strong>${heatWord}</strong>${heatSmall ? `<small>${heatSmall}</small>` : ""}</div>
       <div class="stat stat-project"><span class="k">${t(ui.lang, "project")}</span><strong>${number ? `${number} / ${projects}` : `— / ${projects}`}</strong></div>
       <div class="stat stat-next"><span class="k">${t(ui.lang, "nextStep")}</span><strong>${step}</strong></div>
       ${frozen ? `<div class="stat stat-frozen"><span class="k">${t(ui.lang, "frozenChip")}</span><strong>${compactHkd(frozen.amount)}</strong><small>${t(ui.lang, "frozenLeft", { n: frozen.left })}</small></div>` : ""}
@@ -1302,6 +1499,7 @@ function hud() {
       ${ui.state ? `<button class="ghost" data-action="menu">${t(ui.lang, "menu")}</button>` : ""}
     </div>
     ${sellRow}
+    ${policy.length ? `<p class="policy-line">${escapeHtml(policy.join(" · "))}</p>` : ""}
     ${comment ? `<p class="hud-comment">${escapeHtml(t(ui.lang, comment))}</p>` : ""}
   </header>`;
 }
@@ -1365,6 +1563,37 @@ function historyDetail(item) {
     ${fact(t(ui.lang, "historyRep"), item.reputationDelta == null ? "—" : signed(item.reputationDelta))}`;
 }
 
+function floorPlan() {
+  return `<svg class="floor-plan" viewBox="0 0 160 100" aria-hidden="true">
+    <rect x="4" y="4" width="152" height="92" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>
+    <path d="M4 62 H100 V4 M100 40 H156 M58 62 V96" fill="none" stroke="currentColor" stroke-width="2"/>
+    <text x="32" y="36" text-anchor="middle">廳</text>
+    <text x="128" y="28" text-anchor="middle">房</text>
+    <text x="40" y="82" text-anchor="middle">廚</text>
+  </svg>`;
+}
+
+function floorDrawer() {
+  if (ui.drawer !== "plan" || !ui.state) return "";
+  return `<div class="drawer" data-action="close-drawer"><div class="drawer-panel" data-action="stop">
+    <div class="head"><h3>${t(ui.lang, "floorTitle")}</h3><button class="ghost drawer-close" data-action="close-drawer">${t(ui.lang, "closeDrawer")}</button></div>
+    <div class="drawer-body">${floorPlan()}<p class="note">${t(ui.lang, "floorNote")}</p></div>
+  </div></div>`;
+}
+
+function lockedDrawer() {
+  if (ui.drawer !== "locked" || !ui.state) return "";
+  const have = new Set(unlockedAchievements(ui.state, ui.catalog.balance));
+  const slots = ["clear", "mega", "flagship", "comeback", "finished"].map((id) => {
+    if (!have.has(id)) return `<span class="mini-seal empty" aria-hidden="true"></span>`;
+    return `<span class="mini-seal">${t(ui.lang, achievementKey(id))}</span>`;
+  }).join("");
+  return `<div class="drawer" data-action="close-drawer"><div class="drawer-panel" data-action="stop">
+    <div class="head"><h3>${t(ui.lang, "locked")}</h3><button class="ghost drawer-close" data-action="close-drawer">${t(ui.lang, "closeDrawer")}</button></div>
+    <div class="drawer-body"><div class="seal-row slots">${slots}</div></div>
+  </div></div>`;
+}
+
 function historyDrawer() {
   if (ui.drawer !== "history" || !ui.state) return "";
   const items = [...(ui.state.history || [])].reverse();
@@ -1415,6 +1644,7 @@ function render() {
   if (!ui.catalog) return;
   if (ui.state?.phase !== "sell" || ui.lapse || ui.teach) stopSaleTimer();
   document.documentElement.lang = ui.lang === "en" ? "en" : "zh-Hant";
+  document.title = t(ui.lang, "title");
   const phase = !ui.state ? "company" : ui.lapse ? "lapse" : ui.teach ? "mismatch" : needsRemedy() ? "remedy" : ui.state.phase;
   app.innerHTML = `${hud()}
     <div class="shell" data-phase="${phase}">
@@ -1424,7 +1654,10 @@ function render() {
     ${dock()}
     ${menuOverlay()}
     ${identityOverlay()}
-    ${historyDrawer()}`;
+    ${historyDrawer()}
+    ${floorDrawer()}
+    ${lockedDrawer()}
+    ${ui.toast ? `<button type="button" class="toast" data-action="toast-dismiss">${t(ui.lang, achievementKey(ui.toast))}<small>${t(ui.lang, "toastDismiss")}</small></button>` : ""}`;
   if (ui.renaming) {
     const field = document.querySelector("#project-name");
     if (field) {
@@ -1552,6 +1785,39 @@ function onClick(event) {
     ui.drawer = "history";
     ui.historyFocus = null;
     ui.menu = false;
+    render();
+    return;
+  }
+  if (action === "locked") {
+    ui.drawer = "locked";
+    ui.menu = false;
+    render();
+    return;
+  }
+  if (action === "floor") {
+    ui.drawer = "plan";
+    render();
+    return;
+  }
+  if (action === "toast-dismiss") {
+    ui.toast = null;
+    stopToast();
+    armToast();
+    render();
+    return;
+  }
+  if (action === "skip-ceremony") {
+    if (!ui.ceremony) return;
+    ui.ceremony = false;
+    stopCeremony();
+    armToast();
+    render();
+    return;
+  }
+  if (action === "skip-flourish") {
+    if (!ui.flourish) return;
+    ui.flourish = false;
+    stopFlourish();
     render();
     return;
   }
@@ -1759,7 +2025,12 @@ function onClick(event) {
     ui.sale = null;
     return;
   }
-  if (action === "confirm-settle") apply(confirmSettle(ui.catalog, ui.state));
+  if (action === "confirm-settle") {
+    ui.ceremony = false;
+    stopCeremony();
+    apply(confirmSettle(ui.catalog, ui.state));
+    return;
+  }
   if (action === "story") apply(chooseStory(ui.catalog, ui.state, id));
 }
 

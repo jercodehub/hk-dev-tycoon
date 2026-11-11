@@ -111,12 +111,13 @@ test("unit areas and slider GFA block an over-allocation", () => {
   assert.equal(one.state.project.mix.studio, 1);
 });
 
-test("spicy and loose heat resize pools, and the chip flips every three projects", () => {
+test("spicy and loose heat resize pools, and the chip flips every five projects", () => {
+  assert.equal(balance.heatEvery, 5);
   assert.equal(campaignHeat({ completed: 0, seed: 2 }, balance), "loose");
-  assert.equal(campaignHeat({ completed: 2, seed: 2 }, balance), "loose");
-  assert.equal(campaignHeat({ completed: 3, seed: 2 }, balance), "spicy");
+  assert.equal(campaignHeat({ completed: 4, seed: 2 }, balance), "loose");
   assert.equal(campaignHeat({ completed: 5, seed: 2 }, balance), "spicy");
-  assert.equal(campaignHeat({ completed: 6, seed: 2 }, balance), "loose");
+  assert.equal(campaignHeat({ completed: 9, seed: 2 }, balance), "spicy");
+  assert.equal(campaignHeat({ completed: 10, seed: 2 }, balance), "loose");
   assert.equal(campaignHeat({ completed: 0, seed: 1 }, balance), "spicy");
   const loose = sizePools(catalog, { gfaFt2: 40000, flavour: "uni", heat: "loose" });
   const spicy = sizePools(catalog, { gfaFt2: 40000, flavour: "uni", heat: "spicy" });
@@ -237,8 +238,9 @@ test("a loose market can send one speculator through two or three studios", () =
 
 test("government land skims nothing and does not pile on controversy", () => {
   assert.equal(balance.landTypes.gov.partnerRate, 0);
-  assert.ok(balance.landTypes.ura.partnerRate > balance.landTypes.mtr.partnerRate);
-  assert.ok(balance.landTypes.mtr.partnerRate > 0);
+  assert.equal(balance.landTypes.gov.profitShareMax, 0);
+  assert.ok(balance.landTypes.ura.profitShareMin > balance.landTypes.mtr.profitShareMin);
+  assert.ok(balance.landTypes.mtr.profitShareMin > 0);
   const gov = projectSale("沙田區", { seed: 2 });
   assert.equal(gov.partnerShare, 0);
   const levels = initialMarket();
@@ -250,7 +252,7 @@ test("government land skims nothing and does not pile on controversy", () => {
     reputation: 58,
     market: levels,
     poolBias: {},
-    project: { offer: { ...base, partnerRate: balance.landTypes.ura.partnerRate }, contractor, saleRoll: 1 },
+    project: { offer: { ...base, profitShare: 0.35, landTotal: 1000, landPaid: 1000 }, contractor: { ...contractor, total: 1000, cost: 1000 }, saleRoll: 1 },
   }, { leftover: "cut" });
   assert.ok(ura.partnerShare > 0);
 
@@ -280,31 +282,40 @@ test("government land skims nothing and does not pile on controversy", () => {
 });
 
 test("side stories move reputation, cash, and a buyer pool", () => {
-  assert.ok(STORIES.length >= 12 && STORIES.length <= 16);
-  const ballot = STORIES.find((story) => story.id === "ballot");
-  const choice = ballot.choices.find((item) => item.id === "b");
-  assert.ok(choice.rep < 0);
-  assert.ok(choice.cash > 0);
-  assert.equal(choice.pool.starter, -2);
+  assert.equal(STORIES.length, 10);
+  const loan = STORIES.find((story) => story.id === "loan-guide");
+  const choice = loan.choices.find((item) => item.id === "a");
+  assert.equal(choice.rep, -3);
+  assert.equal(choice.cash, -12000000);
   let state = start(6);
   state = confirmSettle(catalog, skipLand(catalog, state).state).state;
   state.story = {
-    id: ballot.id,
-    tc: ballot.tc,
-    en: ballot.en,
-    controversy: false,
-    choices: ballot.choices.map((item) => ({ ...item, pool: item.pool ? { ...item.pool } : undefined })),
+    id: loan.id,
+    tc: loan.tc,
+    en: loan.en,
+    controversy: true,
+    choices: loan.choices.map((item) => ({ ...item, effects: item.effects.map((effect) => ({ ...effect })) })),
   };
   const cash = state.cash;
   const rep = state.reputation;
-  const next = chooseStory(catalog, state, "b").state;
+  const next = chooseStory(catalog, state, "a").state;
   assert.equal(next.cash, cash + choice.cash);
   assert.equal(next.reputation, rep + choice.rep);
-  assert.equal(next.poolBias.starter, -2);
-  assert.equal(next.flags.stop_while_ahead, true);
+  assert.equal(next.flags.loan_lobby, true);
+  const talent = STORIES.find((story) => story.id === "talent-gate");
+  next.story = {
+    id: talent.id,
+    tc: talent.tc,
+    en: talent.en,
+    choices: talent.choices.map((item) => ({ ...item, effects: item.effects.map((effect) => ({ ...effect })) })),
+  };
+  next.phase = "story";
+  const nudgedState = chooseStory(catalog, next, "b").state;
   const plain = sizePools(catalog, { gfaFt2: 40000, flavour: "starter", heat: "loose", bias: {} });
-  const nudged = sizePools(catalog, { gfaFt2: 40000, flavour: "starter", heat: "loose", bias: next.poolBias });
-  assert.equal(nudged.starter, plain.starter - 2);
+  const nudged = sizePools(catalog, { gfaFt2: 40000, flavour: "starter", heat: "loose", bias: {}, poolMul: { whale: 0.9, couple: 1, starter: 1.12, upgrader: 1, feature: 1 } });
+  assert.ok(nudged.starter > plain.starter);
+  assert.ok(nudged.whale < plain.whale);
+  assert.ok(nudgedState.effects.some((effect) => effect.kind === "pool-local"));
 });
 
 test("a full 20-project run still closes", () => {
@@ -329,8 +340,8 @@ test("a full 20-project run still closes", () => {
     else throw new Error(`stuck in ${state.phase}`);
   }
   assert.equal(state.phase, "summary");
-  assert.equal(state.completed, 20);
-  assert.equal(state.history.length, 20);
+  assert.equal(state.completed, 30);
+  assert.equal(state.history.length, 30);
   assert.ok(state.unitsSold > 0);
 });
 
@@ -393,7 +404,7 @@ test("a renamed project stays in the save, and a phase 3 save upgrades", () => {
   const migrated = migrateSave(legacy);
   assert.equal(migrated.ok, true);
   assert.equal(migrated.notice, null);
-  assert.equal(migrated.state.v, 7);
+  assert.equal(migrated.state.v, 8);
   const upgraded = hydrateCampaign(catalog, migrated.state);
   assert.equal(upgraded.cash, state.cash);
   assert.equal(upgraded.phase, "build");
@@ -450,9 +461,10 @@ test("the sale stays open until the cheer count is used", () => {
   assert.ok(saleReveal(20, 1, 3).shown > saleReveal(20, 0, 3).shown);
   assert.ok(saleReveal(20, 2, 3).shown > saleReveal(20, 1, 3).shown);
   assert.equal(saleReveal(20, 3, 3).shown, 20);
-  assert.equal(heatProjectsLeft({ completed: 0 }, balance), 3);
-  assert.equal(heatProjectsLeft({ completed: 2 }, balance), 1);
-  assert.equal(heatProjectsLeft({ completed: 3 }, balance), 3);
+  assert.equal(heatProjectsLeft({ completed: 0 }, balance), 5);
+  assert.equal(heatProjectsLeft({ completed: 2 }, balance), 3);
+  assert.equal(heatProjectsLeft({ completed: 4 }, balance), 1);
+  assert.equal(heatProjectsLeft({ completed: 5 }, balance), 5);
 });
 
 test("forecast percent, promo, and per-type bars share one pre-cheer model", () => {
@@ -574,7 +586,7 @@ test("unit steppers cannot pass GFA, and build popularity is not a sell-through 
   const pop = unitPopularity("uni", "loose", balance);
   assert.equal(pop.studio.band, "high");
   assert.equal(pop.feature.band, "low");
-  assert.equal(popularityNote("uni", "loose", "high"), "近大學＋鬆");
+  assert.equal(popularityNote("uni", "loose", "high"), "近大學＋收租旺");
   assert.equal(popularityNote("uni", "loose", "mid"), "");
   assert.equal(pop.studio.pct, undefined);
 });
