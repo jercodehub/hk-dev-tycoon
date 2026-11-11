@@ -151,10 +151,20 @@ test("GFA becomes a unit count and every offer is judged against the game market
     if (offer.slot !== "A") {
       assert.ok(offer.gfaFt2 >= spec.gfaMin && offer.gfaFt2 <= spec.gfaMax);
     }
-    assert.equal(offer.partnerRate, spec.partnerRate);
+    assert.ok(offer.profitShare >= (spec.profitShareMin ?? 0) - 1e-9);
+    assert.ok(offer.profitShare <= (spec.profitShareMax ?? 0) + 1e-9);
+    assert.equal(offer.partnerRate, offer.profitShare);
   }
-  assert.ok(state.offers.some((offer) => offer.verdict === "cheap"));
-  assert.ok(state.offers.some((offer) => offer.verdict === "expensive"));
+  let sawCheap = false;
+  let sawExpensive = false;
+  for (let seed = 1; seed <= 16; seed += 1) {
+    for (const offer of start(seed).offers) {
+      if (offer.verdict === "cheap") sawCheap = true;
+      if (offer.verdict === "expensive") sawExpensive = true;
+    }
+  }
+  assert.ok(sawCheap);
+  assert.ok(sawExpensive);
 });
 
 test("district tiers stay game economy and never pose as official district prices", () => {
@@ -237,8 +247,8 @@ test("legacy sale fields no longer set a price, and cheer still clamps", () => {
 });
 
 test("partner share skims URA and MTR more than a government tender", () => {
-  assert.ok(balance.landTypes.ura.partnerRate > balance.landTypes.mtr.partnerRate);
-  assert.ok(balance.landTypes.mtr.partnerRate > balance.landTypes.gov.partnerRate);
+  assert.ok(balance.landTypes.ura.profitShareMin >= balance.landTypes.mtr.profitShareMax);
+  assert.ok(balance.landTypes.mtr.profitShareMin > balance.landTypes.gov.profitShareMax);
   const base = priceOffer(
     { slot: "A", type: "gov", district: "荃灣區", gfaFt2: 30000, premium: 1 },
     initialMarket(),
@@ -247,8 +257,10 @@ test("partner share skims URA and MTR more than a government tender", () => {
   const contractor = { id: "huimen", quality: 1, leak: 0, collapsed: false, total: base.estBuildTotal };
   const choices = { ask: "market", agents: "one", ads: "web", mix: "blend", rebate: "std", cheer: 1 };
   const cuts = ["gov", "mtr", "ura"].map((type) => {
-    const offer = { ...base, type, partnerRate: balance.landTypes[type].partnerRate };
-    return resolveSale(catalog, saleState(offer, contractor), choices).partnerShare;
+    const rate = type === "ura" ? 0.4 : type === "mtr" ? 0.2 : 0;
+    const offer = { ...base, type, profitShare: rate, landTotal: 1000, landPaid: 1000 };
+    const priced = { ...contractor, total: 1000, cost: 1000 };
+    return resolveSale(catalog, saleState(offer, priced), choices).partnerShare;
   });
   assert.ok(cuts[2] > cuts[1]);
   assert.ok(cuts[1] > 0);
@@ -297,9 +309,9 @@ test("a sensible first project can profit and the campaign ends on project 20", 
     }
   }
   assert.equal(state.phase, "summary");
-  assert.equal(state.completed, 20);
-  assert.equal(state.history.length, 20);
-  assert.equal(projectNumber(state), 20);
+  assert.equal(state.completed, 30);
+  assert.equal(state.history.length, 30);
+  assert.equal(projectNumber(state), 30);
   const summary = endSummary(state);
   assert.equal(typeof summary.cash, "number");
   assert.equal(typeof summary.reputation, "number");
@@ -310,16 +322,16 @@ test("a sensible first project can profit and the campaign ends on project 20", 
   assert.ok(state.history.some((item) => item.profit < 0 || item.skipped));
 });
 
-test("twenty passes still close the campaign and a phase 1 save resets", () => {
+test("thirty passes still close the campaign and a phase 1 save resets", () => {
   let state = start(3);
-  for (let i = 0; i < 20; i += 1) {
+  for (let i = 0; i < 30; i += 1) {
     assert.equal(state.phase, "land");
     state = skipLand(catalog, state).state;
     state = confirmSettle(catalog, state).state;
     if (state.phase === "story") state = chooseStory(catalog, state, state.story.choices[0].id).state;
   }
   assert.equal(state.phase, "summary");
-  assert.equal(state.completed, 20);
+  assert.equal(state.completed, 30);
   assert.equal(state.unitsSold, 0);
   assert.ok(Object.keys(state.flags).length > 0);
   assert.notEqual(state.market.price, 1);

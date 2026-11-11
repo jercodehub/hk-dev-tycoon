@@ -1,6 +1,6 @@
 /**
  * Phase 3 campaign. No DOM.
- * One project = land → build → sell → settle → story. A run is 20 projects.
+ * One project = land → build → sell → settle → story. A run is 30 projects.
  * Unit mix, buyer pools, and spicy/loose heat live here.
  * Region prices still scale the model. The screen does not print them.
  */
@@ -8,7 +8,7 @@
 import { DISTRICTS } from "./i18n.js";
 import { STORIES } from "./stories.js";
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 export const JV_SHARES = [0.25, 0.35, 0.5];
 export const UNIT_SPECS = [
   { id: "studio", ft2: 280, pool: "whale" },
@@ -108,8 +108,22 @@ export function createCampaignCatalog({ market, balance }) {
   if (!Array.isArray(balance.drifts) || balance.drifts.length < 4) {
     throw new Error("market drifts missing");
   }
-  if (balance.projects !== 20) throw new Error("campaign is exactly 20 projects");
-  if (balance.landTypes.gov.partnerRate !== 0) throw new Error("government land takes no partner share");
+  if (balance.projects !== 30) throw new Error("campaign is exactly 30 projects");
+  if ((balance.landTypes.gov.partnerRate || 0) !== 0) throw new Error("government land takes no profit share");
+  if ((balance.landTypes.gov.profitShareMax || 0) !== 0) throw new Error("government land takes no profit share");
+  if (balance.heatEvery !== 5) throw new Error("heat flips every 5 projects");
+  if (balance.flagshipFrom !== 16) throw new Error("flagship window opens at project 16");
+  const mtrShare = balance.landTypes.mtr;
+  if (mtrShare.profitShareMin < 0.2 || mtrShare.profitShareMax > 0.3) {
+    throw new Error("mtr profit share must sit in 20–30%");
+  }
+  const uraShare = balance.landTypes.ura;
+  if (uraShare.profitShareMin < 0.3 || uraShare.profitShareMax > 0.4) {
+    throw new Error("ura surplus share must sit in 30–40%");
+  }
+  if (uraShare.premiumMin < 0.9 || uraShare.premiumMax > 1.08) {
+    throw new Error("ura premiums stay mid or slightly cheap");
+  }
   const sellBoost = balance.landTypes?.mtr?.sellBoost;
   if (typeof sellBoost !== "number" || sellBoost < 0.08 || sellBoost > 0.12) {
     throw new Error("mtr sellBoost must be +8 to +12 percentage points");
@@ -236,7 +250,11 @@ export function districtFlavour(district, balance) {
 }
 
 export function campaignHeat(state, balance) {
-  const every = balance.heatEvery || 3;
+  const heats = activeEffects(state).filter((effect) => effect.heat);
+  const forced = heats.find((effect) => effect.force);
+  if (forced) return forced.heat === "spicy" ? "spicy" : "loose";
+  if (heats.length) return heats[heats.length - 1].heat === "spicy" ? "spicy" : "loose";
+  const every = balance.heatEvery || 5;
   const block = Math.floor((state?.completed || 0) / every);
   const looseStart = ((state?.seed || 0) % 2) === 0;
   const loose = block % 2 === 0 ? looseStart : !looseStart;
@@ -244,7 +262,7 @@ export function campaignHeat(state, balance) {
 }
 
 export function heatProjectsLeft(state, balance) {
-  const every = Math.max(1, balance?.heatEvery || 3);
+  const every = Math.max(1, balance?.heatEvery || 5);
   const into = (state?.completed || 0) % every;
   return every - into;
 }
@@ -411,7 +429,7 @@ export function unitPopularity(flavour, heat, balance) {
 }
 
 const POP_PLACE = { uni: "近大學", starter: "偏遠", core: "核心" };
-const POP_HEAT = { loose: "鬆", spicy: "辣" };
+const POP_HEAT = { loose: "收租旺", spicy: "上車旺" };
 
 export function popularityNote(flavour, heat, band) {
   if (band === "mid") return "";
@@ -420,11 +438,12 @@ export function popularityNote(flavour, heat, band) {
   return place && market ? `${place}＋${market}` : "";
 }
 
-export function sizePools(catalog, { gfaFt2, flavour, heat, buyer = 1, bias = {} }) {
+export function sizePools(catalog, { gfaFt2, flavour, heat, buyer = 1, bias = {}, poolMul = null }) {
   const { balance } = catalog;
+  const mods = poolMul || { whale: 1, couple: 1, starter: 1, upgrader: 1, feature: 1 };
   const pools = {};
   for (const spec of UNIT_SPECS) {
-    const feet = gfaFt2 * balance.poolShare[spec.pool] * balance.heatMod[heat][spec.pool] * balance.flavourMod[flavour][spec.pool] * buyer;
+    const feet = gfaFt2 * balance.poolShare[spec.pool] * balance.heatMod[heat][spec.pool] * balance.flavourMod[flavour][spec.pool] * buyer * (mods[spec.pool] || 1);
     pools[spec.pool] = Math.max(0, Math.round(feet / spec.ft2) + (bias[spec.pool] || 0));
   }
   return pools;
@@ -476,7 +495,7 @@ function snapGfa(value) {
 }
 
 export function emptyCredit() {
-  return { unpaidStreak: 0, carried: 0, yellow: false, forceSmall: false, owed: 0 };
+  return { unpaidStreak: 0, carried: 0, yellow: false, forceSmall: false, owed: 0, hadYellow: false };
 }
 
 export function campaignWorth(state) {
@@ -490,18 +509,23 @@ export function tiersUnlocked(worth, balance) {
   return ok.length ? ok : [rows[0]];
 }
 
-export function rollSiteTier(worth, seed, completed, balance, forceSmall = false) {
+export function rollSiteTier(worth, seed, completed, balance, forceSmall = false, weightDelta = null) {
   if (forceSmall || (completed || 0) < 2) return "small";
-  const unlocked = tiersUnlocked(worth, balance);
+  const from = balance.flagshipFrom ?? 16;
+  let unlocked = tiersUnlocked(worth, balance);
+  if ((completed || 0) + 1 < from) unlocked = unlocked.filter((row) => row.id !== "flagship");
+  if (!unlocked.length) unlocked = tiersUnlocked(worth, balance).filter((row) => row.id !== "flagship");
+  if (!unlocked.length) unlocked = [tiersUnlocked(worth, balance)[0]];
   if (unlocked.length === 1) return unlocked[0].id;
   const weights = balance.siteTierWeights || { small: 3, mid: 4, large: 3, flagship: 2 };
   const rng = createRng((Number(seed) + (completed + 1) * 131 + Math.round(worth / 1000)) >>> 0);
   let total = 0;
   const bag = unlocked.map((row) => {
-    const weight = weights[row.id] || 1;
+    const weight = Math.max(0, (weights[row.id] || 1) + (weightDelta?.[row.id] || 0));
     total += weight;
     return { id: row.id, weight };
   });
+  if (total <= 0) return bag[0]?.id || "small";
   let cursor = rng.next() * total;
   for (const item of bag) {
     cursor -= item.weight;
@@ -528,12 +552,18 @@ export function contractorRisk(spec, balance = {}) {
   };
 }
 
-export function quoteLoan(buildCost, mode, balance) {
+export function quoteLoan(buildCost, mode, balance, adjust = null) {
   const use = LOAN_MODES.includes(mode) ? mode : "cash";
   const spec = balance.credit?.modes?.[use] || { principal: 0, rate: 0 };
-  const principal = money((Number(buildCost) || 0) * (Number(spec.principal) || 0));
-  const interest = money(principal * (Number(spec.rate) || 0));
-  return { mode: use, principal, interest, rate: Number(spec.rate) || 0, due: principal + interest };
+  let principalFrac = Number(spec.principal) || 0;
+  let rate = Number(spec.rate) || 0;
+  if (adjust && use !== "cash") {
+    principalFrac = clamp((principalFrac + (adjust.principalAdd || 0)) * (adjust.principalMul || 1), 0, 0.9);
+    rate *= adjust.interestMul || 1;
+  }
+  const principal = money((Number(buildCost) || 0) * principalFrac);
+  const interest = money(principal * rate);
+  return { mode: use, principal, interest, rate, due: principal + interest };
 }
 
 function sameStake(value, target) {
@@ -561,15 +591,230 @@ function parseStake(raw) {
 
 export function jvEligible(offer) {
   if (!offer) return false;
-  if ((Number(offer.partnerRate) || 0) > 0) return false;
-  if (offer.type === "ura" || offer.type === "mtr") return false;
   const tier = offer.siteTier || "small";
   if (tier === "small") return false;
   return offer.verdict === "expensive" || tier === "mid" || tier === "large" || tier === "flagship";
 }
 
-export function fundBuild(balance, { cash, cost, mode }) {
-  const quote = quoteLoan(cost, mode, balance);
+export function activeEffects(state) {
+  return (state?.effects || []).filter((effect) => (effect?.left || 0) > 0 || (effect?.offers || 0) > 0);
+}
+
+export function pushEffect(effects, effect) {
+  const list = Array.isArray(effects) ? effects.slice() : [];
+  if (!effect?.kind) return list;
+  const live = list.some((item) => item.kind === effect.kind && ((item.left || 0) > 0 || (item.offers || 0) > 0));
+  if (effect.loosen && live) return list;
+  list.push({ ...effect });
+  return list;
+}
+
+function ageEffects(effects) {
+  return (effects || [])
+    .map((effect) => ({ ...effect, left: Math.max(0, (effect.left || 0) - 1) }))
+    .filter((effect) => (effect.left || 0) > 0 || (effect.offers || 0) > 0);
+}
+
+function consumeOfferEffects(effects) {
+  return (effects || [])
+    .map((effect) => (effect.offers > 0 ? { ...effect, offers: effect.offers - 1 } : effect))
+    .filter((effect) => (effect.left || 0) > 0 || (effect.offers || 0) > 0);
+}
+
+export function policyNotes(state) {
+  const notes = [];
+  for (const effect of activeEffects(state)) {
+    if (effect.note && !notes.includes(effect.note)) notes.push(effect.note);
+  }
+  return notes.slice(0, 2);
+}
+
+export function poolMultipliers(state) {
+  const mul = { whale: 1, couple: 1, starter: 1, upgrader: 1, feature: 1 };
+  for (const effect of activeEffects(state)) {
+    if (!effect.poolMul) continue;
+    for (const key of POOLS) {
+      if (typeof effect.poolMul[key] === "number") mul[key] *= effect.poolMul[key];
+    }
+  }
+  for (const key of POOLS) mul[key] = clamp(mul[key], 0.85, 1.15);
+  return mul;
+}
+
+export function loanAdjustments(state) {
+  const adjust = { principalAdd: 0, principalMul: 1, interestMul: 1 };
+  for (const effect of activeEffects(state)) {
+    if (effect.principalAdd) adjust.principalAdd += effect.principalAdd;
+    if (effect.principalMul) adjust.principalMul *= effect.principalMul;
+    if (effect.interestMul) adjust.interestMul *= effect.interestMul;
+  }
+  return adjust;
+}
+
+function tierDelta(state) {
+  const delta = { small: 0, mid: 0, large: 0, flagship: 0 };
+  for (const effect of activeEffects(state)) {
+    if (!effect.tierDelta) continue;
+    for (const key of Object.keys(delta)) delta[key] += Number(effect.tierDelta[key]) || 0;
+  }
+  return delta;
+}
+
+function typeWeights(state) {
+  const weights = { ura: 1, mtr: 1, gov: 1 };
+  for (const effect of activeEffects(state)) {
+    if (typeof effect.mtrWeight === "number") weights.mtr *= effect.mtrWeight;
+    if (typeof effect.uraWeight === "number") weights.ura *= effect.uraWeight;
+  }
+  return weights;
+}
+
+function premiumAdjust(state, type) {
+  let delta = 0;
+  for (const effect of activeEffects(state)) {
+    if (typeof effect.premiumAll === "number") delta += effect.premiumAll;
+    if (effect.premiumType && effect.premiumType === type && typeof effect.premiumTypeDelta === "number") {
+      delta += effect.premiumTypeDelta;
+    }
+  }
+  return clamp(delta, -0.06, 0.08);
+}
+
+function holdAdjust(state, balance) {
+  let recover = Number(balance.holdRecover) || 0;
+  let mul = 1;
+  for (const effect of activeEffects(state)) {
+    if (effect.holdRecoverAdd) recover += effect.holdRecoverAdd;
+    if (effect.frozenMul) mul *= effect.frozenMul;
+  }
+  return { recover: clamp(recover, 0.4, 0.95), mul: clamp(mul, 0.7, 1.25) };
+}
+
+function mtrExtra(state) {
+  let extra = 0;
+  for (const effect of activeEffects(state)) {
+    if (effect.mtrBoost) extra = Math.max(extra, effect.mtrBoost);
+  }
+  return extra;
+}
+
+function convertAdd(state) {
+  let add = 0;
+  for (const effect of activeEffects(state)) {
+    if (effect.convertAdd) add = Math.max(add, effect.convertAdd);
+  }
+  return add;
+}
+
+function uraShareBump(state) {
+  let add = 0;
+  for (const effect of activeEffects(state)) {
+    if (effect.uraShareAdd) add = Math.max(add, effect.uraShareAdd);
+  }
+  return add;
+}
+
+export function profitShareRate(type, skeleton, balance) {
+  const spec = balance.landTypes?.[type] || {};
+  const min = Number(spec.profitShareMin ?? 0);
+  const max = Number(spec.profitShareMax ?? min);
+  if (!(max > 0)) return 0;
+  const key = `${type}|${skeleton?.slot || ""}|${skeleton?.district || ""}|${Math.round(skeleton?.gfaFt2 || 0)}|${skeleton?.premium || 0}`;
+  let hash = 2166136261;
+  for (let i = 0; i < key.length; i += 1) hash = Math.imul(hash ^ key.charCodeAt(i), 16777619);
+  const steps = Math.max(0, Math.round((max - min) * 100));
+  const pct = Math.round(min * 100) + ((hash >>> 0) % (steps + 1));
+  return pct / 100;
+}
+
+function stampShare(priced, state, balance) {
+  let profitShare = priced.profitShare;
+  if (priced.type === "ura") {
+    profitShare = clamp(Math.round((profitShare + uraShareBump(state)) * 100) / 100, 0, 0.45);
+  }
+  const saved = arguments.length > 3 ? arguments[3] : null;
+  if (typeof saved === "number") {
+    const spec = balance?.landTypes?.[priced.type] || {};
+    const min = Number(spec.profitShareMin ?? 0);
+    const max = Number(spec.profitShareMax ?? min) + (priced.type === "ura" ? 0.05 : 0);
+    if (saved + 1e-9 >= min && saved <= max + 1e-9) profitShare = saved;
+  }
+  return { ...priced, profitShare, partnerRate: profitShare };
+}
+
+export function splitProfit({ revenue, land, build, promo, rate, stake }) {
+  const revenueN = money(revenue);
+  const landN = money(land);
+  const buildN = money(build);
+  const promoN = money(promo);
+  const share = clamp(Number(rate) || 0, 0, 0.6);
+  const own = stakeOf({ stake: stake == null ? 1 : stake });
+  const operating = money(revenueN - landN - buildN - promoN);
+  const landCut = operating > 0 && share > 0 ? money(operating * share) : 0;
+  const remainder = money(operating - landCut);
+  const playerProfit = money(remainder * own);
+  return {
+    revenue: revenueN,
+    land: landN,
+    build: buildN,
+    promo: promoN,
+    operating,
+    landCut,
+    remainder,
+    playerProfit,
+    rate: share,
+    stake: own,
+  };
+}
+
+function fullBuildBill(contractor, stake) {
+  if (!contractor) return 0;
+  const share = stake > 0 && stake < 1 ? stake : 1;
+  if (typeof contractor.grossCost === "number") {
+    const extraPlayer = money(contractor.extra || 0);
+    const extraFull = share < 1 ? money(extraPlayer / share) : extraPlayer;
+    return money(contractor.grossCost + extraFull);
+  }
+  const bill = money(contractor.total || contractor.cost || 0);
+  return share < 1 ? money(bill / share) : bill;
+}
+
+export function masterBlocks(units) {
+  const n = Math.max(0, Math.round(Number(units) || 0));
+  if (n >= 2000) return 4;
+  if (n >= 80) return 3;
+  return 2;
+}
+
+export function towerShares(units, sold) {
+  const towers = masterBlocks(units);
+  const n = Math.max(0, Math.round(Number(units) || 0));
+  const soldN = Math.max(0, Math.min(n, Math.round(Number(sold) || 0)));
+  const base = Math.floor(n / towers);
+  let extra = n - base * towers;
+  let soldLeft = soldN;
+  const rows = [];
+  for (let i = 0; i < towers; i += 1) {
+    const count = base + (extra > 0 ? 1 : 0);
+    if (extra > 0) extra -= 1;
+    const got = Math.min(count, soldLeft);
+    soldLeft -= got;
+    const pct = count ? Math.round((got / count) * 100) : 0;
+    rows.push({ index: i, units: count, sold: got, pct });
+  }
+  return rows;
+}
+
+export function towerWord(pct) {
+  const n = Math.round(Number(pct) || 0);
+  if (n >= 100) return "clear";
+  if (n >= 80) return "hot";
+  if (n >= 50) return "steady";
+  return "quiet";
+}
+
+export function fundBuild(balance, { cash, cost, mode, adjust = null }) {
+  const quote = quoteLoan(cost, mode, balance, adjust);
   const have = Math.max(0, money(cash));
   const bill = Math.max(0, money(cost));
   let principal = quote.principal;
@@ -776,8 +1021,7 @@ function lerp(min, max, t) {
 
 export function priceOffer(skeleton, levels, catalog, heat = "loose") {
   const bench = gameBench(catalog, skeleton.district, levels);
-  const spec = catalog.balance.landTypes[skeleton.type];
-  const partnerRate = spec.partnerRate;
+  const profitShare = profitShareRate(skeleton.type, skeleton, catalog.balance);
   const landExact = bench.fairLandPerFt2 * skeleton.premium;
   const buildExact = bench.fairBuildPerFt2;
   const flavour = districtFlavour(skeleton.district, catalog.balance);
@@ -794,7 +1038,8 @@ export function priceOffer(skeleton, levels, catalog, heat = "loose") {
     units: unitTotal(mixHint),
     mixHint,
     premium: skeleton.premium,
-    partnerRate,
+    partnerRate: profitShare,
+    profitShare,
     quotedAt: {
       price: levels.price,
       land: levels.land,
@@ -814,25 +1059,39 @@ export function priceOffer(skeleton, levels, catalog, heat = "loose") {
   };
 }
 
-function makeOffer({ slot, type, district, gfaFt2, premium, rng, catalog, levels, used, heat, tier = "small", forceSmall = false, fixedGfa = false }) {
+function rolledPremium(type, district, rng, balance, state, fixed) {
+  if (fixed != null) return Math.round(fixed * 1000) / 1000;
+  const spec = balance.landTypes[type];
+  let min = spec.premiumMin;
+  let max = spec.premiumMax;
+  if (type === "gov" && spec.townPremiumMin != null) {
+    const urban = (balance.urbanDistricts || []).includes(district);
+    min = urban ? spec.urbanPremiumMin : spec.townPremiumMin;
+    max = urban ? spec.urbanPremiumMax : spec.townPremiumMax;
+  }
+  const prem = lerp(min, max, rng.next()) + premiumAdjust(state, type);
+  return Math.round(clamp(prem, 0.55, 1.6) * 1000) / 1000;
+}
+
+function makeOffer({ slot, type, district, gfaFt2, premium, rng, catalog, levels, used, heat, tier = "small", forceSmall = false, fixedGfa = false, state = null }) {
   const spec = catalog.balance.landTypes[type];
   const picked = district || pickDistrict(type, rng, catalog.balance, used);
   const base = gfaFt2 || snapGfa(lerp(spec.gfaMin, spec.gfaMax, rng.next()));
   const gfa = fixedGfa ? base : scaleGfa(base, tier, catalog.balance, forceSmall);
-  const prem = premium == null ? lerp(spec.premiumMin, spec.premiumMax, rng.next()) : premium;
+  const prem = rolledPremium(type, picked, rng, catalog.balance, state, premium);
   used?.add(picked);
-  const priced = priceOffer(
+  const priced = stampShare(priceOffer(
     {
       slot,
       type,
       district: picked,
       gfaFt2: gfa,
-      premium: Math.round(prem * 1000) / 1000,
+      premium: prem,
     },
     levels,
     catalog,
     heat,
-  );
+  ), state, catalog.balance);
   return { ...priced, siteTier: forceSmall ? "small" : tier, forcedSmall: Boolean(forceSmall) };
 }
 
@@ -864,22 +1123,49 @@ function tutorialOffers(rng, state, catalog, heat, tier, forceSmall) {
       tier,
       forceSmall,
       fixedGfa: true,
+      state,
     }),
-    makeOffer({ slot: "B", type: rest[0], rng, catalog, levels: state.market, used, heat, tier, forceSmall }),
-    makeOffer({ slot: "C", type: rest[1], rng, catalog, levels: state.market, used, heat, tier, forceSmall }),
+    makeOffer({ slot: "B", type: rest[0], rng, catalog, levels: state.market, used, heat, tier, forceSmall, state }),
+    makeOffer({ slot: "C", type: rest[1], rng, catalog, levels: state.market, used, heat, tier, forceSmall, state }),
   ];
 }
 
+function pickWeighted(rng, weights) {
+  const entries = Object.entries(weights).filter(([, weight]) => weight > 0);
+  const total = entries.reduce((sum, [, weight]) => sum + weight, 0) || 1;
+  let cursor = rng.next() * total;
+  for (const [type, weight] of entries) {
+    cursor -= weight;
+    if (cursor <= 0) return type;
+  }
+  return entries[entries.length - 1][0];
+}
+
 function randomOffers(rng, state, catalog, heat, tier, forceSmall) {
-  const types = shuffle(["ura", "mtr", "gov"], rng);
+  const weights = typeWeights(state);
+  const skewed = Math.abs(weights.ura - weights.mtr) > 0.001 || Math.abs(weights.mtr - weights.gov) > 0.001;
+  const types = skewed
+    ? [pickWeighted(rng, weights), pickWeighted(rng, weights), pickWeighted(rng, weights)]
+    : shuffle(["ura", "mtr", "gov"], rng);
   const used = new Set();
   return ["A", "B", "C"].map((slot, index) =>
-    makeOffer({ slot, type: types[index], rng, catalog, levels: state.market, used, heat, tier, forceSmall }),
+    makeOffer({
+      slot,
+      type: types[index],
+      rng,
+      catalog,
+      levels: state.market,
+      used,
+      heat,
+      tier,
+      forceSmall,
+      state,
+    }),
   );
 }
 
 function liftFlagshipOffer(offers, state, catalog, heat) {
-  const from = catalog.balance.flagshipFrom ?? 12;
+  const from = catalog.balance.flagshipFrom ?? 16;
   if ((state.completed || 0) + 1 < from) return offers;
   if (state.credit?.forceSmall) return offers;
   const row = (catalog.balance.siteTiers || []).find((item) => item.id === "flagship");
@@ -890,7 +1176,7 @@ function liftFlagshipOffer(offers, state, catalog, heat) {
   const mul = tierRow(catalog.balance, current.siteTier || "small").gfaMul || 1;
   const raw = Math.max(64000, current.gfaFt2 / mul);
   const gfaFt2 = scaleGfa(raw, "flagship", catalog.balance, false);
-  const priced = priceOffer(
+  const priced = stampShare(priceOffer(
     {
       slot: current.slot,
       type: current.type,
@@ -901,7 +1187,7 @@ function liftFlagshipOffer(offers, state, catalog, heat) {
     state.market,
     catalog,
     heat,
-  );
+  ), state, catalog.balance);
   const next = offers.slice();
   next[index] = { ...priced, siteTier: "flagship", forcedSmall: false };
   return next;
@@ -953,14 +1239,22 @@ export function ensureAffordableOffer(offers, state, catalog, heat) {
 export function rollOffers(state, catalog) {
   const heat = campaignHeat(state, catalog.balance);
   const forceSmall = Boolean(state.credit?.forceSmall);
-  const tier = rollSiteTier(campaignWorth(state), state.seed, state.completed, catalog.balance, forceSmall);
+  const tier = rollSiteTier(campaignWorth(state), state.seed, state.completed, catalog.balance, forceSmall, tierDelta(state));
   const { value, rngCursor } = runRng(state, (rng) => {
     if (state.completed === 0) return tutorialOffers(rng, state, catalog, heat, tier, forceSmall);
     return randomOffers(rng, state, catalog, heat, tier, forceSmall);
   });
   const lifted = liftFlagshipOffer(value, state, catalog, heat);
   const offers = ensureAffordableOffer(lifted, state, catalog, heat);
-  return { ...state, rngCursor, offers, phase: "land", project: null, siteTier: tier };
+  return {
+    ...state,
+    rngCursor,
+    offers,
+    phase: "land",
+    project: null,
+    siteTier: tier,
+    effects: consumeOfferEffects(state.effects),
+  };
 }
 
 export function projectNumber(state) {
@@ -1004,6 +1298,8 @@ export function createCampaign(catalog, { company, seed = 1 } = {}) {
     credit: emptyCredit(),
     storyCounts: {},
     storyLog: [],
+    effects: [],
+    seenAchievements: [],
   };
   return rollOffers(state, catalog);
 }
@@ -1098,14 +1394,15 @@ export function chooseContractor(catalog, state, contractorId, rawMix, loanMode 
   const quote = contractorQuote(catalog, state, contractorId);
   const stake = stakeOf(state.project.offer);
   const playerCost = quote.playerCost;
-  const plan = fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: loanMode });
+  const adjust = loanAdjustments(state);
+  const plan = fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: loanMode, adjust });
   if (!plan.ok) {
     return fail(state, "short_cash", {
       shortfall: plan.shortfall,
       playerCost,
       loans: {
-        small: fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: "small" }),
-        big: fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: "big" }),
+        small: fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: "small", adjust }),
+        big: fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: "big", adjust }),
       },
     });
   }
@@ -1323,7 +1620,10 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     heat: marketHeat,
     buyer,
     bias: state.poolBias || emptyBias(),
+    poolMul: poolMultipliers(state),
   });
+  const hold = holdAdjust(state, balance);
+  const shareRate = typeof offer.profitShare === "number" ? clamp(offer.profitShare, 0, 0.6) : profitShareRate(offer.type, offer, balance);
   const usedRoll = typeof rawChoices?.roll === "number"
     ? rawChoices.roll
     : typeof roll === "number"
@@ -1381,7 +1681,12 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     if (offer.type === "mtr") {
       // Rail bonus: landTypes.mtr.sellBoost is +8 to +12 percentage points of through-rate.
       convert += Number(balance.landTypes?.mtr?.sellBoost) || 0;
+      convert += mtrExtra(state);
     }
+    if (offer.type === "ura" && (spec.id === "studio" || spec.id === "feature")) {
+      convert -= Number(balance.landTypes?.ura?.mixRigid) || 0;
+    }
+    convert += convertAdd(state);
     convert = clamp(convert, 0.05, 0.98);
     const pool = poolsBefore[spec.pool];
     const brought = aimed ? Math.max(1, Math.round(offered * promo.adThrough)) : 0;
@@ -1394,7 +1699,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     poolsAfter[spec.pool] = pool - fromPool;
     grossExact += soldN * ask;
     if (unsoldN > 0 && choices.leftover === "cut") fireExact += unsoldN * ask * balance.fireSale;
-    if (unsoldN > 0 && choices.leftover === "hold") frozenExact += unsoldN * ask * balance.holdRecover;
+    if (unsoldN > 0 && choices.leftover === "hold") frozenExact += unsoldN * ask * hold.recover * hold.mul;
     sold += soldN;
     byType[spec.id] = {
       offered,
@@ -1417,18 +1722,20 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   const showflatCost = money(showflatFull * stake);
   const rebateCost = money(rebateFull * stake);
   const adCost = money(adFull * stake);
-  const partnerRate = stake < 1 ? (1 - stake) : offer.partnerRate;
-  const partnerOnSales = money(gross * partnerRate);
-  const firePartner = money(fireGross * partnerRate);
-  const partnerShare = partnerOnSales + firePartner;
-  const playerGross = stake < 1 ? money(gross * stake) : gross;
-  const playerFire = stake < 1 ? money(fireGross * stake) : fireGross - firePartner;
-  const fireNet = playerFire;
-  const netCash = stake < 1
-    ? money(playerGross - showflatCost - rebateCost - adCost + fireNet)
-    : money(gross - showflatCost - rebateCost - adCost - partnerOnSales + fireNet);
+  const books = splitProfit({
+    revenue: gross + fireGross,
+    land: offer.landTotal,
+    build: fullBuildBill(contractor, stake),
+    promo: showflatFull + rebateFull + adFull,
+    rate: shareRate,
+    stake,
+  });
+  const partnerShare = books.landCut;
+  const fireNet = money(fireGross * stake);
+  const playerRevenue = money((books.revenue - books.landCut) * stake);
+  let netCash = money(playerRevenue - showflatCost - rebateCost - adCost);
   const landPaid = offer.landPaid != null ? offer.landPaid : money(offer.landTotal * stake);
-  const profit = netCash - landPaid - contractor.total;
+  const profit = money(netCash - landPaid - (contractor.total || 0));
   const unsold = units - sold;
   const ratio = units === 0 ? 0 : sold / units;
   let outcome = "fail";
@@ -1437,7 +1744,15 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   else if (ratio >= balance.partialAt) outcome = "partial";
   const through = units === 0 ? 0 : sold / units;
   const heat = Math.round(clamp(through, 0, 1) * 100);
-  let reputationDelta = outcome === "clear" || outcome === "almost" ? balance.repClear : outcome === "partial" ? balance.repPartial : balance.repFail;
+  let reputationDelta = outcome === "clear"
+    ? balance.repClear
+    : outcome === "almost"
+      ? (balance.repAlmost ?? 1)
+      : outcome === "partial"
+        ? balance.repPartial
+        : balance.repFail;
+  const clearBonus = outcome === "clear" && profit > 0 ? money(profit * (balance.clearBonus ?? 0.02)) : 0;
+  netCash = money(netCash + clearBonus);
   if (profit < 0) reputationDelta += balance.repLoss;
   if (unsold > 0 && choices.leftover === "cut") reputationDelta += balance.repCut;
   if (unsold > 0 && choices.leftover === "hold") reputationDelta += balance.repHold;
@@ -1477,7 +1792,14 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     fireNet,
     frozenAmount,
     partnerShare,
-    partnerOnSales,
+    partnerOnSales: partnerShare,
+    profitShare: shareRate,
+    revenue: books.revenue,
+    landFull: books.land,
+    buildFull: books.build,
+    promoFull: books.promo,
+    operating: books.operating,
+    clearBonus,
     netCash,
     profit,
     reputationDelta,
@@ -1667,9 +1989,11 @@ export function commitSale(catalog, state, choices) {
   });
 }
 
-export function pickStory(stories, rng, { previousId = null, govLand = false, weight = 4, counts = {}, cap = 2 } = {}) {
-  const underCap = stories.filter((story) => (counts[story.id] || 0) < cap && story.id !== previousId);
-  const pool = underCap.length ? underCap : stories.filter((story) => story.id !== previousId);
+export function pickStory(stories, rng, { previousId = null, previousPulse = false, govLand = false, weight = 4, counts = {}, cap = 2 } = {}) {
+  const blocked = (story) => story.id === previousId || (previousPulse && story.pulse);
+  const underCap = stories.filter((story) => (counts[story.id] || 0) < cap && !blocked(story));
+  const fresh = stories.filter((story) => !blocked(story));
+  const pool = underCap.length ? underCap : fresh;
   const source = pool.length ? pool : stories;
   const weights = source.map((story) => (govLand && story.controversy ? weight : 1));
   const total = weights.reduce((sum, item) => sum + item, 0);
@@ -1697,8 +2021,11 @@ function cloneStory(story) {
 function takeStory(state, catalog) {
   const last = state.history[state.history.length - 1];
   const govLand = Boolean(last && last.type === "gov" && !last.skipped);
+  const previousId = state.story?.id || state.storyLog?.[state.storyLog.length - 1] || null;
+  const previous = STORIES.find((story) => story.id === previousId);
   const { value, rngCursor } = runRng(state, (rng) => pickStory(STORIES, rng, {
-    previousId: state.story?.id || state.storyLog?.[state.storyLog.length - 1] || null,
+    previousId,
+    previousPulse: Boolean(previous?.pulse),
     govLand,
     weight: govLand ? Number(catalog.balance.govControversyWeight ?? 1) : 1,
     counts: state.storyCounts || {},
@@ -1755,6 +2082,10 @@ export function confirmSettle(catalog, state) {
       sold: sale.sold,
       units: sale.units,
       partnerShare: sale.partnerShare,
+      profitShare: sale.profitShare || 0,
+      clearBonus: sale.clearBonus || 0,
+      siteTier: state.project.offer.siteTier || "small",
+      stake: stakeOf(state.project.offer),
       cakeSweep: sale.cakeSweep,
       name: state.project.name || defaultProjectName(state.project.offer.district, state.project.offer.flavour),
       mix: normalizeMix(state.project.mix),
@@ -1805,6 +2136,7 @@ export function confirmSettle(catalog, state) {
     owed: creditResult.owed,
     serviced: creditResult.serviced,
     forgiven: creditResult.forgiven,
+    hadYellow: Boolean(state.credit?.hadYellow || creditResult.yellow),
   };
   const base = {
     ...state,
@@ -1819,6 +2151,7 @@ export function confirmSettle(catalog, state) {
     offers: null,
     project: null,
     credit,
+    effects: ageEffects(state.effects),
   };
   if (creditResult.gameOver) return succeed({ ...base, phase: "gameover", story: null });
   if (completed >= catalog.balance.projects) {
@@ -1841,11 +2174,15 @@ export function chooseStory(catalog, state, choiceId) {
   }
   const storyCounts = { ...(state.storyCounts || {}) };
   if (state.story?.id) storyCounts[state.story.id] = (storyCounts[state.story.id] || 0) + 1;
+  let effects = state.effects || [];
+  const incoming = choice.effects || (choice.effect ? [choice.effect] : []);
+  for (const effect of incoming) effects = pushEffect(effects, effect);
   const next = {
     ...state,
     flags,
     poolBias,
     storyCounts,
+    effects,
     cash: money(state.cash + (choice.cash || 0)),
     reputation: clamp(state.reputation + (choice.rep || 0), 0, 100),
     story: { ...state.story, picked: choiceId },
@@ -1866,7 +2203,17 @@ function slimOffer(offer) {
     forcedSmall: Boolean(offer.forcedSmall),
     stake: stakeOf(offer),
     landPaid: offer.landPaid != null ? offer.landPaid : null,
+    profitShare: typeof offer.profitShare === "number" ? offer.profitShare : null,
   };
+}
+
+function keptShare(offer, priced, balance) {
+  const spec = balance.landTypes?.[offer?.type] || {};
+  const min = Number(spec.profitShareMin ?? 0);
+  const max = Number(spec.profitShareMax ?? min) + (offer?.type === "ura" ? 0.05 : 0);
+  const saved = offer?.profitShare;
+  if (typeof saved === "number" && saved + 1e-9 >= min && saved <= max + 1e-9) return saved;
+  return priced.profitShare;
 }
 
 export function serializeCampaign(state) {
@@ -1891,6 +2238,8 @@ export function serializeCampaign(state) {
     storyCounts: { ...(state.storyCounts || {}) },
     storyLog: [...(state.storyLog || [])],
     story: state.story ? { id: state.story.id, picked: state.story.picked || null } : null,
+    effects: (state.effects || []).map((effect) => ({ ...effect })),
+    seenAchievements: [...(state.seenAchievements || [])],
     offers: (state.offers || []).map(slimOffer),
     project: state.project
       ? {
@@ -2002,14 +2351,19 @@ export function hydrateCampaign(catalog, saved) {
     offers: null,
     project: null,
     story: null,
+    effects: Array.isArray(saved.effects) ? saved.effects.map((effect) => ({ ...effect })) : [],
+    seenAchievements: Array.isArray(saved.seenAchievements) ? [...saved.seenAchievements] : [],
   };
   const heat = campaignHeat(state, catalog.balance);
   const attachScale = (offer) => {
     const priced = priceOffer(offer, offer.quotedAt, catalog, heat);
     const stake = stakeOf(offer);
     const landPaid = typeof offer.landPaid === "number" ? money(offer.landPaid) : money(priced.landTotal * stake);
+    const profitShare = keptShare(offer, priced, catalog.balance);
     return {
       ...priced,
+      profitShare,
+      partnerRate: profitShare,
       siteTier: offer.siteTier || "small",
       forcedSmall: Boolean(offer.forcedSmall),
       stake,
@@ -2111,17 +2465,42 @@ function withIdentity(raw) {
   if (project?.offer) {
     project = { ...project, offer: { ...project.offer, stake: stakeOf(project.offer) } };
   }
-  return { ...raw, v: SAVE_VERSION, company, project };
+  return { ...raw, v: 7, company, project };
+}
+
+function withLedger(raw) {
+  const strip = (offer) => {
+    if (!offer) return offer;
+    const next = { ...offer };
+    delete next.partnerRate;
+    if (typeof next.profitShare === "number") {
+      const spec = { ura: [0.3, 0.45], mtr: [0.2, 0.3], gov: [0, 0] }[next.type] || [0, 0.45];
+      if (next.profitShare < spec[0] - 1e-9 || next.profitShare > spec[1] + 1e-9) delete next.profitShare;
+    }
+    return next;
+  };
+  let project = raw.project == null ? raw.project : { ...raw.project };
+  if (project?.offer) project = { ...project, offer: strip(project.offer) };
+  const offers = Array.isArray(raw.offers) ? raw.offers.map(strip) : raw.offers;
+  return {
+    ...raw,
+    v: SAVE_VERSION,
+    offers,
+    project,
+    effects: Array.isArray(raw.effects) ? raw.effects : [],
+    seenAchievements: Array.isArray(raw.seenAchievements) ? raw.seenAchievements : [],
+  };
 }
 
 export function migrateSave(raw) {
   if (!raw) return { ok: false, notice: null, state: null };
   if (raw.goals || raw.v === 1 || raw.v === 2) return { ok: false, notice: "phase1_reset", state: null };
   if (raw.v === SAVE_VERSION) return { ok: true, notice: null, state: raw };
-  if (raw.v === 6) return { ok: true, notice: null, state: withIdentity(raw) };
-  if (raw.v === 5) return { ok: true, notice: null, state: withIdentity(withVenture(raw)) };
-  if (raw.v === 4) return { ok: true, notice: null, state: withIdentity(withVenture(withMidterm(raw))) };
-  if (raw.v === 3) return { ok: true, notice: null, state: withIdentity(withVenture(withMidterm(upgradeV3(raw)))) };
+  if (raw.v === 7) return { ok: true, notice: null, state: withLedger(raw) };
+  if (raw.v === 6) return { ok: true, notice: null, state: withLedger(withIdentity(raw)) };
+  if (raw.v === 5) return { ok: true, notice: null, state: withLedger(withIdentity(withVenture(raw))) };
+  if (raw.v === 4) return { ok: true, notice: null, state: withLedger(withIdentity(withVenture(withMidterm(raw)))) };
+  if (raw.v === 3) return { ok: true, notice: null, state: withLedger(withIdentity(withVenture(withMidterm(upgradeV3(raw))))) };
   return { ok: false, notice: "phase1_reset", state: null };
 }
 
@@ -2235,7 +2614,7 @@ export function buildOutlook(catalog, state, mix, contractorId, mode = "cash") {
   const playerCost = id
     ? contractorQuote(catalog, state, id).playerCost
     : money((offer.estBuildTotal || 0) * stake);
-  const plan = fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode });
+  const plan = fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode, adjust: loanAdjustments(state) });
   const draft = {
     ...state,
     project: {
@@ -2282,6 +2661,55 @@ export function saleLedger(catalog, state, rawChoices) {
   const outlay = land + build + promo;
   const multiple = outlay > 0 ? Math.round(((sale.netCash + promo) / outlay) * 100) / 100 : 0;
   return { build, promo, land, outlay, multiple, profit: sale.profit, netCash: sale.netCash, sale };
+}
+
+export function victoryFacts(state, balance) {
+  const history = state?.history || [];
+  const projects = balance?.projects ?? 30;
+  return {
+    clear: history.some((item) => item.outcome === "clear"),
+    mega: history.some((item) => !item.skipped && (item.units || 0) >= 10000),
+    flagship: history.some((item) => item.siteTier === "flagship"),
+    comeback: Boolean(state?.credit?.hadYellow || state?.flags?.hadYellow),
+    finished: state?.phase === "summary" && (state?.completed || 0) >= projects,
+  };
+}
+
+export function victoryTitle(state, balance) {
+  if (!state || state.phase === "gameover") return null;
+  const facts = victoryFacts(state, balance);
+  if (facts.mega && facts.clear) return "megaChair";
+  if (facts.mega) return "mega";
+  if (facts.comeback && facts.finished) return "comeback";
+  if (facts.clear) return "clear";
+  if (facts.flagship) return "flagship";
+  if (facts.finished) return "chair";
+  return null;
+}
+
+export function unlockedAchievements(state, balance) {
+  if (!state || state.phase === "gameover") return [];
+  const facts = victoryFacts(state, balance);
+  const ids = [];
+  if (facts.clear) ids.push("clear");
+  if (facts.mega) ids.push("mega");
+  if (facts.flagship) ids.push("flagship");
+  const had = Boolean(state.credit?.hadYellow || state.flags?.hadYellow);
+  const paid = had && !state.credit?.yellow && (state.completed || 0) > 0;
+  if (had && (paid || facts.finished)) ids.push("comeback");
+  if (facts.finished) ids.push("finished");
+  return ids;
+}
+
+export function closingLine(state, balance) {
+  const facts = victoryFacts(state, balance);
+  const bits = [];
+  if (facts.clear) bits.push("沽清");
+  if (facts.mega) bits.push("萬伙");
+  if (facts.flagship) bits.push("旗艦");
+  if (facts.comeback) bits.push("黃牌翻身");
+  if (!bits.length) return "三十盤做完。";
+  return `呢屆有${bits.join("、")}。`;
 }
 
 export function endSummary(state) {
