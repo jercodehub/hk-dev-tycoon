@@ -32,8 +32,8 @@
     "ura": {
       "premiumMin": 0.9,
       "premiumMax": 1.08,
-      "gfaMin": 12000,
-      "gfaMax": 34000,
+      "gfaMin": 14000,
+      "gfaMax": 42000,
       "profitShareMin": 0.3,
       "profitShareMax": 0.4,
       "mixRigid": 0.02

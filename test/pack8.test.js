@@ -216,6 +216,85 @@ test("cards 1, 2 and 5 do not sit next to each other, and a loosening effect doe
   assert.equal(held.choices[0].tc, "遊說擱置");
 });
 
+test("holding-fee accept tightens leftover stock, and URA stays the smallest site", () => {
+  const accept = STORIES.find((story) => story.id === "holding-fee").choices.find((choice) => choice.id === "b");
+  const effect = accept.effects[0];
+  assert.equal(accept.tc, "接受");
+  assert.equal(accept.cost, "聲譽 +3 · 留貨 ×1.15");
+  assert.equal(accept.rep, 3);
+  assert.equal(effect.kind, "frozen-up");
+  assert.equal(effect.frozenMul, 1.15);
+  assert.equal(effect.left, 2);
+  assert.notEqual(effect.loosen, true);
+  assert.equal(effect.note.includes("留貨較易套"), false);
+  assert.equal(effect.note, "留貨加凍");
+  const shelve = STORIES.find((story) => story.id === "holding-fee").choices.find((choice) => choice.id === "a");
+  assert.equal(shelve.effects[0].frozenMul, 0.85);
+  assert.equal(shelve.effects[0].note, "留貨縮水");
+  const easier = STORIES.find((story) => story.id === "land-auction").choices.find((choice) => choice.id === "b");
+  assert.equal(easier.effects[0].note, "留貨較易套");
+  assert.equal(easier.effects[0].loosen, true);
+
+  const { ura, mtr, gov } = balance.landTypes;
+  assert.equal(ura.gfaMin, 14000);
+  assert.equal(ura.gfaMax, 42000);
+  assert.equal(ura.premiumMin, 0.9);
+  assert.equal(ura.premiumMax, 1.08);
+  assert.equal(ura.profitShareMin, 0.3);
+  assert.equal(ura.profitShareMax, 0.4);
+  assert.ok(ura.gfaMax <= gov.gfaMax && ura.gfaMax <= mtr.gfaMax);
+  assert.ok(ura.gfaMin <= gov.gfaMin && ura.gfaMin <= mtr.gfaMin);
+  assert.ok(ura.gfaMax < mtr.gfaMin);
+  assert.equal(gov.gfaMin, 18000);
+  assert.equal(gov.gfaMax, 90000);
+  assert.equal(mtr.gfaMin, 46000);
+  assert.equal(mtr.gfaMax, 120000);
+});
+
+function mediaBlock(css, header) {
+  const start = css.indexOf(header);
+  assert.ok(start >= 0, header);
+  const open = css.indexOf("{", start);
+  let depth = 0;
+  for (let i = open; i < css.length; i += 1) {
+    if (css[i] === "{") depth += 1;
+    else if (css[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return css.slice(open + 1, i);
+    }
+  }
+  assert.fail(`unclosed ${header}`);
+}
+
+function lastMinHeight(block, selector) {
+  const rules = block.match(/[^{}]+\{[^{}]*\}/g) || [];
+  let height = null;
+  for (const rule of rules) {
+    const bodyAt = rule.indexOf("{");
+    const selectors = rule.slice(0, bodyAt).split(",").map((item) => item.trim());
+    if (!selectors.includes(selector)) continue;
+    const found = rule.slice(bodyAt).match(/min-height:\s*(\d+)px/);
+    if (found) height = Number(found[1]);
+  }
+  return height;
+}
+
+test("compact touch targets are at least 44px and decision lines stay visible", () => {
+  const css = readFileSync(new URL("../game/styles.css", import.meta.url), "utf8");
+  const compact = mediaBlock(css, "@media (max-width: 480px), (max-height: 760px)");
+  assert.ok(lastMinHeight(compact, ".promo-line .chip") >= 44);
+  assert.ok(lastMinHeight(compact, ".credit-row .chip") >= 44);
+  assert.ok(lastMinHeight(compact, ".hud-actions .ghost") >= 44);
+  assert.equal(lastMinHeight(compact, ".dock button"), 44);
+  assert.equal(lastMinHeight(compact, ".stake-grid button"), 44);
+  assert.equal(/\.stat small\s*\{[^}]*display:\s*none/.test(css), false);
+  assert.equal(/heat-hint[^,{]*\{[^}]*display:\s*none/.test(css), false);
+  assert.equal(/\.price-chip em\s*\{[^}]*display:\s*none/.test(css), false);
+  assert.equal(/\.stat small\s*\{[^}]*display:\s*none/.test(compact), false);
+  assert.equal(/heat-hint[^,{]*\{[^}]*display:\s*none/.test(compact), false);
+  assert.equal(/\.price-chip em\s*\{[^}]*display:\s*none/.test(compact), false);
+});
+
 test("player copy keeps 揀, 沽清 and 預計沽出, and the new share words", () => {
   const copy = playerFacingCopy().join("\n");
   const stories = STORIES.flatMap((story) => [story.tc, ...story.choices.flatMap((choice) => [choice.tc, choice.cost || ""])]).join("\n");
