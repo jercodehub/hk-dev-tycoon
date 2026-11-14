@@ -1124,7 +1124,12 @@ function profitHero(quote) {
 function pricePanel() {
   const fair = fairQuoteForPrices();
   const quote = resolveSale(ui.catalog, ui.state, ui.sale.choices);
-  const costPsf = Math.round(projectCostPsf());
+  const quoteRevenue = quote.revenue || 0;
+  const quoteAvg = quote.askPerFt2 || 0;
+  const quoteFt2 = quoteAvg > 0 ? quoteRevenue / quoteAvg : 0;
+  const costPsf = quoteFt2 > 0
+    ? Math.round((quoteRevenue - (quote.profit || 0)) / quoteFt2)
+    : Math.round(projectCostPsf());
   const rows = UNIT_SPECS.map((spec) => {
     const psf = typePsf(spec, fair);
     const row = quote.byType?.[spec.id] || { offered: 0, poolBefore: 0, brought: 0 };
@@ -1300,7 +1305,7 @@ function sellSetup() {
       ${salePnl(saleChoices)}
       ${similarPeek()}
       ${onboarding ? "" : marketingSummary()}
-      <p class="bowl ${quote.bowl.ok ? "ok" : "bad"}">${t(ui.lang, "bowl")} ${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")} · ${t(ui.lang, "twoBed")} ${compactHkd(quote.bowl.lump)}</p>
+      <p class="bowl ${quote.bowl.ok ? "ok" : "bad"}">${t(ui.lang, quote.bowl.ok ? "budgetOk" : "budgetBad", { n: compactHkd(quote.bowl.lump) })}</p>
       ${onboarding ? onboardingLock() : `<button class="chip toggle${showOn ? " on" : ""}" data-action="showflat" aria-pressed="${showOn}">
         <strong>${t(ui.lang, "showflat")}${showOn ? ` · ${t(ui.lang, "picked")}` : ""}</strong>
         <small>${compactHkd(ui.catalog.balance.showflatPerFt2 * offer.gfaFt2)}</small>
@@ -1615,11 +1620,6 @@ function paintSale(quote, tProgress) {
   for (const note of document.querySelectorAll("[data-cheer-note]")) note.textContent = cheerLeftText;
   const cake = document.querySelector("#cake-line");
   if (cake) cake.textContent = quote.cakeSweep > 0 && ui.sale.shownSold > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : "";
-  const bowl = document.querySelector("#hud-bowl-word");
-  if (bowl) {
-    bowl.textContent = quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack");
-    bowl.className = quote.bowl.ok ? "ok" : "bad";
-  }
   const pool = document.querySelector("#hud-pool-num");
   if (pool) pool.textContent = String(poolSum(quote.poolsAfter));
   for (const cheerBtn of document.querySelectorAll("[data-action='cheer']")) {
@@ -2048,8 +2048,7 @@ function hud() {
   if (ui.state?.phase === "sell") {
     ensureSale();
     const quote = currentQuote();
-    sellChips = `<span class="hchip bowl ${quote.bowl.ok ? "ok" : "bad"}"><span class="k">${t(ui.lang, "bowl")}</span><b id="hud-bowl-word">${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")}</b></span>
-      <span class="hchip"><span class="k">${t(ui.lang, "poolLeft")}</span><b id="hud-pool-num">${poolSum(quote.poolsAfter)}</b></span>`;
+    sellChips = `<span class="hchip"><span class="k">${t(ui.lang, "poolLeft")}</span><b id="hud-pool-num">${poolSum(quote.poolsAfter)}</b></span>`;
   }
   const mark = ui.state
     ? `<button type="button" class="avatar-btn" data-action="identity" aria-label="${escapeHtml(t(ui.lang, "identity"))}">${avatarSvg(company.avatar || CHAIR_AVATARS[0], company.color)}</button>`
