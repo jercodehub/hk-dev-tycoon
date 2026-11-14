@@ -1061,6 +1061,7 @@ function pricePanel() {
     </div>
     <div class="price-actions">
       <button class="ghost" data-action="price-reset">${t(ui.lang, "priceReset")}</button>
+      <button class="ghost" data-action="price-maxout">${t(ui.lang, "priceMaxOut")}</button>
       <button class="ghost" data-action="price-bulk" data-dir="-1">${t(ui.lang, "priceBulkDown")}</button>
       <button class="ghost" data-action="price-bulk" data-dir="1">${t(ui.lang, "priceBulkUp")}</button>
     </div>
@@ -2563,6 +2564,30 @@ function onClick(event) {
     const spec = UNIT_SPECS.find((item) => item.id === target.dataset.type);
     if (!spec) return;
     setTypePsf(spec.id, typePsf(spec, fair) + Number(target.dataset.dir) * PRICE_STEP, fair);
+    render();
+    return;
+  }
+  if (action === "price-maxout") {
+    ensureSale();
+    if (ui.sale.mode !== "setup") return;
+    const fair = fairQuoteForPrices();
+    for (const spec of UNIT_SPECS) {
+      const supply = resolveSale(ui.catalog, ui.state, ui.sale.choices).byType?.[spec.id]?.offered || 0;
+      if (!supply) continue;
+      const soldAt = (mul) => resolveSale(ui.catalog, ui.state, {
+        ...ui.sale.choices,
+        askMulByType: { ...(ui.sale.choices.askMulByType || {}), [spec.id]: mul },
+      }).byType[spec.id].sold;
+      let lo = 0.5;
+      let hi = 1.8;
+      if (soldAt(hi) >= supply) { setTypePsf(spec.id, typeFairPsf(fair, spec) * hi, fair); continue; }
+      if (soldAt(lo) < supply) { setTypePsf(spec.id, typeFairPsf(fair, spec) * lo, fair); continue; }
+      for (let i = 0; i < 14; i += 1) {
+        const mid = (lo + hi) / 2;
+        if (soldAt(mid) >= supply) lo = mid; else hi = mid;
+      }
+      setTypePsf(spec.id, typeFairPsf(fair, spec) * lo, fair);
+    }
     render();
     return;
   }
