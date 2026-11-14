@@ -1239,11 +1239,19 @@ function shortagePanel(quote) {
     return { id, key, offered, pool, brought, gap: Math.max(0, offered - pool - brought), empty: offered === 0 };
   });
   const worst = rows.reduce((best, row) => (row.gap > (best ? best.gap : 0) ? row : best), null);
-  const body = rows.map((row) => `<div class="gap-row${row.gap > 0 ? " short" : ""}">
-    <span>${t(ui.lang, row.key)}</span>
-    <small>${t(ui.lang, "gapUnit", { n: formatCount(row.offered) })} · ${t(ui.lang, "gapPool", { n: formatCount(row.pool) })}${row.brought > 0 ? ` · ${t(ui.lang, "gapAd", { n: formatCount(row.brought) })}` : ""}</small>
-    <strong>${row.empty ? t(ui.lang, "gapNone") : row.gap > 0 ? t(ui.lang, "gapShort", { n: formatCount(row.gap) }) : t(ui.lang, "gapEnough")}</strong>
-  </div>`).join("");
+  const body = rows.map((row) => {
+    const demand = row.pool + row.brought;
+    const max = Math.max(row.offered, demand, 1);
+    const pct = (value) => (value <= 0 ? 0 : Math.max(2, Math.round((value / max) * 100)));
+    const supplyPct = pct(row.offered);
+    const demandPct = pct(demand);
+    return `<div class="gap-row${row.gap > 0 ? " short" : ""}">
+      <div class="gap-head"><span>${t(ui.lang, row.key)}</span><strong>${row.empty ? t(ui.lang, "gapNone") : row.gap > 0 ? t(ui.lang, "gapShort", { n: formatCount(row.gap) }) : t(ui.lang, "gapEnough")}</strong></div>
+      <div class="lane" aria-hidden="true"><i class="s" style="width:${supplyPct}%"></i><i class="d" style="width:${demandPct}%"></i></div>
+      <div class="lane-nums"><span>${t(ui.lang, "gapUnit", { n: formatCount(row.offered) })}</span><span>${t(ui.lang, "gapPool", { n: formatCount(demand) })}${row.brought > 0 ? ` <b class="ad">${t(ui.lang, "gapAd", { n: formatCount(row.brought) })}</b>` : ""}</span></div>
+    </div>`;
+  }).join("");
+  const legend = `<div class="gap-legend"><span><i class="s"></i>${t(ui.lang, "gapLegendSupply")}</span><span><i class="d"></i>${t(ui.lang, "gapLegendDemand")}</span></div>`;
   const tip = worst
     ? `<p class="gap-tip">${t(ui.lang, "gapSuggest", { name: t(ui.lang, worst.key) })}</p>`
     : `<p class="gap-tip ok">${t(ui.lang, "gapBalanced")}</p>`;
@@ -1253,7 +1261,7 @@ function shortagePanel(quote) {
   return `<button type="button" class="gapbar${worst ? " short" : " ok"}" data-action="toggle-gap" aria-expanded="${Boolean(ui.sale.gapOpen)}">
       <span>${label}</span><i>${ui.sale.gapOpen ? t(ui.lang, "gapHide") : t(ui.lang, "gapShow")}</i>
     </button>
-    ${ui.sale.gapOpen ? `<div class="gap-panel"><p class="fine"><strong>${t(ui.lang, "gapTitle")}</strong></p>${body}${tip}</div>` : ""}`;
+    ${ui.sale.gapOpen ? `<div class="gap-panel"><p class="fine"><strong>${t(ui.lang, "gapTitle")}</strong></p>${body}${legend}${tip}</div>` : ""}`;
 }
 
 function marketingView() {
