@@ -110,10 +110,10 @@ button:disabled { cursor: not-allowed; }
 .shell[data-phase="remedy"] .stack,
 .shell[data-phase="mismatch"] .stack,
 .shell[data-phase="gameover"] .stack,
-.shell[data-phase="sell"] .stack,
 .shell[data-phase="settle"] .stack {
   margin: auto 0;
 }
+.shell[data-phase="sell"] .stack { margin: 0; }
 .stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .settlement-group { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
 .settlement-group h3 { margin: 0 0 4px; font-size: var(--fs-secondary); color: var(--accent); }
@@ -1113,3 +1113,44 @@ button:disabled {
 .mgmt-table tr.current td { color: #dce9ff; }
 .mgmt-table tfoot td { border-bottom: 0; border-top: 1px solid var(--line); font-weight: 700; padding-top: 7px; }
 .mgmt-table tfoot td.n { color: var(--ok); }
+
+/* Contractor consequence cards */
+.impact-title { margin: 12px 0 6px; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+.impact { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.icard { border: 1px solid var(--line); border-radius: 12px; padding: 8px 9px; background: #131f30; }
+.icard h5 { margin: 0 0 4px; font-size: 12px; display: flex; justify-content: space-between; gap: 6px; }
+.icard h5 b { font-variant-numeric: tabular-nums; }
+.icard p { margin: 2px 0; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.icard p b { color: var(--text); font-variant-numeric: tabular-nums; }
+.icard p b.bad { color: var(--danger); }
+.icard.warn { border-color: #6b552c; }
+.icard.warn h5 b { color: var(--game); }
+.remedy table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.remedy th { text-align: left; font-weight: 600; color: var(--muted); font-size: 11px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+.remedy th.n, .remedy td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.remedy td { padding: 4px 0; border-bottom: 1px solid rgba(148, 176, 220, .12); }
+.remedy tr:last-child td { border-bottom: 0; }
+.level { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.level-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--muted); }
+.level-head b { color: var(--text); }
+.lbar { height: 8px; border-radius: 999px; background: #26364b; overflow: hidden; margin: 6px 0; }
+.lbar i { display: block; height: 100%; background: linear-gradient(90deg, #6ea2ff, #7de7b2); }
+.level p { margin: 2px 0; font-size: 11.5px; color: var(--muted); }
+.level p b { color: var(--ok); }
+.clist .badge.lv { background: #2a2140; color: #d9c6ff; border: 1px solid #5b4790; }
+
+/* Compact marketing planner */
+.gapbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border-radius: 10px; font-size: 12.5px; font-weight: 600; text-align: left; }
+.gapbar.ok { border: 1px solid #2c6b57; background: #14352d; color: var(--ok); }
+.gapbar.short { border: 1px solid #7a4a2a; background: #3a2317; color: #ffc9a3; }
+.gapbar i { font-style: normal; opacity: .8; font-weight: 400; white-space: nowrap; }
+.media-row { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); overflow: hidden; }
+.media-row.is-off .mname, .media-row.is-off .mmeta { opacity: .6; }
+.media-row .mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 9px 10px; }
+.media-row .mname { font-weight: 700; font-size: 14px; }
+.media-row .mmeta { font-size: 11.5px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.media-row .mmeta b { color: var(--text); }
+.targetrow { display: flex; align-items: center; gap: 6px; padding: 0 10px 9px; }
+.targetrow .lab { font-size: 11px; color: var(--muted); }
+.tbtn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; border: 1px solid #3d63a0; background: #1b2a3f; color: #dce9ff; font-size: 12px; font-weight: 600; }
+.target-chips { padding: 0 10px 10px; }

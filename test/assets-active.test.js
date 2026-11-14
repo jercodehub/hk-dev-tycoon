@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   MANAGEMENT_FEE_PER_FT2_YEAR,
   UNIT_SPECS,
+  ownLevel,
+  ownSpec,
   chooseContractor,
   chooseLand,
   commitSale,
@@ -99,6 +101,50 @@ test("the settlement preview shows the fee that will actually be paid", () => {
   const preview = settlementPreview(catalog, withManager);
   const settled = confirmSettle(catalog, withManager).state;
   assert.equal(preview.cash, settled.cash);
+});
+
+test("the in-house contractor levels at 5 and 12 delivered projects", () => {
+  assert.equal(ownLevel(0).level, 1);
+  assert.equal(ownLevel(4).level, 1);
+  assert.equal(ownLevel(5).level, 2);
+  assert.equal(ownLevel(11).level, 2);
+  assert.equal(ownLevel(12).level, 3);
+  assert.equal(ownLevel(40).level, 3);
+
+  const lv1 = ownSpec(catalog.balance, 0);
+  const lv2 = ownSpec(catalog.balance, 5);
+  const lv3 = ownSpec(catalog.balance, 12);
+  assert.ok(lv1.costMul > lv2.costMul && lv2.costMul > lv3.costMul);
+  assert.ok(lv1.leak > lv2.leak && lv2.leak > lv3.leak);
+  assert.ok(lv1.collapse > lv2.collapse && lv2.collapse > lv3.collapse);
+  assert.ok(lv1.quality < lv3.quality);
+});
+
+test("quotes and completion both follow the in-house level", () => {
+  const owned = investCapital(catalog, bought(31, 4000000000), "builder").state;
+  const lv1Quote = contractorQuote(catalog, owned, "own");
+  const lv3Quote = contractorQuote(catalog, { ...owned, ownBuilds: 12 }, "own");
+  assert.ok(lv3Quote.cost < lv1Quote.cost);
+
+  const played = playOne(owned, "own");
+  const settled = confirmSettle(catalog, played).state;
+  assert.equal(settled.history.at(-1).contractor, "own");
+  assert.equal(settled.ownBuilds, 1);
+});
+
+test("ownBuilds is saved and older saves derive it from history", () => {
+  const save = serializeCampaign({ ...bought(33, 4000000000), ownBuilds: 7 });
+  assert.equal(save.ownBuilds, 7);
+  assert.equal(hydrateCampaign(catalog, save).ownBuilds, 7);
+
+  const legacy = { ...save };
+  delete legacy.ownBuilds;
+  legacy.history = [
+    { index: 1, skipped: false, contractor: "own", sold: 100 },
+    { index: 2, skipped: false, contractor: "huimen", sold: 100 },
+    { index: 3, skipped: true, contractor: "own" },
+  ];
+  assert.equal(hydrateCampaign(catalog, legacy).ownBuilds, 1);
 });
 
 test("legacy saves without sold area get a per-project estimate", () => {

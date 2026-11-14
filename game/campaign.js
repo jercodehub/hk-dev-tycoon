@@ -21,6 +21,32 @@ export const ASSEMBLY_OPTIONS = {
   modular: { costMul: 0.92, gfaMul: 1.06 },
 };
 
+// The in-house builder improves with every project it delivers.
+export const OWN_LEVELS = [
+  { level: 1, min: 0, costMul: 0.8, leak: 0.08, collapse: 0.02, quality: 1.04 },
+  { level: 2, min: 5, costMul: 0.78, leak: 0.06, collapse: 0.012, quality: 1.06 },
+  { level: 3, min: 12, costMul: 0.76, leak: 0.04, collapse: 0.006, quality: 1.08 },
+];
+
+export function ownLevel(ownBuilds = 0) {
+  let current = OWN_LEVELS[0];
+  for (const step of OWN_LEVELS) if (ownBuilds >= step.min) current = step;
+  return current;
+}
+
+export function ownSpec(balance, ownBuilds = 0) {
+  const base = balance?.contractors?.own;
+  if (!base) return null;
+  const step = ownLevel(ownBuilds);
+  return { ...base, costMul: step.costMul, leak: step.leak, collapse: step.collapse, quality: step.quality, level: step.level };
+}
+
+function withOwnLevel(catalog, state) {
+  const spec = ownSpec(catalog.balance, state?.ownBuilds || 0);
+  if (!spec) return catalog;
+  return { ...catalog, balance: { ...catalog.balance, contractors: { ...catalog.balance.contractors, own: spec } } };
+}
+
 // Property-management fee: $5 per ft2 per month, charged once per project
 // against every unit the company has sold so far.
 export const MANAGEMENT_FEE_PER_FT2_YEAR = 60;
@@ -1352,6 +1378,7 @@ export function createCampaign(catalog, { company, seed = 1 } = {}) {
     flags: {},
     unitsSold: 0,
     unitsLaunched: 0,
+    ownBuilds: 0,
     seed: seed >>> 0,
     rngCursor,
     poolBias: emptyBias(),
@@ -1420,6 +1447,7 @@ export function chooseLand(catalog, state, slot, rawStake = 1) {
 }
 
 export function contractorQuote(catalog, state, contractorId) {
+  catalog = withOwnLevel(catalog, state);
   const spec = catalog.balance.contractors[contractorId];
   if (!spec || state.project?.offer == null) return null;
   const bench = gameBench(catalog, state.project.offer.district, state.market);
@@ -1450,6 +1478,7 @@ export function rollCollapse(spec, roll) {
 
 export function chooseContractor(catalog, state, contractorId, rawMix, loanMode = "cash", assemblyId = "standard") {
   if (state.phase !== "build") return fail(state, "bad_phase");
+  catalog = withOwnLevel(catalog, state);
   const spec = catalog.balance.contractors[contractorId];
   if (!spec) return fail(state, "bad_contractor");
   if (contractorId === "own" && !state.assets?.builder) return fail(state, "bad_contractor");
@@ -1562,6 +1591,7 @@ export function chooseContractor(catalog, state, contractorId, rawMix, loanMode 
 
 export function chooseRemedy(catalog, state, choice) {
   if (state.phase !== "sell") return fail(state, "bad_phase");
+  catalog = withOwnLevel(catalog, state);
   const contractor = state.project?.contractor;
   if (!contractor?.collapsed || !contractor.remedyPending) return fail(state, "bad_choice");
   if (choice !== "rush" && choice !== "worse") return fail(state, "bad_choice");
@@ -2265,6 +2295,7 @@ export function confirmSettle(catalog, state) {
     unitsSold,
     unitsLaunched,
     managedFt2,
+    ownBuilds: (state.ownBuilds || 0) + (entry.contractor === "own" && !entry.skipped ? 1 : 0),
     completed,
     history,
     voice,
@@ -2353,6 +2384,7 @@ export function serializeCampaign(state) {
     unitsSold: state.unitsSold,
     unitsLaunched: state.unitsLaunched,
     managedFt2: state.managedFt2 || 0,
+    ownBuilds: state.ownBuilds || 0,
     poolBias: { ...emptyBias(), ...(state.poolBias || {}) },
     voice: { ...emptyVoice(), ...(state.voice || {}) },
     frozen: (state.frozen || []).map((item) => ({ ...item })),
@@ -2397,8 +2429,9 @@ export function serializeCampaign(state) {
   };
 }
 
-function rehydrateContractor(saved, offer, catalog) {
+function rehydrateContractor(saved, offer, catalog, ownBuilds = 0) {
   if (!saved?.id || !saved.pricedAt) return null;
+  catalog = withOwnLevel(catalog, { ownBuilds });
   const spec = catalog.balance.contractors[saved.id];
   if (!spec) return null;
   const quote = contractorQuote(
@@ -2473,6 +2506,9 @@ export function hydrateCampaign(catalog, saved) {
     unitsSold: saved.unitsSold || 0,
     unitsLaunched: saved.unitsLaunched || 0,
     managedFt2: typeof saved.managedFt2 === "number" ? saved.managedFt2 : historyFt2,
+    ownBuilds: Number.isFinite(saved.ownBuilds)
+      ? Math.max(0, saved.ownBuilds)
+      : history.filter((item) => item.contractor === "own" && !item.skipped).length,
     poolBias: { ...emptyBias(), ...(saved.poolBias || {}) },
     voice: {
       n: saved.voice?.n || 0,
@@ -2516,7 +2552,7 @@ export function hydrateCampaign(catalog, saved) {
     state.project = { index: saved.project.index, skipped: true, move: saved.project.move };
   } else if (saved.project?.offer) {
     const offer = attachScale(saved.project.offer);
-    const contractor = rehydrateContractor(saved.project.contractor, offer, catalog);
+    const contractor = rehydrateContractor(saved.project.contractor, offer, catalog, state.ownBuilds);
     const loan = saved.project.loan && LOAN_MODES.includes(saved.project.loan.mode)
       ? {
           mode: saved.project.loan.mode,
@@ -2686,6 +2722,7 @@ export function settlementPreview(catalog, state) {
 }
 
 export function buildSalesBand(catalog, state, mix, contractorId) {
+  catalog = withOwnLevel(catalog, state);
   const clean = normalizeMix(mix);
   const id = contractorId && catalog.balance.contractors[contractorId] ? contractorId : "huimen";
   const spec = catalog.balance.contractors[id];
@@ -2752,6 +2789,7 @@ export function updateCompany(state, input) {
 }
 
 export function buildOutlook(catalog, state, mix, contractorId, mode = "cash") {
+  catalog = withOwnLevel(catalog, state);
   const offer = state?.project?.offer;
   if (!offer) return { interest: 0, profit: 0, tone: "quiet", warnBig: false };
   const stake = stakeOf(offer);
