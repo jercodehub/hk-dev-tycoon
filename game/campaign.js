@@ -16,6 +16,12 @@ export const CAPITAL_ASSETS = {
   ai: { cost: 200000000, level: "ai", label: "AI 新創投資" },
   district: { cost: 450000000, level: "district", label: "片區開發" },
 };
+export const ASSEMBLY_OPTIONS = {
+  standard: { costMul: 1, gfaMul: 1 },
+  modular: { costMul: 0.92, gfaMul: 1.06 },
+  precast: { costMul: 0.88, gfaMul: 1.03 },
+  hybrid: { costMul: 0.95, gfaMul: 1.10 },
+};
 
 export function emptyAssets() {
   return { builder: 0, manager: 0, landBank: 0, ai: 0, district: 0, invested: 0 };
@@ -1417,7 +1423,8 @@ export function contractorQuote(catalog, state, contractorId) {
   const bench = gameBench(catalog, state.project.offer.district, state.market);
   const base = money(bench.fairBuildPerFt2 * state.project.offer.gfaFt2);
   const companyDiscount = state.assets?.builder ? 0.08 : 0;
-  const cost = money(base * spec.costMul * (1 - companyDiscount));
+  const assembly = ASSEMBLY_OPTIONS[state.project.assembly || "standard"] || ASSEMBLY_OPTIONS.standard;
+  const cost = money(base * spec.costMul * assembly.costMul * (1 - companyDiscount));
   const stake = stakeOf(state.project.offer);
   const playerCost = money(cost * stake);
   return {
@@ -1440,17 +1447,20 @@ export function rollCollapse(spec, roll) {
   return roll < spec.collapse;
 }
 
-export function chooseContractor(catalog, state, contractorId, rawMix, loanMode = "cash") {
+export function chooseContractor(catalog, state, contractorId, rawMix, loanMode = "cash", assemblyId = "standard") {
   if (state.phase !== "build") return fail(state, "bad_phase");
   const spec = catalog.balance.contractors[contractorId];
   if (!spec) return fail(state, "bad_contractor");
   const flavour = districtFlavour(state.project.offer.district, catalog.balance);
   const heat = campaignHeat(state, catalog.balance);
-  const mix = rawMix == null ? presetMix(state.project.offer.gfaFt2, flavour, heat, catalog.balance) : normalizeMix(rawMix);
+  const assembly = ASSEMBLY_OPTIONS[assemblyId] || ASSEMBLY_OPTIONS.standard;
+  const expandedOffer = { ...state.project.offer, gfaFt2: snapGfa(state.project.offer.gfaFt2 * assembly.gfaMul) };
+  const assembledState = { ...state, project: { ...state.project, offer: expandedOffer, assembly: assemblyId } };
+  const mix = rawMix == null ? presetMix(expandedOffer.gfaFt2, flavour, heat, catalog.balance) : normalizeMix(rawMix);
   if (gfaUsed(mix) <= 0) return fail(state, "empty_mix");
-  if (!mixFits(state.project.offer.gfaFt2, mix)) return fail(state, "over_gfa");
-  const quote = contractorQuote(catalog, state, contractorId);
-  const stake = stakeOf(state.project.offer);
+  if (!mixFits(expandedOffer.gfaFt2, mix)) return fail(state, "over_gfa");
+  const quote = contractorQuote(catalog, assembledState, contractorId);
+  const stake = stakeOf(expandedOffer);
   const playerCost = quote.playerCost;
   const adjust = loanAdjustments(state);
   const plan = fundBuild(catalog.balance, { cash: state.cash, cost: playerCost, mode: loanMode, adjust });
@@ -1505,7 +1515,7 @@ export function chooseContractor(catalog, state, contractorId, rawMix, loanMode 
   const payExtra = Math.min(cashAfterQuote, extra);
   const unpaid = money(extra - payExtra);
   const market = tickMarket(state.market, value.move, catalog.balance);
-  const band = buildSalesBand(catalog, state, mix, contractorId);
+  const band = buildSalesBand(catalog, assembledState, mix, contractorId);
   return succeed({
     ...state,
     rngCursor,
@@ -1515,6 +1525,8 @@ export function chooseContractor(catalog, state, contractorId, rawMix, loanMode 
     phase: "sell",
     project: {
       ...state.project,
+      offer: expandedOffer,
+      assembly: assemblyId,
       loan,
       mixWeak: band.weak,
       contractor: {
@@ -2308,6 +2320,7 @@ export function serializeCampaign(state) {
           index: state.project.index,
           skipped: Boolean(state.project.skipped),
           name: state.project.name || null,
+          assembly: state.project.assembly || "standard",
           move: state.project.move ?? null,
           offer: slimOffer(state.project.offer),
           contractor: state.project.contractor
@@ -2457,6 +2470,7 @@ export function hydrateCampaign(catalog, saved) {
       index: saved.project.index,
       skipped: false,
       name: normalizeProjectName(saved.project.name, defaultProjectName(offer.district, offer.flavour)),
+      assembly: ASSEMBLY_OPTIONS[saved.project.assembly] ? saved.project.assembly : "standard",
       offer,
       contractor,
       loan,
