@@ -1019,6 +1019,15 @@ function setTypePsf(type, psf, fair) {
   ui.sale.choices.askMulByType = { ...(ui.sale.choices.askMulByType || {}), [type]: clamped / fairPsf };
 }
 
+function filmOverlay(film) {
+  const pct = film.units ? Math.min(100, Math.round((film.sold / film.units) * 100)) : 0;
+  const clear = film.sold >= film.units && film.units > 0;
+  return `<div class="film" aria-hidden="true">
+    <div class="film-act a1"><b>超額 ${film.over} 倍</b><span>排隊中 · 人龍繞到街口</span><div class="crowd">${"<i></i>".repeat(40)}</div></div>
+    <div class="film-act a2"><div class="stamps">${"<b>已售</b>".repeat(9)}</div><div class="tally">${film.sold}<s>伙</s></div><div class="fill"><i style="width:${pct}%"></i></div></div>
+    <div class="film-act a3"><b class="${clear ? "clear" : "left"}">${clear ? "一 Q 清" : `剩 ${film.units - film.sold} 伙`}</b></div>
+  </div>`;
+}
 function profitHero(quote) {
   const revenue = quote.revenue || 0;
   const profit = quote.profit || 0;
@@ -1400,6 +1409,11 @@ function revealNow(quote) {
 }
 
 function launchSale() {
+  const intro = currentQuote();
+  if (!ui.sale.reduced) {
+    ui.sale.film = { sold: intro.sold, units: intro.units, over: Math.max(1, Math.round(intro.poolsBefore ? (Object.values(intro.poolsBefore).reduce((a, b) => a + b, 0) / Math.max(1, intro.units)) : 1)) };
+    window.setTimeout(() => { ui.sale.film = null; render(); }, 4200);
+  }
   ui.sale.marketingStage = "done";
   ui.sale.mode = "live";
   ui.sale.started = performance.now();
@@ -2148,7 +2162,7 @@ function render() {
   const prevShell = document.querySelector(".shell");
   const prevPhase = prevShell?.dataset.phase || null;
   const prevScroll = prevShell ? prevShell.scrollTop : 0;
-  app.innerHTML = `${hud()}
+  app.innerHTML = `${ui.sale?.film ? filmOverlay(ui.sale.film) : ""}${hud()}
     <div class="shell" data-phase="${phase}">
       <main class="stack" id="main">${mainView()}</main>
     </div>
