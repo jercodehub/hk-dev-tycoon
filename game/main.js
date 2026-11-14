@@ -527,6 +527,9 @@ function ensureSale() {
   ui.sale = {
     index: ui.state.project.index,
     choices: { showflat: false, cheer: 0, leftover: "cut", price: "fair", rebate: "none", adBudget: "none", adTarget: null },
+    marketingStage: "pre",
+    marketingMedium: "online",
+    marketingTarget: "starter",
     mode: "setup",
     started: 0,
     shownSold: 0,
@@ -1085,8 +1088,19 @@ function sellLive() {
     </section>`;
 }
 
+function marketingView() {
+  const media = [["online", "mediaOnline"], ["tv", "mediaTv"], ["portal", "mediaPortal"]];
+  const targets = [["starter", "adStarter"], ["rent", "adRent"], ["upgrade", "adUpgrade"], ["feature", "adFeature"]];
+  const quote = saleForecast(ui.catalog, ui.state, { ...ui.sale.choices, adBudget: ui.sale.marketingMedium === "tv" ? "high" : "low", adTarget: ui.sale.marketingTarget });
+  if (ui.sale.marketingStage === "mid") {
+    return `${tutorialBanner()}<section class="card marketing-card"><span class="kicker">${t(ui.lang, "marketingMidKicker")}</span><h2>${t(ui.lang, "marketingMidKicker")}</h2><p class="note">${t(ui.lang, "marketingMidLead")}</p><div class="stats"><div class="stat"><span class="k">${t(ui.lang, "marketingLeads", { n: Math.round(quote.pct * 2.4) })}</span><strong>${Math.round(quote.pct * 2.4)}</strong></div><div class="stat"><span class="k">${t(ui.lang, "marketingBuyers", { n: quote.pct })}</span><strong>${quote.pct}%</strong></div></div><div class="stack"><button class="primary" data-action="marketing-choice" data-id="boost">${t(ui.lang, "marketingBoost")}</button><button class="ghost" data-action="marketing-choice" data-id="keep">${t(ui.lang, "marketingKeep")}</button><button class="ghost" data-action="marketing-choice" data-id="stop">${t(ui.lang, "marketingStop")}</button></div></section>`;
+  }
+  return `${tutorialBanner()}<section class="card marketing-card"><span class="kicker">${t(ui.lang, "marketingKicker")}</span><h2>${t(ui.lang, "marketingKicker")}</h2><p class="note">${t(ui.lang, "marketingLead")}</p><p class="fine">${t(ui.lang, "marketingMedia")}</p><div class="chips">${media.map(([id, key]) => `<button class="chip${ui.sale.marketingMedium === id ? " on" : ""}" data-action="marketing-medium" data-id="${id}">${t(ui.lang, key)}</button>`).join("")}</div><p class="fine">${t(ui.lang, "marketingTarget")}</p><div class="chips">${targets.map(([id, key]) => `<button class="chip${ui.sale.marketingTarget === id ? " on" : ""}" data-action="marketing-target" data-id="${id}">${t(ui.lang, key)}</button>`).join("")}</div><p class="pnl">${t(ui.lang, "marketingBuyers", { n: quote.pct })}</p><button class="primary" data-action="marketing-continue">${t(ui.lang, "marketingContinue")}</button></section>`;
+}
+
 function sellView() {
   ensureSale();
+  if (!isOnboarding(ui.state) && ui.sale.marketingStage !== "done") return `${errorBanner()}${marketingView()}`;
   if (ui.sale.mode === "setup") return `${errorBanner()}${sellSetup()}`;
   return sellLive();
 }
@@ -2159,6 +2173,36 @@ function onClick(event) {
     ensureSale();
     if (ui.sale.mode !== "setup") return;
     ui.sale.choices.adBudget = id === "low" || id === "high" ? id : "none";
+    render();
+    return;
+  }
+  if (action === "marketing-medium") {
+    ensureSale();
+    if (ui.sale.marketingStage !== "pre") return;
+    ui.sale.marketingMedium = id;
+    render();
+    return;
+  }
+  if (action === "marketing-target") {
+    ensureSale();
+    if (ui.sale.marketingStage !== "pre") return;
+    ui.sale.marketingTarget = id;
+    render();
+    return;
+  }
+  if (action === "marketing-continue") {
+    ensureSale();
+    ui.sale.choices.adTarget = ui.sale.marketingTarget;
+    ui.sale.choices.adBudget = ui.sale.marketingMedium === "tv" ? "high" : "low";
+    ui.sale.marketingStage = "mid";
+    render();
+    return;
+  }
+  if (action === "marketing-choice") {
+    ensureSale();
+    if (id === "boost") ui.sale.choices.adBudget = "high";
+    if (id === "stop") ui.sale.choices.adBudget = "none";
+    ui.sale.marketingStage = "done";
     render();
     return;
   }

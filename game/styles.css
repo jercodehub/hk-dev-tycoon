@@ -163,6 +163,9 @@ button:disabled { cursor: not-allowed; }
 .capital-option { display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; }
 .capital-option small { color: var(--muted); }
 .capital-option:disabled { opacity: .62; }
+.marketing-card .chips { margin: 8px 0 14px; }
+.marketing-card .chip { flex: 1 1 150px; }
+.marketing-card .stats { margin: 16px 0; }
 .primary, .go {
   background: #8eb6ff;
   border-color: #e7f0ff;
