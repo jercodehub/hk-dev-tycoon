@@ -157,7 +157,7 @@ button:disabled { cursor: not-allowed; }
   border: 1px solid var(--line);
   background: var(--panel-2);
 }
-.ghost, .primary { min-height: 40px; padding: 8px 12px; font-size: var(--fs-button); font-weight: 700; }
+.ghost, .primary, .chip, .choice { min-height: 44px; padding: 8px 12px; font-size: var(--fs-button); font-weight: 700; }
 .primary, .go {
   background: #8eb6ff;
   border-color: #e7f0ff;

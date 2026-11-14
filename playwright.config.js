@@ -14,7 +14,10 @@ export default defineConfig({
       : undefined,
   },
   projects: [
-    { name: "mobile", use: { browserName: "chromium", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "mobile-360", use: { browserName: "chromium", viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true } },
+    { name: "mobile-390", use: { browserName: "chromium", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: "mobile-430", use: { browserName: "chromium", viewport: { width: 430, height: 932 }, isMobile: true, hasTouch: true } },
+    { name: "desktop", use: { browserName: "chromium", viewport: { width: 1440, height: 900 } } },
   ],
   webServer: {
     command: "python3 -m http.server 8080 --bind 127.0.0.1",
