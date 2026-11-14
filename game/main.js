@@ -20,11 +20,11 @@ import {
   commitSale,
   confirmSettle,
   contractorQuote,
-  contractorRisk,
   createCampaign,
   createCampaignCatalog,
   CAPITAL_ASSETS,
   ASSEMBLY_OPTIONS,
+  MANAGEMENT_FEE_PER_FT2_YEAR,
   endSummary,
   effectiveMarket,
   explainForecastGap,
@@ -116,6 +116,7 @@ const ui = {
   legacyGuide: false,
   confirmNewGame: false,
   capital: false,
+  mgmtOpen: false,
   teach: null,
   similarOpen: true,
   ignoreClick: false,
@@ -298,13 +299,6 @@ function funding(mode = "cash") {
 function yellowBanner() {
   if (!ui.state?.credit?.yellow || !ui.state.credit.owed) return "";
   return `<div class="banner warn">${t(ui.lang, "yellowBanner", { owed: compactHkd(ui.state.credit.owed) })}</div>`;
-}
-
-function riskMeters(id) {
-  const spec = ui.catalog.balance.contractors[id];
-  const risk = contractorRisk(spec, ui.catalog.balance);
-  const bar = (key, ratio) => `<span class="risk"><em>${t(ui.lang, key)}</em><b><i style="width:${Math.round(ratio * 100)}%"></i></b></span>`;
-  return `<span class="risks">${bar("leak", risk.leak)}${bar("collapse", risk.collapse)}</span>`;
 }
 
 function needsRemedy() {
@@ -545,9 +539,9 @@ function ensureSale() {
     choices: { showflat: false, cheer: 0, leftover: "cut", price: "fair", rebate: "none", adBudget: "none", adTarget: null, adPlans: [] },
     marketingStage: "pre",
     marketingPlans: [
-      { medium: "online", target: "starter", budget: "low", paidBudget: "none" },
-      { medium: "tv", target: "upgrade", budget: "high", paidBudget: "none" },
-      { medium: "portal", target: "rent", budget: "low", paidBudget: "none" },
+      { medium: "online", target: "starter", budget: "low", paidBudget: "none", active: true },
+      { medium: "tv", target: "upgrade", budget: "high", paidBudget: "none", active: false },
+      { medium: "portal", target: "rent", budget: "low", paidBudget: "none", active: false },
     ],
     mode: "setup",
     started: 0,
@@ -558,16 +552,21 @@ function ensureSale() {
 }
 
 const MARKETING_MEDIA = [["online", "mediaOnline", "low"], ["tv", "mediaTv", "high"], ["portal", "mediaPortal", "low"]];
-const MARKETING_TARGETS = [["starter", "adStarter"], ["rent", "adRent"], ["upgrade", "adUpgrade"], ["feature", "adFeature"]];
+const MARKETING_TARGETS = [["starter", "adStarter"], ["rent", "adRent"], ["couple", "adCouple"], ["upgrade", "adUpgrade"], ["feature", "adFeature"]];
 
 function marketingPlans() {
   return (ui.sale?.marketingPlans || []).map((plan) => ({ ...plan }));
+}
+
+function activeMarketingPlans(plans = marketingPlans()) {
+  return plans.filter((plan) => plan.active !== false);
 }
 
 function marketingCost(plans = marketingPlans()) {
   const ad = ui.catalog.balance.promo?.ad || {};
   const stake = stakeOf(ui.state.project?.offer);
   return Math.round(plans.reduce((sum, plan) => {
+    if (plan.active === false) return sum;
     const current = ad[plan.budget]?.perFt2 || 0;
     const paid = ad[plan.paidBudget]?.perFt2 || 0;
     return sum + Math.max(0, current - paid) * (ui.state.project?.offer?.gfaFt2 || 0) * stake;
@@ -575,11 +574,11 @@ function marketingCost(plans = marketingPlans()) {
 }
 
 function marketingForecast(plans = marketingPlans()) {
-  return saleForecast(ui.catalog, ui.state, { ...ui.sale.choices, adPlans: plans });
+  return saleForecast(ui.catalog, ui.state, { ...ui.sale.choices, adPlans: activeMarketingPlans(plans) });
 }
 
 function currentQuote() {
-  const choices = { ...ui.sale.choices, adPlans: marketingPlans() };
+  const choices = { ...ui.sale.choices, adPlans: activeMarketingPlans() };
   const quote = resolveSale(ui.catalog, ui.state, choices);
   quote.forecastPct = saleForecast(ui.catalog, ui.state, choices).pct;
   return quote;
@@ -768,20 +767,44 @@ function buildView() {
   const sales = buildSalesBand(ui.catalog, buildState, ui.build.mix, ui.build.contractor);
   const outlook = buildOutlook(ui.catalog, buildState, ui.build.mix, ui.build.contractor, ui.build.loan || "cash");
   const warn = outlook.warnBig ? `<p class="loan-warn">${t(ui.lang, "loanWarn")}</p>` : "";
-  const cards = ["jingjin", "huimen", "xinjing"].map((id) => {
+  const contractorIds = ["jingjin", "huimen", "xinjing", ...(ui.state.assets?.builder ? ["own"] : [])];
+  const cards = contractorIds.map((id) => {
     const quote = contractorQuote(ui.catalog, buildState, id);
     const spec = ui.catalog.balance.contractors[id];
     const on = ui.build.contractor === id;
-    const risk = spec.collapse > 0
-      ? `<p class="fine risk-preview">${t(ui.lang, "collapseRisk", { extra: compactHkd(remedyExtra(ui.catalog.balance, quote.cost, stakeOf(offer), "rush")) })}</p>`
-      : "";
-    return `<button class="choice contractor${on ? " on" : ""}" data-action="pick-contractor" data-id="${id}" aria-pressed="${on}">
-      <div class="head"><h3>${t(ui.lang, id)}</h3><strong>${compactHkd(quote.playerCost)}</strong></div>
-      ${riskMeters(id)}
-      <p class="fine">${t(ui.lang, `${id}Note`)}</p>
-      ${risk}
+    const tier = spec.collapse >= 0.15 ? "hi" : spec.collapse >= 0.03 ? "mid" : "lo";
+    const tierKey = tier === "hi" ? "riskVeryHigh" : tier === "mid" ? "riskMid" : "riskLow";
+    const leakClass = spec.leak >= 0.2 ? "bad" : spec.leak <= 0.05 ? "good" : "";
+    const collapseClass = spec.collapse >= 0.15 ? "bad" : spec.collapse <= 0.03 ? "good" : "";
+    const qualityClass = spec.quality < 0.95 ? "bad" : spec.quality > 1 ? "good" : "";
+    return `<button class="crow${on ? " on" : ""}" data-action="pick-contractor" data-id="${id}" aria-pressed="${on}">
+      <span class="line1">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="name">${t(ui.lang, id)}${id === "own" ? `<span class="badge">${t(ui.lang, "contractorOwned")}</span>` : ""}</span>
+        <span class="price">${compactHkd(quote.playerCost)}</span>
+        <span class="pill ${tier}">${t(ui.lang, tierKey)}</span>
+      </span>
+      <span class="line2">
+        <span>${t(ui.lang, "metricCost")}<b>×${spec.costMul.toFixed(2)}</b></span>
+        <span>${t(ui.lang, "metricLeak")}<b class="${leakClass}">${Math.round(spec.leak * 100)}%</b></span>
+        <span>${t(ui.lang, "metricCollapse")}<b class="${collapseClass}">${Math.round(spec.collapse * 100)}%</b></span>
+        <span>${t(ui.lang, "metricQuality")}<b class="${qualityClass}">${spec.quality.toFixed(2)}</b></span>
+      </span>
     </button>`;
   }).join("");
+  const pickedSpec = ui.build.contractor ? ui.catalog.balance.contractors[ui.build.contractor] : null;
+  const contractorDetail = picked && pickedSpec
+    ? `<div class="detail">
+        <h4>${t(ui.lang, ui.build.contractor)}<span>${compactHkd(picked.playerCost)}</span></h4>
+        <div class="drow"><span>${t(ui.lang, "detailCostMul")}</span><b>×${pickedSpec.costMul.toFixed(2)}</b></div>
+        <div class="drow"><span>${t(ui.lang, "detailLeak")}</span><b>${Math.round(pickedSpec.leak * 100)}%</b></div>
+        <div class="drow"><span>${t(ui.lang, "detailCollapse")}</span><b>${Math.round(pickedSpec.collapse * 100)}%</b></div>
+        <div class="drow"><span>${t(ui.lang, "detailQuality")}</span><b>${pickedSpec.quality.toFixed(2)}</b></div>
+        <div class="drow"><span>${t(ui.lang, "detailRep")}</span><b>${pickedSpec.rep >= 0 ? "+" : ""}${pickedSpec.rep}</b></div>
+        <div class="drow"><span>${t(ui.lang, "detailRemedy")}</span><b>+${compactHkd(remedyExtra(ui.catalog.balance, picked.cost, stakeOf(offer), "rush"))}</b></div>
+        <p class="fine">${t(ui.lang, `${ui.build.contractor}Note`)}</p>
+      </div>`
+    : "";
   const width = Math.max(0, Math.min(100, (used / gfa) * 100));
   const stake = stakeOf(offer);
   const stakeNote = stake < 1 ? `<p class="fine jv-line">${shareSentence(stake)}</p>` : "";
@@ -810,7 +833,9 @@ function buildView() {
       ${warn}
       ${shortLine}
       <p class="fine credit-note">${t(ui.lang, "loanDisclaimer")}</p>`}
-      <div class="contractors">${cards}</div>
+      <div class="section-head"><h3>${t(ui.lang, "pickContractor")}</h3><span>${t(ui.lang, "contractorHint")}</span></div>
+      <div class="clist">${cards}</div>
+      ${contractorDetail}
     </section>`;
 }
 
@@ -1000,7 +1025,11 @@ function salePnl(choices) {
 function marketingSummary() {
   const labels = Object.fromEntries(MARKETING_MEDIA.map(([id, key]) => [id, t(ui.lang, key)]));
   const targets = Object.fromEntries(MARKETING_TARGETS.map(([id, key]) => [id, t(ui.lang, key)]));
-  return `<div class="marketing-summary"><p class="fine">${t(ui.lang, "marketingPaid")}</p>${marketingPlans().map((plan) => `<span>${labels[plan.medium]} × ${targets[plan.target]}</span>`).join(" · ")}</div>`;
+  const active = activeMarketingPlans();
+  const body = active.length
+    ? active.map((plan) => `<span>${labels[plan.medium]} × ${targets[plan.target]}</span>`).join(" · ")
+    : `<span>${t(ui.lang, "marketingNone")}</span>`;
+  return `<div class="marketing-summary"><p class="fine">${t(ui.lang, "marketingPaid")}</p>${body}</div>`;
 }
 
 function cheerExtraLine(choices) {
@@ -1022,7 +1051,7 @@ function sellSetup() {
   const offer = ui.state.project.offer;
   const onboarding = isOnboarding(ui.state);
   const quote = currentQuote();
-  const saleChoices = { ...ui.sale.choices, adPlans: marketingPlans() };
+  const saleChoices = { ...ui.sale.choices, adPlans: activeMarketingPlans() };
   const forecast = saleForecast(ui.catalog, ui.state, saleChoices);
   const cut = resolveSale(ui.catalog, ui.state, { ...saleChoices, leftover: "cut" });
   const hold = resolveSale(ui.catalog, ui.state, { ...saleChoices, leftover: "hold" });
@@ -1135,23 +1164,63 @@ function sellLive() {
     </section>`;
 }
 
+const TARGET_UNITS = { starter: "two", rent: "studio", couple: "one", upgrade: "three", feature: "feature" };
+
+function marketingTotals(quote) {
+  const rows = Object.values(quote?.byType || {});
+  const leads = rows.reduce((sum, row) => sum + (Number(row.poolBefore) || 0) + (Number(row.brought) || 0), 0);
+  return { leads, buyers: Number(quote?.sold) || 0, units: Number(quote?.units) || 0 };
+}
+
+function shortagePanel(quote) {
+  const rows = MARKETING_TARGETS.map(([id, key]) => {
+    const data = quote.byType?.[TARGET_UNITS[id]] || { offered: 0, poolBefore: 0, brought: 0 };
+    const offered = Number(data.offered) || 0;
+    const pool = Number(data.poolBefore) || 0;
+    const brought = Number(data.brought) || 0;
+    return { id, key, offered, pool, brought, gap: Math.max(0, offered - pool - brought), empty: offered === 0 };
+  });
+  const worst = rows.reduce((best, row) => (row.gap > (best ? best.gap : 0) ? row : best), null);
+  const body = rows.map((row) => `<div class="gap-row${row.gap > 0 ? " short" : ""}">
+    <span>${t(ui.lang, row.key)}</span>
+    <small>${t(ui.lang, "gapUnit", { n: formatCount(row.offered) })} · ${t(ui.lang, "gapPool", { n: formatCount(row.pool) })}${row.brought > 0 ? ` · ${t(ui.lang, "gapAd", { n: formatCount(row.brought) })}` : ""}</small>
+    <strong>${row.empty ? t(ui.lang, "gapNone") : row.gap > 0 ? t(ui.lang, "gapShort", { n: formatCount(row.gap) }) : t(ui.lang, "gapEnough")}</strong>
+  </div>`).join("");
+  const tip = worst
+    ? `<p class="gap-tip">${t(ui.lang, "gapSuggest", { name: t(ui.lang, worst.key) })}</p>`
+    : `<p class="gap-tip ok">${t(ui.lang, "gapBalanced")}</p>`;
+  return `<div class="gap-panel"><p class="fine"><strong>${t(ui.lang, "gapTitle")}</strong></p>${body}${tip}</div>`;
+}
+
 function marketingView() {
   const plans = marketingPlans();
-  const quote = marketingForecast(plans);
+  const active = activeMarketingPlans(plans);
+  const priced = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, adPlans: active });
+  const numbers = marketingTotals(priced);
   if (ui.sale.marketingStage === "mid") {
     const extra = marketingCost(plans.map((plan) => ({ ...plan, budget: plan.paidBudget === "none" ? "high" : "high" })));
     const canBoost = ui.state.cash >= extra;
-    return `${tutorialBanner()}<section class="card marketing-card"><span class="kicker">${t(ui.lang, "marketingMidKicker")}</span><h2>${t(ui.lang, "marketingMidKicker")}</h2><p class="note">${t(ui.lang, "marketingMidLead")}</p><div class="stats"><div class="stat"><span class="k">${t(ui.lang, "marketingLeads", { n: Math.round(quote.pct * 2.4) })}</span><strong>${Math.round(quote.pct * 2.4)}</strong></div><div class="stat"><span class="k">${t(ui.lang, "marketingBuyers", { n: quote.pct })}</span><strong>${quote.pct}%</strong></div><div class="stat"><span class="k">${t(ui.lang, "marketingCost")}</span><strong>${compactHkd(extra)}</strong></div></div><div class="stack"><button class="primary" data-action="marketing-choice" data-id="boost" ${canBoost ? "" : "disabled"}>${t(ui.lang, "marketingBoost")}</button><button class="ghost" data-action="marketing-choice" data-id="keep">${t(ui.lang, "marketingKeep")}</button><button class="ghost" data-action="marketing-choice" data-id="stop">${t(ui.lang, "marketingStop")}</button></div></section>`;
+    return `${tutorialBanner()}<section class="card marketing-card"><span class="kicker">${t(ui.lang, "marketingMidKicker")}</span><h2>${t(ui.lang, "marketingMidKicker")}</h2><p class="note">${t(ui.lang, "marketingMidLead")}</p><div class="stats"><div class="stat"><span class="k">${t(ui.lang, "marketingLeads", { n: formatCount(numbers.leads) })}</span><strong>${formatCount(numbers.leads)}</strong></div><div class="stat"><span class="k">${t(ui.lang, "marketingBuyers", { n: formatCount(numbers.buyers) })}</span><strong>${formatCount(numbers.buyers)}</strong></div><div class="stat"><span class="k">${t(ui.lang, "marketingCost")}</span><strong>${compactHkd(extra)}</strong></div></div><div class="stack"><button class="primary" data-action="marketing-choice" data-id="boost" ${canBoost ? "" : "disabled"}>${t(ui.lang, "marketingBoost")}</button><button class="ghost" data-action="marketing-choice" data-id="keep">${t(ui.lang, "marketingKeep")}</button><button class="ghost" data-action="marketing-choice" data-id="stop">${t(ui.lang, "marketingStop")}</button></div></section>`;
   }
-  const cards = MARKETING_MEDIA.map(([medium, mediaKey, budget]) => {
+  const cards = MARKETING_MEDIA.map(([medium, mediaKey]) => {
     const plan = plans.find((item) => item.medium === medium);
-    const one = marketingForecast([plan]);
-    const cost = marketingCost([plan]);
-    const targets = MARKETING_TARGETS.map(([id, key]) => `<button class="chip${plan.target === id ? " on" : ""}" data-action="marketing-target" data-id="${id}" data-medium="${medium}">${t(ui.lang, key)}</button>`).join("");
-    return `<article class="marketing-option"><h3>${t(ui.lang, mediaKey)}</h3><p class="fine">${t(ui.lang, "marketingCost")} ${compactHkd(cost)} · ${t(ui.lang, "marketingLeads", { n: Math.round(one.pct * 2.4) })}</p><div class="chips">${targets}</div></article>`;
+    const on = plan.active !== false;
+    const one = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, adPlans: on ? [plan] : [] });
+    const added = Number(one.byType?.[TARGET_UNITS[plan.target]]?.brought) || 0;
+    const meta = on
+      ? `${t(ui.lang, "marketingCost")} ${compactHkd(marketingCost([plan]))} · ${t(ui.lang, "marketingAdded", { n: formatCount(added) })}`
+      : t(ui.lang, "marketingOffNote");
+    const targets = MARKETING_TARGETS.map(([id, key]) => `<button class="chip${plan.target === id ? " on" : ""}" data-action="marketing-target" data-id="${id}" data-medium="${medium}" ${on ? "" : "disabled"}>${t(ui.lang, key)}</button>`).join("");
+    return `<article class="marketing-option${on ? "" : " is-off"}">
+      <div class="marketing-head"><h3>${t(ui.lang, mediaKey)}</h3><button class="media-switch${on ? " on" : ""}" type="button" data-action="marketing-toggle" data-medium="${medium}" aria-pressed="${on}">${on ? t(ui.lang, "marketingOn") : t(ui.lang, "marketingOff")}</button></div>
+      <p class="fine">${meta}</p>
+      <div class="chips">${targets}</div>
+    </article>`;
   }).join("");
-  const canStart = ui.state.cash >= marketingCost(plans);
-  return `${tutorialBanner()}<section class="card marketing-card"><span class="kicker">${t(ui.lang, "marketingKicker")}</span><h2>${t(ui.lang, "marketingKicker")}</h2><p class="note">${t(ui.lang, "marketingLead")}</p>${cards}<div class="marketing-total"><strong>${t(ui.lang, "marketingTotal")}</strong><span>${t(ui.lang, "marketingCost")} ${compactHkd(marketingCost(plans))} · ${t(ui.lang, "marketingLeads", { n: Math.round(quote.pct * 2.4) })} · ${t(ui.lang, "marketingBuyers", { n: quote.pct })}</span></div><button class="primary" data-action="marketing-continue" ${canStart ? "" : "disabled"}>${t(ui.lang, "marketingContinue")}</button></section>`;
+  const cost = marketingCost(plans);
+  const canStart = ui.state.cash >= cost;
+  const skip = active.length === 0;
+  return `${tutorialBanner()}<section class="card marketing-card"><span class="kicker">${t(ui.lang, "marketingKicker")}</span><h2>${t(ui.lang, "marketingKicker")}</h2><p class="note">${t(ui.lang, "marketingLead")}</p>${shortagePanel(priced)}${cards}<div class="marketing-total"><strong>${t(ui.lang, "marketingTotal")}</strong><span>${t(ui.lang, "marketingCost")} ${compactHkd(cost)} · ${t(ui.lang, "marketingLeads", { n: formatCount(numbers.leads) })} · ${t(ui.lang, "marketingBuyers", { n: formatCount(numbers.buyers) })}</span></div><button class="primary" data-action="marketing-continue" ${canStart ? "" : "disabled"}>${skip ? t(ui.lang, "marketingSkip") : t(ui.lang, "marketingContinue")}</button>${skip ? `<p class="fine">${t(ui.lang, "marketingSkipNote")}</p>` : ""}</section>`;
 }
 
 function sellView() {
@@ -1166,6 +1235,7 @@ function revealNow(quote) {
 }
 
 function launchSale() {
+  ui.sale.marketingStage = "done";
   ui.sale.mode = "live";
   ui.sale.started = performance.now();
   ui.sale.shownSold = 0;
@@ -1263,6 +1333,71 @@ function pressReport(sale, project) {
   return `<aside class="press-report"><p class="kicker">${t(ui.lang, "pressKicker")}</p><h3>${escapeHtml(t(ui.lang, titleKey, { name }))}</h3><p>${escapeHtml(t(ui.lang, bodyKey, { name }))}</p></aside>`;
 }
 
+function managementRows() {
+  const project = ui.state.project;
+  const sale = project?.sale;
+  const rows = [];
+  for (let i = ui.state.history.length - 1; i >= 0; i -= 1) {
+    const item = ui.state.history[i];
+    if (item.skipped || !(item.soldFt2 > 0)) continue;
+    rows.push({
+      label: `${t(ui.lang, "projectIndex", { n: item.index })} · ${districtLabel(ui.lang, item.district)}`,
+      units: item.sold || 0,
+      ft2: item.soldFt2,
+      current: false,
+    });
+  }
+  if (sale) {
+    const ft2 = UNIT_SPECS.reduce((sum, spec) => sum + ((sale.byType?.[spec.id]?.sold || 0) * spec.ft2), 0);
+    if (ft2 > 0) {
+      rows.unshift({
+        label: `${t(ui.lang, "projectIndex", { n: project.index })} · ${districtLabel(ui.lang, project.offer.district)}`,
+        units: sale.sold || 0,
+        ft2,
+        current: true,
+      });
+    }
+  }
+  return rows;
+}
+
+function managementBlock() {
+  if (!ui.state.assets?.manager) return "";
+  const rows = managementRows();
+  const totalFt2 = rows.reduce((sum, item) => sum + item.ft2, 0);
+  const totalUnits = rows.reduce((sum, item) => sum + item.units, 0);
+  const total = totalFt2 * MANAGEMENT_FEE_PER_FT2_YEAR;
+  const areaText = (ft2) => (ui.lang === "en" ? `${(ft2 / 1000).toFixed(1)}k ft²` : `${(ft2 / 10000).toFixed(1)} 萬呎`);
+  const body = rows.map((item) => `<tr${item.current ? ' class="current"' : ""}>
+      <td>${escapeHtml(item.label)}${item.current ? ` <span class="badge">${t(ui.lang, "mgmtCurrent")}</span>` : ""}<small>${t(ui.lang, "mgmtUnits", { n: formatCount(item.units) })}</small></td>
+      <td class="n">${areaText(item.ft2)}</td>
+      <td class="n">${compactHkd(item.ft2 * MANAGEMENT_FEE_PER_FT2_YEAR)}</td>
+    </tr>`).join("");
+  const table = ui.mgmtOpen && rows.length
+    ? `<table class="mgmt-table">
+        <thead><tr><th>${t(ui.lang, "mgmtProject")}</th><th class="n">${t(ui.lang, "mgmtArea")}</th><th class="n">${t(ui.lang, "mgmtFee")}</th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr class="sum">
+          <td>${t(ui.lang, "mgmtTotal")}<small>${t(ui.lang, "mgmtUnits", { n: formatCount(totalUnits) })}</small></td>
+          <td class="n">${areaText(totalFt2)}</td>
+          <td class="n">${compactHkd(total)}</td>
+        </tr></tfoot>
+      </table>`
+    : "";
+  const toggle = rows.length
+    ? `<button type="button" class="ghost mgmt-toggle" data-action="toggle-mgmt">${ui.mgmtOpen ? t(ui.lang, "mgmtCollapse") : t(ui.lang, "mgmtExpand", { n: rows.length })}</button>`
+    : "";
+  return `<section class="card mgmt-card">
+    <div class="mgmt-head">
+      <h3>${t(ui.lang, "mgmtTitle")} <span class="badge ok">${t(ui.lang, "mgmtBadge")}</span></h3>
+      <b>+${compactHkd(total)}</b>
+    </div>
+    <p class="fine">${t(ui.lang, "mgmtRate")}</p>
+    ${toggle}
+    ${table}
+  </section>`;
+}
+
 function settleView() {
   const project = ui.state.project;
   if (project?.skipped) {
@@ -1327,7 +1462,7 @@ function settleView() {
     ${liveComment() ? `<p class="rep-line">${escapeHtml(t(ui.lang, liveComment()))}</p>` : ""}
     ${row(t(ui.lang, "soldNow"), `${sale.sold} / ${sale.units}`)}
     ${cashFlow}
-  </section>`;
+  </section>${managementBlock()}`;
 }
 
 function storyView() {
@@ -1558,6 +1693,13 @@ function dock() {
   }
   if (phase === "sell") {
     ensureSale();
+    if (!isOnboarding(ui.state) && ui.sale.marketingStage === "pre") {
+      const active = activeMarketingPlans();
+      const cost = marketingCost();
+      const skip = active.length === 0;
+      return `<footer class="dock"><button class="go" data-action="marketing-continue" ${ui.state.cash >= cost ? "" : "disabled"}>${skip ? t(ui.lang, "marketingSkip") : t(ui.lang, "marketingContinue")}${skip ? "" : `<small>${compactHkd(cost)}</small>`}</button></footer>`;
+    }
+    if (!isOnboarding(ui.state) && ui.sale.marketingStage === "mid") return "";
     if (ui.sale.mode === "setup") return `<footer class="dock"><button class="go" data-action="launch-sale">${t(ui.lang, "openSale")}</button></footer>`;
     const left = ui.catalog.balance.cheerMax - ui.sale.choices.cheer;
     const cheer = `<button class="go" data-action="cheer" ${left <= 0 ? "disabled" : ""}>${t(ui.lang, "cheer")}<small>${cheerNote(left)}</small></button>`;
@@ -1749,9 +1891,10 @@ function menuOverlay() {
   }
   if (ui.capital && ui.state) {
     const labels = { builder: "capitalBuilder", manager: "capitalManager", landBank: "capitalLandBank", ai: "capitalAi", district: "capitalDistrict" };
+    const effects = { builder: "capitalBuilderEffect", manager: "capitalManagerEffect", landBank: "capitalLandBankEffect", ai: "capitalAiEffect", district: "capitalDistrictEffect" };
     const options = Object.entries(CAPITAL_ASSETS).map(([id, asset]) => {
       const owned = Boolean(ui.state.assets?.[asset.level]);
-      return `<button class="ghost capital-option" data-action="invest-capital" data-id="${id}" ${owned || ui.state.cash < asset.cost ? "disabled" : ""}><strong>${t(ui.lang, labels[asset.level])}</strong><small>${owned ? t(ui.lang, "capitalOwned") : compactHkd(asset.cost)}</small></button>`;
+      return `<button class="ghost capital-option${owned ? " owned" : ""}" data-action="invest-capital" data-id="${id}" ${owned || ui.state.cash < asset.cost ? "disabled" : ""}><strong>${t(ui.lang, labels[asset.level])}</strong><small>${owned ? `${t(ui.lang, "capitalOwned")} · ${t(ui.lang, effects[asset.level])}` : compactHkd(asset.cost)}</small></button>`;
     }).join("");
     return `<div class="menu"><div class="card capital-card"><h3>${t(ui.lang, "capital")}</h3><p class="note">${t(ui.lang, "capitalLead")}</p><div class="stack">${options}</div><p class="fine">${t(ui.lang, "capitalEffect")}</p><button class="ghost" data-action="close-capital">${t(ui.lang, "closeCapital")}</button></div></div>`;
   }
@@ -1802,6 +1945,9 @@ function render() {
   document.documentElement.lang = ui.lang === "en" ? "en" : "zh-Hant";
   document.title = t(ui.lang, "title");
   const phase = !ui.state ? "company" : ui.lapse ? "lapse" : ui.teach ? "mismatch" : needsRemedy() ? "remedy" : ui.state.phase;
+  const prevShell = document.querySelector(".shell");
+  const prevPhase = prevShell?.dataset.phase || null;
+  const prevScroll = prevShell ? prevShell.scrollTop : 0;
   app.innerHTML = `${hud()}
     <div class="shell" data-phase="${phase}">
       <main class="stack" id="main">${mainView()}</main>
@@ -1815,6 +1961,10 @@ function render() {
     ${lockedDrawer()}
     ${legacyGuideOverlay()}
     ${ui.toast ? `<button type="button" class="toast" data-action="toast-dismiss">${t(ui.lang, achievementKey(ui.toast))}<small>${t(ui.lang, "toastDismiss")}</small></button>` : ""}`;
+  if (prevPhase === phase) {
+    const shell = document.querySelector(".shell");
+    if (shell) shell.scrollTop = prevScroll;
+  }
   if (ui.renaming) {
     const field = document.querySelector("#project-name");
     if (field) {
@@ -1970,6 +2120,7 @@ function onClick(event) {
   if (action === "reset-mix") {
     ensureBuild();
     ui.build.mix = projectPresetMix(ui.catalog, ui.state);
+    ui.error = null;
     render();
     return;
   }
@@ -2061,6 +2212,11 @@ function onClick(event) {
     render();
     return;
   }
+  if (action === "toggle-mgmt") {
+    ui.mgmtOpen = !ui.mgmtOpen;
+    render();
+    return;
+  }
   if (action === "invest-capital") {
     const result = investCapital(ui.catalog, ui.state, id);
     if (result.ok) {
@@ -2127,6 +2283,7 @@ function onClick(event) {
   if (action === "pick-contractor") {
     ensureBuild();
     ui.build.contractor = id;
+    ui.error = null;
     render();
     return;
   }
@@ -2135,12 +2292,14 @@ function onClick(event) {
     if (!ASSEMBLY_OPTIONS[id]) return;
     ui.build.assembly = id;
     ui.state = { ...ui.state, project: { ...ui.state.project, assembly: id } };
+    ui.error = null;
     render();
     return;
   }
   if (action === "mix-preset") {
     ensureBuild();
     ui.build.mix = mixPreset(ui.state.project.offer.gfaFt2, id);
+    ui.error = null;
     render();
     return;
   }
@@ -2152,12 +2311,14 @@ function onClick(event) {
     const gfa = Math.round(ui.state.project.offer.gfaFt2 * assembly.gfaMul);
     if (delta > 0 && !canAddUnit(gfa, ui.build.mix, unit)) return;
     ui.build.mix = addUnits(gfa, ui.build.mix, unit, delta);
+    ui.error = null;
     render();
     return;
   }
   if (action === "loan") {
     ensureBuild();
     if (id === "cash" || id === "small" || id === "big") ui.build.loan = id;
+    ui.error = null;
     render();
     return;
   }
@@ -2241,10 +2402,11 @@ function onClick(event) {
     render();
     return;
   }
-  if (action === "marketing-medium") {
+  if (action === "marketing-toggle") {
     ensureSale();
     if (ui.sale.marketingStage !== "pre") return;
-    ui.sale.marketingMedium = id;
+    const medium = target.dataset.medium;
+    ui.sale.marketingPlans = ui.sale.marketingPlans.map((plan) => plan.medium === medium ? { ...plan, active: plan.active === false } : plan);
     render();
     return;
   }
@@ -2258,11 +2420,18 @@ function onClick(event) {
   }
   if (action === "marketing-continue") {
     ensureSale();
+    const active = activeMarketingPlans();
     const cost = marketingCost();
     if (ui.state.cash < cost) return;
+    if (active.length === 0) {
+      ui.sale.choices = { ...ui.sale.choices, adPlans: [] };
+      ui.sale.marketingStage = "done";
+      render();
+      return;
+    }
     ui.state = { ...ui.state, cash: ui.state.cash - cost };
-    ui.sale.marketingPlans = ui.sale.marketingPlans.map((plan) => ({ ...plan, paidBudget: plan.budget }));
-    ui.sale.choices = { ...ui.sale.choices, adPlans: marketingPlans() };
+    ui.sale.marketingPlans = ui.sale.marketingPlans.map((plan) => plan.active === false ? plan : { ...plan, paidBudget: plan.budget });
+    ui.sale.choices = { ...ui.sale.choices, adPlans: activeMarketingPlans() };
     ui.sale.marketingStage = "mid";
     render();
     return;
@@ -2270,13 +2439,13 @@ function onClick(event) {
   if (action === "marketing-choice") {
     ensureSale();
     if (id === "boost") {
-      const boosted = ui.sale.marketingPlans.map((plan) => ({ ...plan, budget: "high" }));
+      const boosted = ui.sale.marketingPlans.map((plan) => plan.active === false ? plan : { ...plan, budget: "high" });
       const extra = marketingCost(boosted);
       if (ui.state.cash < extra) return;
       ui.state = { ...ui.state, cash: ui.state.cash - extra };
-      ui.sale.marketingPlans = boosted.map((plan) => ({ ...plan, paidBudget: "high" }));
+      ui.sale.marketingPlans = boosted.map((plan) => plan.active === false ? plan : { ...plan, paidBudget: "high" });
     }
-    ui.sale.choices = { ...ui.sale.choices, adPlans: marketingPlans() };
+    ui.sale.choices = { ...ui.sale.choices, adPlans: activeMarketingPlans() };
     ui.sale.marketingStage = "done";
     render();
     return;

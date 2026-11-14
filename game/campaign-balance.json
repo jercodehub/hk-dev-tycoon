@@ -113,7 +113,8 @@
   "contractors": {
     "jingjin": { "costMul": 0.74, "leak": 0.36, "collapse": 0.24, "quality": 0.88, "rep": -3 },
     "huimen": { "costMul": 1, "leak": 0.12, "collapse": 0.04, "quality": 1, "rep": 1 },
-    "xinjing": { "costMul": 1.28, "leak": 0.03, "collapse": 0, "quality": 1.1, "rep": 4 }
+    "xinjing": { "costMul": 1.28, "leak": 0.03, "collapse": 0, "quality": 1.1, "rep": 4 },
+    "own": { "costMul": 0.8, "leak": 0.08, "collapse": 0.02, "quality": 1.04, "rep": 2 }
   },
   "collapseExtra": 0.55,
   "collapseQuality": 0.72,
