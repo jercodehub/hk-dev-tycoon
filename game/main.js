@@ -984,19 +984,74 @@ function unitBars(bars) {
   }).join("")}</div>`;
 }
 
-function priceChips() {
-  return ["cheap", "fair", "expensive"].map((id) => {
-    const on = (ui.sale.choices.price || "fair") === id;
-    const quote = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, price: id });
-    const key = id === "cheap" ? "priceCheap" : id === "expensive" ? "priceExpensive" : "priceFair";
-    const stance = id === "cheap" ? "stanceThin" : id === "expensive" ? "stanceFat" : "stanceBalance";
-    return `<button class="chip price-chip${on ? " on" : ""}" data-action="price" data-id="${id}" aria-pressed="${on}">
-      <strong>${t(ui.lang, key)}</strong>
-      <small>${t(ui.lang, "salePsf", { n: formatHkd(quote.askPerFt2) })}</small>
-      <small>${t(ui.lang, "twoBed")} ${compactHkd(quote.byType.two.ask)}</small>
-      <em>${t(ui.lang, stance)}</em>
-    </button>`;
+const PRICE_STEP = 100;
+
+function fairQuoteForPrices() {
+  const flat = {};
+  for (const spec of UNIT_SPECS) flat[spec.id] = 1;
+  return resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, askMulByType: flat });
+}
+function typeFairPsf(fair, spec) {
+  const ask = fair.byType?.[spec.id]?.ask || 0;
+  return ask / spec.ft2;
+}
+function typePsf(spec, fair) {
+  const mul = ui.sale.choices.askMulByType?.[spec.id] ?? 1;
+  return Math.round(typeFairPsf(fair, spec) * mul);
+}
+function projectCostPsf() {
+  const project = ui.state?.project || {};
+  const gfa = project.offer?.gfaFt2 || 0;
+  const cost = project.contractor?.total || project.offer?.cost || 0;
+  return gfa ? cost / gfa : 0;
+}
+function priceBounds(spec, fair) {
+  const fairPsf = typeFairPsf(fair, spec);
+  return { min: Math.max(500, Math.round(projectCostPsf() * 0.6)), max: Math.round(fairPsf * 1.8) };
+}
+function setTypePsf(type, psf, fair) {
+  const spec = UNIT_SPECS.find((item) => item.id === type);
+  if (!spec) return;
+  const fairPsf = typeFairPsf(fair, spec);
+  if (!fairPsf) return;
+  const bounds = priceBounds(spec, fair);
+  const clamped = Math.min(bounds.max, Math.max(bounds.min, Math.round(psf)));
+  ui.sale.choices.askMulByType = { ...(ui.sale.choices.askMulByType || {}), [type]: clamped / fairPsf };
+}
+
+function pricePanel() {
+  const fair = fairQuoteForPrices();
+  const quote = resolveSale(ui.catalog, ui.state, ui.sale.choices);
+  const costPsf = Math.round(projectCostPsf());
+  const rows = UNIT_SPECS.map((spec) => {
+    const psf = typePsf(spec, fair);
+    const offered = quote.byType?.[spec.id]?.offered || 0;
+    const dear = (ui.sale.choices.askMulByType?.[spec.id] ?? 1) >= 1.08;
+    return `<div class="prow">
+      <div class="pname">${t(ui.lang, UNIT_KEYS[spec.id][0])}<small>${t(ui.lang, "priceArea", { ft: spec.ft2, n: formatCount(offered) })}</small></div>
+      <button class="step" data-action="price-step" data-type="${spec.id}" data-dir="-1" aria-label="${escapeHtml(t(ui.lang, "priceDown"))}">−</button>
+      <label class="num${dear ? " dear" : ""}"><input type="text" inputmode="numeric" data-price-type="${spec.id}" value="${formatHkd(psf)}" aria-label="${escapeHtml(t(ui.lang, UNIT_KEYS[spec.id][0]))}"><i>${t(ui.lang, "perFt2")}</i></label>
+      <button class="step" data-action="price-step" data-type="${spec.id}" data-dir="1" aria-label="${escapeHtml(t(ui.lang, "priceUp"))}">+</button>
+    </div>`;
   }).join("");
+  const two = quote.byType?.two || { ask: 0 };
+  const pct = Math.round((quote.through || 0) * 100);
+  const dearNames = UNIT_SPECS.filter((spec) => (ui.sale.choices.askMulByType?.[spec.id] ?? 1) >= 1.22).map((spec) => t(ui.lang, UNIT_KEYS[spec.id][0]));
+  const avgPsf = quote.askPerFt2 || 0;
+  return `<div class="price-panel">
+    <div class="price-head"><strong>${t(ui.lang, "priceTitle")}</strong><span>${t(ui.lang, "priceLead")}</span></div>
+    ${rows}
+    <div class="price-foot">
+      <div class="price-line"><span>${t(ui.lang, "twoBed")} <strong>${compactHkd(two.ask)}</strong></span><span>${t(ui.lang, "priceThrough")} <b class="${pct < 70 ? "warn" : "ok"}">${pct}%</b></span></div>
+      <div class="price-cost">${t(ui.lang, "priceCost", { cost: formatHkd(costPsf) })} · ${t(ui.lang, "priceAvg", { n: formatHkd(avgPsf) })} · ${t(ui.lang, "priceProfit", { n: formatHkd(Math.round(avgPsf - costPsf)) })}</div>
+      ${dearNames.length ? `<p class="price-warn">${t(ui.lang, "priceDear", { names: dearNames.join("、") })}</p>` : ""}
+    </div>
+    <div class="price-actions">
+      <button class="ghost" data-action="price-reset">${t(ui.lang, "priceReset")}</button>
+      <button class="ghost" data-action="price-bulk" data-dir="-1">${t(ui.lang, "priceBulkDown")}</button>
+      <button class="ghost" data-action="price-bulk" data-dir="1">${t(ui.lang, "priceBulkUp")}</button>
+    </div>
+  </div>`;
 }
 
 function promoRow() {
@@ -1122,7 +1177,7 @@ function sellSetup() {
         ${projectTitle()}
       </div>
       <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
-      <div class="chips price-chips">${priceChips()}</div>
+      ${pricePanel()}
       ${forecastBlock(forecast)}
       ${towerRow(offer.units || quote.units, 0, { empty: true })}
       ${salePnl(saleChoices)}
@@ -2488,10 +2543,29 @@ function onClick(event) {
     render();
     return;
   }
-  if (action === "price") {
+  if (action === "price-step") {
     ensureSale();
     if (ui.sale.mode !== "setup") return;
-    if (id === "cheap" || id === "fair" || id === "expensive") ui.sale.choices.price = id;
+    const fair = fairQuoteForPrices();
+    const spec = UNIT_SPECS.find((item) => item.id === target.dataset.type);
+    if (!spec) return;
+    setTypePsf(spec.id, typePsf(spec, fair) + Number(target.dataset.dir) * PRICE_STEP, fair);
+    render();
+    return;
+  }
+  if (action === "price-bulk") {
+    ensureSale();
+    if (ui.sale.mode !== "setup") return;
+    const fair = fairQuoteForPrices();
+    for (const spec of UNIT_SPECS) setTypePsf(spec.id, typePsf(spec, fair) + Number(target.dataset.dir) * 200, fair);
+    render();
+    return;
+  }
+  if (action === "price-reset") {
+    ensureSale();
+    if (ui.sale.mode !== "setup") return;
+    ui.sale.choices.price = "fair";
+    ui.sale.choices.askMulByType = {};
     render();
     return;
   }
@@ -2710,6 +2784,13 @@ async function boot() {
   app.addEventListener("input", onInput);
   app.addEventListener("change", (event) => {
     if (event.target.matches("input[data-action='import-save']")) importSave(event.target.files?.[0]);
+    const field = event.target.closest("input[data-price-type]");
+    if (field && ui.sale) {
+      const digits = String(field.value).replace(/[^0-9]/g, "");
+      const fair = fairQuoteForPrices();
+      setTypePsf(field.dataset.priceType, Number(digits) || 0, fair);
+      render();
+    }
   });
   app.addEventListener("focusout", (event) => {
     if (event.target.id !== "project-name") return;
