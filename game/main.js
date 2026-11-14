@@ -1028,9 +1028,10 @@ function pricePanel() {
     const row = quote.byType?.[spec.id] || { offered: 0, poolBefore: 0, brought: 0 };
     const supply = row.offered || 0;
     const demand = (row.poolBefore || 0) + (row.brought || 0);
+    const projected = Math.min(supply, row.sold || 0);
     const top = Math.max(supply, demand, 1);
     const lane = (value) => (value <= 0 ? 0 : Math.max(3, Math.round((value / top) * 100)));
-    const gap = supply - demand;
+    const gap = supply - projected;
     const status = supply === 0
       ? `<span>${t(ui.lang, "priceNoUnits")}</span>`
       : gap > 0
@@ -1044,9 +1045,9 @@ function pricePanel() {
       <button class="step" data-action="price-step" data-type="${spec.id}" data-dir="1" aria-label="${escapeHtml(t(ui.lang, "priceUp"))}">+</button>
       <div class="pbar">
         <span class="lane sup"><i style="width:${lane(supply)}%"></i></span>
-        <span class="lane dem"><i style="width:${lane(demand)}%"></i></span>
+        <span class="lane dem"><i style="width:${lane(projected)}%"></i></span>
       </div>
-      <div class="pmeta"><span>${t(ui.lang, "priceSupply", { n: formatCount(supply) })}</span><span>${t(ui.lang, "priceDemand", { n: formatCount(demand) })}${row.brought ? ` <em>${t(ui.lang, "priceBrought", { n: formatCount(row.brought) })}</em>` : ""}</span>${status}</div>
+      <div class="pmeta"><span>${t(ui.lang, "priceSupply", { n: formatCount(supply) })}</span><span>${t(ui.lang, "priceDemand", { n: formatCount(demand) })}${row.brought ? ` <em>${t(ui.lang, "priceBrought", { n: formatCount(row.brought) })}</em>` : ""} → ${t(ui.lang, "priceProjected", { n: formatCount(projected) })}</span>${status}</div>
     </div>`;
   }).join("");
   const two = quote.byType?.two || { ask: 0 };
