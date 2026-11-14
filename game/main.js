@@ -1020,24 +1020,47 @@ function setTypePsf(type, psf, fair) {
 }
 
 function filmOverlay(film) {
-  const pct = film.units ? Math.min(100, Math.round((film.sold / film.units) * 100)) : 0;
-  const clear = film.sold >= film.units && film.units > 0;
   const act = film.act || 1;
-  const body = act === 1
-    ? `<div class="film-act"><b class="big">超額 ${film.over} 倍</b><span>排隊中 · 人龍繞到街口</span><div class="crowd">${"<i></i>".repeat(40)}</div></div>`
-    : act === 2
-      ? `<div class="film-act act2"><div class="stamps">${"<b>已售</b>".repeat(9)}</div><div class="tally">${film.sold}<s>伙</s></div><div class="fill"><i style="width:${pct}%"></i></div></div>`
-      : `<div class="film-act"><b class="mark ${clear ? "clear" : "left"}">${clear ? "一 Q 清" : `剩 ${film.units - film.sold} 伙`}</b></div>`;
-  return `<div class="film">${body}</div>`;
+  if (act === 1) {
+    const dots = Math.max(12, Math.min(96, Math.round(film.pool / 8)));
+    const size = Math.max(5, Math.min(13, Math.round(640 / dots)));
+    const crowd = Array.from({ length: dots }, () => `<i style="width:${size}px;height:${size}px"></i>`).join("");
+    return `<div class="film"><div class="film-act">
+      <b class="big">超額 ${film.over} 倍</b>
+      <span>排隊 ${formatCount(film.pool)} 人 · ${formatCount(film.units)} 伙</span>
+      <div class="crowd" style="width:${Math.min(300, dots * (size + 5))}px">${crowd}</div>
+    </div></div>`;
+  }
+  return `<div class="film"><div class="film-act act2">
+    <span class="cap">目標伙數</span>
+    <div class="tally"><b id="film-count">0</b><s>／${formatCount(film.units)} 伙</s></div>
+    <div class="fill"><i style="width:${film.units ? Math.min(100, Math.round((film.sold / film.units) * 100)) : 0}%"></i></div>
+  </div></div>`;
+}
+
+function countUpFilm(target) {
+  const node = document.getElementById("film-count");
+  if (!node) return;
+  const started = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - started) / 900);
+    node.textContent = formatCount(Math.round(target * p));
+    if (p < 1 && document.body.contains(node)) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 function playSaleFilm(film) {
   if (!ui.sale || ui.sale.reduced) return;
   ui.sale.film = { ...film, act: 1 };
   render();
-  window.setTimeout(() => { if (ui.sale) { ui.sale.film = { ...film, act: 2 }; render(); } }, 1300);
-  window.setTimeout(() => { if (ui.sale) { ui.sale.film = { ...film, act: 3 }; render(); } }, 2700);
-  window.setTimeout(() => { if (ui.sale) { ui.sale.film = null; render(); } }, 4100);
+  window.setTimeout(() => {
+    if (!ui.sale) return;
+    ui.sale.film = { ...film, act: 2 };
+    render();
+    countUpFilm(film.sold);
+  }, 1600);
+  window.setTimeout(() => { if (ui.sale) { ui.sale.film = null; render(); } }, 3400);
 }
 
 function profitHero(quote) {
@@ -1472,7 +1495,7 @@ function advanceSaleRound() {
 function launchSale() {
   const intro = currentQuote();
   const poolTotal = Object.values(intro.poolsBefore || {}).reduce((a, b) => a + b, 0);
-  playSaleFilm({ sold: intro.sold, units: intro.units, over: Math.max(1, Math.round(poolTotal / Math.max(1, intro.units))) });
+  playSaleFilm({ sold: intro.sold, units: intro.units, pool: poolTotal, over: Math.max(1, Math.round(poolTotal / Math.max(1, intro.units))) });
   ui.sale.marketingStage = "done";
   ui.sale.mode = "live";
   ui.sale.started = performance.now();
