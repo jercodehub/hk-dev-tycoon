@@ -1246,3 +1246,13 @@ button:disabled {
 .price-panel .pmeta em { font-style: normal; color: var(--gold); }
 .price-panel .pmeta .short { color: var(--danger); font-weight: 700; }
 .price-panel .pmeta .ok { color: var(--ok); }
+
+.profit-hero { background: #12202c; border: 1px solid #2b4a63; border-radius: 12px; padding: 11px 13px; margin: 6px 0 10px; }
+.ph-label { font-size: 11px; letter-spacing: .08em; color: var(--muted); }
+.ph-value { font-size: 32px; font-weight: 800; line-height: 1.1; margin: 1px 0 3px; font-variant-numeric: tabular-nums; }
+.ph-sub { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ph-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 9px; padding-top: 9px; border-top: 1px solid #2b4a63; }
+.ph-grid span { display: block; font-size: 10.5px; color: var(--muted); }
+.ph-grid b { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ph-grid b i { font-style: normal; font-size: 9.5px; font-weight: 500; color: var(--muted); margin-left: 1px; }
+.ph-grid b.gain { color: var(--ok); }
