@@ -1511,7 +1511,7 @@ function dock() {
   if (phase === "build") {
     ensureBuild();
     const used = gfaUsed(ui.build.mix);
-    const left = ui.state.project.offer.gfaFt2 - used;
+    const left = assemblyBuildState().project.offer.gfaFt2 - used;
     const blocked = left < 0 || used <= 0 || !ui.build.contractor || !funding(ui.build.loan || "cash").ok;
     return `<footer class="dock"><button class="go${blocked ? " is-blocked" : ""}" data-action="confirm-build" ${blocked ? "disabled" : ""}>${t(ui.lang, "confirmBuild")}<small id="build-small">${buildHint(left)}</small></button></footer>`;
   }
