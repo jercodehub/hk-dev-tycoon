@@ -1022,12 +1022,24 @@ function setTypePsf(type, psf, fair) {
 function filmOverlay(film) {
   const pct = film.units ? Math.min(100, Math.round((film.sold / film.units) * 100)) : 0;
   const clear = film.sold >= film.units && film.units > 0;
-  return `<div class="film" aria-hidden="true">
-    <div class="film-act a1"><b>超額 ${film.over} 倍</b><span>排隊中 · 人龍繞到街口</span><div class="crowd">${"<i></i>".repeat(40)}</div></div>
-    <div class="film-act a2"><div class="stamps">${"<b>已售</b>".repeat(9)}</div><div class="tally">${film.sold}<s>伙</s></div><div class="fill"><i style="width:${pct}%"></i></div></div>
-    <div class="film-act a3"><b class="${clear ? "clear" : "left"}">${clear ? "一 Q 清" : `剩 ${film.units - film.sold} 伙`}</b></div>
-  </div>`;
+  const act = film.act || 1;
+  const body = act === 1
+    ? `<div class="film-act"><b class="big">超額 ${film.over} 倍</b><span>排隊中 · 人龍繞到街口</span><div class="crowd">${"<i></i>".repeat(40)}</div></div>`
+    : act === 2
+      ? `<div class="film-act act2"><div class="stamps">${"<b>已售</b>".repeat(9)}</div><div class="tally">${film.sold}<s>伙</s></div><div class="fill"><i style="width:${pct}%"></i></div></div>`
+      : `<div class="film-act"><b class="mark ${clear ? "clear" : "left"}">${clear ? "一 Q 清" : `剩 ${film.units - film.sold} 伙`}</b></div>`;
+  return `<div class="film">${body}</div>`;
 }
+
+function playSaleFilm(film) {
+  if (!ui.sale || ui.sale.reduced) return;
+  ui.sale.film = { ...film, act: 1 };
+  render();
+  window.setTimeout(() => { if (ui.sale) { ui.sale.film = { ...film, act: 2 }; render(); } }, 1300);
+  window.setTimeout(() => { if (ui.sale) { ui.sale.film = { ...film, act: 3 }; render(); } }, 2700);
+  window.setTimeout(() => { if (ui.sale) { ui.sale.film = null; render(); } }, 4100);
+}
+
 function profitHero(quote) {
   const revenue = quote.revenue || 0;
   const profit = quote.profit || 0;
@@ -1459,10 +1471,8 @@ function advanceSaleRound() {
 
 function launchSale() {
   const intro = currentQuote();
-  if (!ui.sale.reduced) {
-    ui.sale.film = { sold: intro.sold, units: intro.units, over: Math.max(1, Math.round(intro.poolsBefore ? (Object.values(intro.poolsBefore).reduce((a, b) => a + b, 0) / Math.max(1, intro.units)) : 1)) };
-    window.setTimeout(() => { ui.sale.film = null; render(); }, 4200);
-  }
+  const poolTotal = Object.values(intro.poolsBefore || {}).reduce((a, b) => a + b, 0);
+  playSaleFilm({ sold: intro.sold, units: intro.units, over: Math.max(1, Math.round(poolTotal / Math.max(1, intro.units))) });
   ui.sale.marketingStage = "done";
   ui.sale.mode = "live";
   ui.sale.started = performance.now();
