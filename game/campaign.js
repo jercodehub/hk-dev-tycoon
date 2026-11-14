@@ -9,6 +9,32 @@ import { DISTRICTS } from "./i18n.js";
 import { STORIES } from "./stories.js";
 
 export const SAVE_VERSION = 8;
+export const CAPITAL_ASSETS = {
+  builder: { cost: 180000000, level: "builder", label: "建築公司" },
+  manager: { cost: 160000000, level: "manager", label: "物管公司" },
+  landBank: { cost: 220000000, level: "landBank", label: "農地／工商地土地銀行" },
+  ai: { cost: 200000000, level: "ai", label: "AI 新創投資" },
+  district: { cost: 450000000, level: "district", label: "片區開發" },
+};
+
+export function emptyAssets() {
+  return { builder: 0, manager: 0, landBank: 0, ai: 0, district: 0, invested: 0 };
+}
+
+export function investCapital(catalog, state, assetId) {
+  const asset = CAPITAL_ASSETS[assetId];
+  if (!asset || !state || ["gameover", "summary"].includes(state.phase)) return fail(state, "bad_asset");
+  const assets = { ...emptyAssets(), ...(state.assets || {}) };
+  if (assets[asset.level] >= 1 || state.cash < asset.cost) return fail(state, "insufficient_cash");
+  assets[asset.level] = 1;
+  assets.invested = money((assets.invested || 0) + asset.cost);
+  return succeed({ ...state, cash: money(state.cash - asset.cost), assets });
+}
+
+function assetIncome(state) {
+  const assets = state.assets || {};
+  return money((assets.manager ? 8000000 : 0) + (assets.ai ? 4000000 : 0) + (assets.district ? 12000000 : 0));
+}
 export const JV_SHARES = [0.25, 0.35, 0.5];
 export const UNIT_SPECS = [
   { id: "studio", ft2: 280, pool: "whale" },
@@ -1099,7 +1125,8 @@ function rolledPremium(type, district, rng, balance, state, fixed) {
 function makeOffer({ slot, type, district, gfaFt2, premium, rng, catalog, levels, used, heat, tier = "small", forceSmall = false, fixedGfa = false, state = null }) {
   const spec = catalog.balance.landTypes[type];
   const picked = district || pickDistrict(type, rng, catalog.balance, used);
-  const base = gfaFt2 || snapGfa(lerp(spec.gfaMin, spec.gfaMax, rng.next()));
+  const rawBase = gfaFt2 || snapGfa(lerp(spec.gfaMin, spec.gfaMax, rng.next()));
+  const base = state?.assets?.district ? snapGfa(rawBase * 1.08) : rawBase;
   const gfa = fixedGfa ? base : scaleGfa(base, tier, catalog.balance, forceSmall);
   const prem = rolledPremium(type, picked, rng, catalog.balance, state, premium);
   used?.add(picked);
@@ -1327,6 +1354,7 @@ export function createCampaign(catalog, { company, seed = 1 } = {}) {
     storyCounts: {},
     storyLog: [],
     effects: [],
+    assets: emptyAssets(),
     seenAchievements: [],
   };
   return rollOffers(state, catalog);
@@ -1353,7 +1381,8 @@ export function chooseLand(catalog, state, slot, rawStake = 1) {
   const stake = parseStake(rawStake);
   if (stake == null) return fail(state, "bad_stake");
   if (stake < 1 && !jvEligible(offer)) return fail(state, "bad_stake");
-  const landPaid = money(offer.landTotal * stake);
+  const landDiscount = state.assets?.landBank ? 0.12 : 0;
+  const landPaid = money(offer.landTotal * stake * (1 - landDiscount));
   if (state.cash < landPaid) return fail(state, "insufficient_cash");
   const { value: move, rngCursor } = runRng(state, (rng) => drawMove(state, catalog, rng));
   const market = tickMarket(state.market, move, catalog.balance);
@@ -1387,7 +1416,8 @@ export function contractorQuote(catalog, state, contractorId) {
   if (!spec || state.project?.offer == null) return null;
   const bench = gameBench(catalog, state.project.offer.district, state.market);
   const base = money(bench.fairBuildPerFt2 * state.project.offer.gfaFt2);
-  const cost = money(base * spec.costMul);
+  const companyDiscount = state.assets?.builder ? 0.08 : 0;
+  const cost = money(base * spec.costMul * (1 - companyDiscount));
   const stake = stakeOf(state.project.offer);
   const playerCost = money(cost * stake);
   return {
@@ -2170,8 +2200,8 @@ export function confirmSettle(catalog, state) {
   const base = {
     ...state,
     onboarding: { completed: true, step: "done" },
-    cash: creditResult.cash,
-    reputation,
+    cash: money(creditResult.cash + assetIncome(state)),
+    reputation: clamp(reputation + (state.assets?.ai ? 1 : 0), 0, 100),
     unitsSold,
     unitsLaunched,
     completed,
@@ -2270,6 +2300,7 @@ export function serializeCampaign(state) {
     storyLog: [...(state.storyLog || [])],
     story: state.story ? { id: state.story.id, picked: state.story.picked || null } : null,
     effects: (state.effects || []).map((effect) => ({ ...effect })),
+    assets: { ...emptyAssets(), ...(state.assets || {}) },
     seenAchievements: [...(state.seenAchievements || [])],
     offers: (state.offers || []).map(slimOffer),
     project: state.project
@@ -2386,6 +2417,7 @@ export function hydrateCampaign(catalog, saved) {
     project: null,
     story: null,
     effects: Array.isArray(saved.effects) ? saved.effects.map((effect) => ({ ...effect })) : [],
+    assets: { ...emptyAssets(), ...(saved.assets || {}) },
     seenAchievements: Array.isArray(saved.seenAchievements) ? [...saved.seenAchievements] : [],
   };
   const heat = campaignHeat(state, catalog.balance);

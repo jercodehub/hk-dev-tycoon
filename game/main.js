@@ -23,6 +23,7 @@ import {
   contractorRisk,
   createCampaign,
   createCampaignCatalog,
+  CAPITAL_ASSETS,
   endSummary,
   effectiveMarket,
   explainForecastGap,
@@ -31,6 +32,7 @@ import {
   gfaUsed,
   heatProjectsLeft,
   hydrateCampaign,
+  investCapital,
   loanAdjustments,
   isTutorial,
   isOnboarding,
@@ -112,6 +114,7 @@ const ui = {
   legacyNotice: false,
   legacyGuide: false,
   confirmNewGame: false,
+  capital: false,
   teach: null,
   similarOpen: true,
   ignoreClick: false,
@@ -1658,12 +1661,21 @@ function menuOverlay() {
       <div class="stack"><button class="primary" data-action="confirm-new-game">${t(ui.lang, "confirmNewGame")}</button><button class="ghost" data-action="cancel-new-game">${t(ui.lang, "cancelNewGame")}</button></div>
     </div></div>`;
   }
+  if (ui.capital && ui.state) {
+    const labels = { builder: "capitalBuilder", manager: "capitalManager", landBank: "capitalLandBank", ai: "capitalAi", district: "capitalDistrict" };
+    const options = Object.entries(CAPITAL_ASSETS).map(([id, asset]) => {
+      const owned = Boolean(ui.state.assets?.[asset.level]);
+      return `<button class="ghost capital-option" data-action="invest-capital" data-id="${id}" ${owned || ui.state.cash < asset.cost ? "disabled" : ""}><strong>${t(ui.lang, labels[asset.level])}</strong><small>${owned ? t(ui.lang, "capitalOwned") : compactHkd(asset.cost)}</small></button>`;
+    }).join("");
+    return `<div class="menu"><div class="card capital-card"><h3>${t(ui.lang, "capital")}</h3><p class="note">${t(ui.lang, "capitalLead")}</p><div class="stack">${options}</div><p class="fine">${t(ui.lang, "capitalEffect")}</p><button class="ghost" data-action="close-capital">${t(ui.lang, "closeCapital")}</button></div></div>`;
+  }
   return `<div class="menu"><div class="card">
     <h3>${t(ui.lang, "menu")}</h3>
     <div class="stack">
       <button class="primary" data-action="close-menu">${t(ui.lang, "close")}</button>
       <button class="ghost" data-action="identity">${t(ui.lang, "identity")}</button>
       <button class="ghost" data-action="new-game">${t(ui.lang, "newGame")}</button>
+      ${ui.state ? `<button class="ghost" data-action="capital">${t(ui.lang, "capital")}</button>` : ""}
       <button class="ghost" data-action="export-save">${t(ui.lang, "exportSave")}</button>
       <label class="ghost file-button">${t(ui.lang, "importSave")}<input type="file" accept="application/json,.json" data-action="import-save" /></label>
       <p class="fine">${t(ui.lang, "saveVersion", { n: ui.state?.v || 8 })}</p>
@@ -1945,11 +1957,32 @@ function onClick(event) {
   if (action === "close-menu") {
     ui.menu = false;
     ui.confirmNewGame = false;
+    ui.capital = false;
     render();
     return;
   }
   if (action === "export-save") {
     exportSave();
+    return;
+  }
+  if (action === "capital") {
+    ui.capital = true;
+    render();
+    return;
+  }
+  if (action === "close-capital") {
+    ui.capital = false;
+    render();
+    return;
+  }
+  if (action === "invest-capital") {
+    const result = investCapital(ui.catalog, ui.state, id);
+    if (result.ok) {
+      ui.state = result.state;
+      ui.capital = false;
+      persist();
+    }
+    render();
     return;
   }
   if (action === "new-game") {
