@@ -15,9 +15,11 @@ test("layout stays usable at the configured viewport", async ({ page }) => {
     .filter(({ height }) => height < 44));
   expect(smallButtons).toEqual([]);
 
-  await page.getByRole("button", { name: "EN" }).click();
+  await page.locator('button[data-action="menu"]').click();
+  await page.locator('.menu button[data-action="lang"]').click();
   await expect(page.locator("body")).toContainText("First project");
   const englishDimensions = await page.evaluate(() => ({ body: document.body.scrollWidth, viewport: innerWidth }));
   expect(englishDimensions.body).toBeLessThanOrEqual(englishDimensions.viewport);
+  await page.locator('.menu button[data-action="close-menu"]').click();
   expect(errors).toEqual([]);
 });

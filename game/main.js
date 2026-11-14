@@ -117,6 +117,7 @@ const ui = {
   legacyNotice: false,
   legacyGuide: false,
   confirmNewGame: false,
+  marketSheet: false,
   capital: false,
   mgmtOpen: false,
   teach: null,
@@ -1698,29 +1699,36 @@ function identityFields() {
   const avatars = CHAIR_AVATARS.map((id) => `<button type="button" class="avatar-pick${ui.draft.avatar === id ? " on" : ""}" data-action="avatar" data-id="${id}" aria-pressed="${ui.draft.avatar === id}" aria-label="${id}">${avatarSvg(id, ui.draft.color)}</button>`).join("");
   const logos = COMPANY_LOGOS.map((id) => `<button type="button" class="chip logo-pick${ui.draft.logo === id ? " on" : ""}" data-action="logo" data-id="${id}" aria-pressed="${ui.draft.logo === id}">${logoSvg(id, ui.draft.color, ui.draft.name)}</button>`).join("");
   const colors = COMPANY_COLORS.map((color) => `<button type="button" class="swatch${ui.draft.color === color ? " on" : ""}" style="background:${color}" data-action="color" data-color="${color}" aria-label="${color}"></button>`).join("");
-  return `<label class="field-label">${t(ui.lang, "chairName")}
-      <input id="chair-name" class="name-field" maxlength="10" value="${escapeHtml(ui.draft.chairName || "主席")}" aria-label="${escapeHtml(t(ui.lang, "chairName"))}">
-    </label>
-    <div class="avatar-row">${avatars}</div>
-    <label class="field-label">${t(ui.lang, "companyName")}
+  return `<div class="grp">
+      <div class="grp-head"><span>${t(ui.lang, "companyName")}</span></div>
       <input id="company-name" class="name-field" maxlength="16" value="${escapeHtml(ui.draft.name)}" aria-label="${escapeHtml(t(ui.lang, "companyName"))}">
-    </label>
-    <div class="names">${names}</div>
-    <div class="chips">${logos}</div>
-    <div class="swatches">${colors}</div>`;
+      <div class="names">${names}</div>
+    </div>
+    <div class="grp">
+      <div class="grp-head"><span>${t(ui.lang, "chairName")}</span></div>
+      <div class="avatar-row">${avatars}</div>
+      <input id="chair-name" class="name-field" maxlength="10" value="${escapeHtml(ui.draft.chairName || "主席")}" aria-label="${escapeHtml(t(ui.lang, "chairName"))}">
+    </div>
+    <div class="grp">
+      <div class="grp-head"><span>${t(ui.lang, "logo")}</span><span>${t(ui.lang, "color")}</span></div>
+      <div class="brand-row"><div class="chips">${logos}</div><div class="swatches">${colors}</div></div>
+    </div>`;
 }
 
 function companyView() {
-  return `<section class="card company-card">
-      <div class="hoarding" style="--brand:${ui.draft.color}">
+  return `<section class="company-setup">
+      <div class="hoarding hero" style="--brand:${ui.draft.color}">
         ${skylineMarkup([], { boarded: true })}
         <div class="hoarding-sign">${logoSvg(ui.draft.logo, ui.draft.color, ui.draft.name)}<strong>${escapeHtml(ui.draft.name || t(ui.lang, "gameTitle"))}</strong></div>
       </div>
-      <h1 class="game-title">${t(ui.lang, "gameTitle")}</h1>
-      <p class="game-sub">${t(ui.lang, "gameSub")}</p>
-      <p class="note">${t(ui.lang, "disclaimer")}</p>
-      <p class="fine">${t(ui.lang, "companyLead")}</p>
-      ${identityFields()}
+      <div class="hero-copy">
+        <h1 class="game-title">${t(ui.lang, "gameTitle")}</h1>
+        <p class="game-sub">${t(ui.lang, "gameSub")}</p>
+      </div>
+      <div class="card setup-card">
+        <p class="note">${t(ui.lang, "companyLead")}</p>
+        ${identityFields()}
+      </div>
     </section>`;
 }
 
@@ -1794,48 +1802,75 @@ function hud() {
   const step = ui.state ? t(ui.lang, stepKey(ui.state.phase)) : t(ui.lang, "stepCompany");
   const heat = ui.state ? campaignHeat(ui.state, ui.catalog.balance) : null;
   const heatWord = heat === "loose" ? t(ui.lang, "heatLoose") : heat === "spicy" ? t(ui.lang, "heatSpicy") : "—";
-  const heatNote = heat === "loose" ? t(ui.lang, "heatLooseNote") : heat === "spicy" ? t(ui.lang, "heatSpicyNote") : "";
-  const heatLeft = ui.state ? t(ui.lang, "heatLeft", { n: heatProjectsLeft(ui.state, ui.catalog.balance) }) : "";
-  const heatSmall = heatNote ? `${heatNote}${heatLeft ? ` · ${heatLeft}` : ""}` : heatLeft;
-  const policy = ui.state ? policyNotes(ui.state) : [];
   const event = ui.state?.market?.event;
-  if (event && eventKey(event.id)) policy.push(`${t(ui.lang, "marketEvent")}: ${t(ui.lang, eventKey(event.id))}`);
-  const comment = ui.state ? liveComment() : null;
+  const eventName = event && eventKey(event.id) ? t(ui.lang, eventKey(event.id)) : null;
   const frozen = ui.state ? frozenInfo(ui.state) : null;
   const thaw = ui.thaw ? `<small class="thaw">${t(ui.lang, "thawTick", { cash: compactHkd(ui.thaw) })}</small>` : "";
-  let sellRow = "";
+  let sellChips = "";
   if (ui.state?.phase === "sell") {
     ensureSale();
     const quote = currentQuote();
-    sellRow = `<div class="stats sell-stats">
-      <div class="stat"><span class="k">${t(ui.lang, "bowl")}</span><strong id="hud-bowl-word" class="${quote.bowl.ok ? "ok" : "bad"}">${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")}</strong></div>
-      <div class="stat"><span class="k">${t(ui.lang, "poolLeft")}</span><strong id="hud-pool-num">${poolSum(quote.poolsAfter)}</strong></div>
-    </div>`;
+    sellChips = `<span class="hchip bowl ${quote.bowl.ok ? "ok" : "bad"}"><span class="k">${t(ui.lang, "bowl")}</span><b id="hud-bowl-word">${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")}</b></span>
+      <span class="hchip"><span class="k">${t(ui.lang, "poolLeft")}</span><b id="hud-pool-num">${poolSum(quote.poolsAfter)}</b></span>`;
   }
   const mark = ui.state
     ? `<button type="button" class="avatar-btn" data-action="identity" aria-label="${escapeHtml(t(ui.lang, "identity"))}">${avatarSvg(company.avatar || CHAIR_AVATARS[0], company.color)}</button>`
     : logoSvg(company.logo, company.color, company.name);
+  if (!ui.state) {
+    return `<header class="hud hud-slim">
+      <div class="hud-top">
+        ${mark}
+        <div class="hud-money"><strong class="cash">${escapeHtml(company.name || t(ui.lang, "gameTitle"))}</strong></div>
+        <span class="hud-count"></span>
+        <div class="hud-icons"><button class="ghost" data-action="lang">${t(ui.lang, "langName")}</button></div>
+      </div>
+    </header>`;
+  }
   return `<header class="hud">
-    <div class="brand">${mark}<div class="brand-copy"><h1>${escapeHtml(company.name)}</h1><p>${t(ui.lang, "tagline")}</p></div></div>
-    <div class="stats">
-      <div class="stat stat-cash"><span class="k">${t(ui.lang, "cash")}</span><strong>${compactHkd(cash)}</strong>${thaw}</div>
-      <div class="stat stat-rep"><span class="k">${t(ui.lang, "reputation")}</span><strong>${rep}</strong></div>
-      <div class="stat stat-heat heat-stat ${heat || ""}"><span class="k">${t(ui.lang, "heatName")}</span><strong>${heatWord}</strong>${heatSmall ? `<small>${heatSmall}</small>` : ""}</div>
-      <div class="stat stat-project"><span class="k">${t(ui.lang, "project")}</span><strong>${number ? `${number} / ${projects}` : `— / ${projects}`}</strong></div>
-      <div class="stat stat-next"><span class="k">${t(ui.lang, "nextStep")}</span><strong>${step}</strong></div>
-      ${frozen ? `<div class="stat stat-frozen"><span class="k">${t(ui.lang, "frozenChip")}</span><strong>${compactHkd(frozen.amount)}</strong><small>${t(ui.lang, "frozenLeft", { n: frozen.left })}</small></div>` : ""}
+    <div class="hud-top">
+      ${mark}
+      <div class="hud-money">
+        <strong class="cash">${compactHkd(cash)}</strong>${thaw}
+        <span class="rep">★ ${rep}</span>
+      </div>
+      <span class="hud-count">${number ? `${number} / ${projects}` : `— / ${projects}`}</span>
+      <div class="hud-icons">
+        <button class="ghost" data-action="history">${t(ui.lang, "history")}</button>
+        <button class="ghost" data-action="menu">${t(ui.lang, "menu")}</button>
+      </div>
     </div>
-    <div class="hud-actions">
-      <button class="ghost" data-action="lang">${t(ui.lang, "langName")}</button>
-      ${ui.state ? `<button class="ghost" data-action="history">${t(ui.lang, "history")}</button>` : ""}
-      ${ui.state ? `<button class="ghost" data-action="menu">${t(ui.lang, "menu")}</button>` : ""}
+    <div class="hud-chips">
+      <button type="button" class="hchip ${heat || ""}" data-action="market-sheet"><span class="k">${t(ui.lang, "heatName")}</span>${heatWord}<i>›</i></button>
+      <span class="hchip step"><span class="k">${t(ui.lang, "nextStep")}</span>${step}</span>
+      ${eventName ? `<button type="button" class="hchip event" data-action="market-sheet">${escapeHtml(eventName)}</button>` : ""}
+      ${frozen ? `<span class="hchip frozen"><span class="k">${t(ui.lang, "frozenChip")}</span>${compactHkd(frozen.amount)}</span>` : ""}
+      ${sellChips}
     </div>
-    ${sellRow}
-    ${policy.length ? `<p class="policy-line">${escapeHtml(policy.join(" · "))}</p>` : ""}
-    ${comment ? `<p class="hud-comment">${escapeHtml(t(ui.lang, comment))}</p>` : ""}
   </header>`;
 }
-
+function marketSheet() {
+  if (!ui.marketSheet || !ui.state) return "";
+  const heat = campaignHeat(ui.state, ui.catalog.balance);
+  const heatWord = heat === "loose" ? t(ui.lang, "heatLoose") : t(ui.lang, "heatSpicy");
+  const heatNote = heat === "loose" ? t(ui.lang, "heatLooseNote") : t(ui.lang, "heatSpicyNote");
+  const advice = heat === "loose" ? t(ui.lang, "heatLooseAdvice") : t(ui.lang, "heatSpicyAdvice");
+  const left = heatProjectsLeft(ui.state, ui.catalog.balance);
+  const policy = policyNotes(ui.state);
+  const event = ui.state.market?.event;
+  const comment = liveComment();
+  const row = (label, value) => `<div class="msheet-row"><span>${label}</span><b>${value}</b></div>`;
+  return `<div class="menu"><div class="card market-sheet">
+    <h3>${t(ui.lang, "marketSheetTitle")}</h3>
+    ${row(t(ui.lang, "marketTrend"), `${heatWord} · ${heatNote}`)}
+    ${row(t(ui.lang, "marketAdvice"), advice)}
+    ${row(t(ui.lang, "marketProjects"), `${ui.state.completed} / ${ui.catalog.balance.projects}`)}
+    ${row(t(ui.lang, "marketLeft"), t(ui.lang, "heatLeft", { n: left }))}
+    ${policy.length ? row(t(ui.lang, "marketPolicy"), policy.map((line) => escapeHtml(line)).join(" · ")) : ""}
+    ${event && eventKey(event.id) ? row(t(ui.lang, "marketEvent"), t(ui.lang, eventKey(event.id))) : ""}
+    ${comment ? row(t(ui.lang, "marketComment"), escapeHtml(t(ui.lang, comment))) : ""}
+    <button class="ghost" data-action="close-market">${t(ui.lang, "close")}</button>
+  </div></div>`;
+}
 function priceWord(price) {
   if (price === "cheap") return t(ui.lang, "priceCheap");
   if (price === "expensive") return t(ui.lang, "priceExpensive");
@@ -1970,6 +2005,7 @@ function menuOverlay() {
     <h3>${t(ui.lang, "menu")}</h3>
     <div class="stack">
       <button class="primary" data-action="close-menu">${t(ui.lang, "close")}</button>
+      <button class="ghost" data-action="lang">${t(ui.lang, "langName")}</button>
       <button class="ghost" data-action="identity">${t(ui.lang, "identity")}</button>
       <button class="ghost" data-action="new-game">${t(ui.lang, "newGame")}</button>
       ${ui.state ? `<button class="ghost" data-action="capital">${t(ui.lang, "capital")}</button>` : ""}
@@ -2023,6 +2059,7 @@ function render() {
     <p class="legal"><span>${t(ui.lang, "disclaimer")}</span><span class="legal-en"> · ${t(ui.lang, "disclaimerEn")}</span>${jvVisible() ? `<span class="legal-jv"> · ${t(ui.lang, "jvDisclaimer")}</span>` : ""}</p>
     ${dock()}
     ${menuOverlay()}
+    ${marketSheet()}
     ${identityOverlay()}
     ${historyDrawer()}
     ${floorDrawer()}
@@ -2057,6 +2094,7 @@ function foundCompany() {
   ui.state = createCampaign(ui.catalog, { company: ui.draft, seed });
   ui.menu = false;
   ui.identity = false;
+  ui.marketSheet = false;
   ui.renaming = false;
   ui.drawer = null;
   ui.historyFocus = null;
@@ -2110,6 +2148,7 @@ function newGame() {
   ui.build = null;
   ui.menu = false;
   ui.identity = false;
+  ui.marketSheet = false;
   ui.renaming = false;
   ui.drawer = null;
   ui.historyFocus = null;
@@ -2143,9 +2182,20 @@ function onClick(event) {
     render();
     return;
   }
+  if (action === "market-sheet") {
+    ui.marketSheet = true;
+    render();
+    return;
+  }
+  if (action === "close-market") {
+    ui.marketSheet = false;
+    render();
+    return;
+  }
   if (action === "menu") {
     ui.menu = true;
     ui.identity = false;
+    ui.marketSheet = false;
     ui.drawer = null;
     render();
     return;
