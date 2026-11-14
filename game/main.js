@@ -9,6 +9,7 @@ import {
   buildOutlook,
   buildSalesBand,
   campaignHeat,
+  marketIndex,
   canAddUnit,
   celebrateClear,
   closingLine,
@@ -2039,7 +2040,12 @@ function hud() {
   const company = ui.state?.company || ui.draft;
   const step = ui.state ? t(ui.lang, stepKey(ui.state.phase)) : t(ui.lang, "stepCompany");
   const heat = ui.state ? campaignHeat(ui.state, ui.catalog.balance) : null;
-  const heatWord = heat === "loose" ? t(ui.lang, "heatLoose") : heat === "spicy" ? t(ui.lang, "heatSpicy") : "—";
+  const indexNow = ui.state ? marketIndex(ui.state.market) : null;
+  const trail = ui.state?.market?.history || [];
+  const indexPrev = ui.state ? marketIndex({ price: trail.length > 1 ? trail[trail.length - 2] : trail[0] || 1 }) : null;
+  const indexDelta = indexNow && indexPrev ? ((indexNow - indexPrev) / indexPrev) * 100 : 0;
+  const indexDir = indexDelta > 0.05 ? "up" : indexDelta < -0.05 ? "down" : "flat";
+  const indexArrow = indexDelta > 0.05 ? "▲" : indexDelta < -0.05 ? "▼" : "▬";
   const event = ui.state?.market?.event;
   const eventName = event && eventKey(event.id) ? t(ui.lang, eventKey(event.id)) : null;
   const frozen = ui.state ? frozenInfo(ui.state) : null;
@@ -2077,7 +2083,7 @@ function hud() {
       </div>
     </div>
     <div class="hud-chips">
-      <button type="button" class="hchip ${heat || ""}" data-action="market-sheet"><span class="k">${t(ui.lang, "heatName")}</span>${heatWord}<i>›</i></button>
+      <button type="button" class="hchip index ${indexDir}" data-action="market-sheet"><span class="k">${t(ui.lang, "indexName")}</span>${formatIndex(indexNow)}<i class="dir">${indexArrow}${Math.abs(indexDelta).toFixed(1)}%</i><i>›</i></button>
       <span class="hchip step"><span class="k">${t(ui.lang, "nextStep")}</span>${step}</span>
       ${eventName ? `<button type="button" class="hchip event" data-action="market-sheet">${escapeHtml(eventName)}</button>` : ""}
       ${frozen ? `<span class="hchip frozen"><span class="k">${t(ui.lang, "frozenChip")}</span>${compactHkd(frozen.amount)}</span>` : ""}
@@ -2085,6 +2091,30 @@ function hud() {
     </div>
   </header>`;
 }
+function formatIndex(value) {
+  return (Math.round((Number(value) || 0) * 10) / 10).toFixed(1);
+}
+
+function indexSpark(trail) {
+  const points = trail.length > 1 ? trail : [trail[0], trail[0]];
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  const step = 360 / Math.max(1, points.length - 1);
+  const coords = points.map((value, i) => [i * step, 64 - ((value - min) / span) * 46]);
+  const line = coords.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `${line} L360,74 L0,74 Z`;
+  const rising = points[points.length - 1] >= points[0];
+  const stroke = rising ? "#4fbf8b" : "#e5675f";
+  const last = coords[coords.length - 1];
+  return `<div class="idx-spark"><svg viewBox="0 0 360 74" width="100%" height="74" aria-hidden="true">
+    <defs><linearGradient id="idxg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${stroke}" stop-opacity=".34"/><stop offset="1" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${area}" fill="url(#idxg)"/>
+    <path d="${line}" fill="none" stroke="${stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+    <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3.4" fill="${stroke}"/>
+  </svg><div class="idx-axis"><span>${t(ui.lang, "indexAgo", { n: points.length - 1 })}</span><span>${t(ui.lang, "indexNowLabel")}</span></div></div>`;
+}
+
 function marketSheet() {
   if (!ui.marketSheet || !ui.state) return "";
   const heat = campaignHeat(ui.state, ui.catalog.balance);
@@ -2096,8 +2126,23 @@ function marketSheet() {
   const event = ui.state.market?.event;
   const comment = liveComment();
   const row = (label, value) => `<div class="msheet-row"><span>${label}</span><b>${value}</b></div>`;
+  const trail = (ui.state.market?.history || [1]).slice(-12);
+  const now = marketIndex(ui.state.market);
+  const before = marketIndex({ price: trail.length > 1 ? trail[trail.length - 2] : trail[0] });
+  const move = before ? ((now - before) / before) * 100 : 0;
+  const since = trail.length > 1 ? Math.abs(((now - marketIndex({ price: trail[0] })) / marketIndex({ price: trail[0] })) * 100).toFixed(1) : "0.0";
+  const dir = move > 0.05 ? "up" : move < -0.05 ? "down" : "flat";
+  const tone = dir === "up" ? t(ui.lang, "indexUp") : dir === "down" ? t(ui.lang, "indexDown") : t(ui.lang, "indexFlat");
   return `<div class="menu"><div class="card market-sheet">
     <h3>${t(ui.lang, "marketSheetTitle")}</h3>
+    <div class="idx-top">
+      <div class="idx-big">${formatIndex(now)}<s>${t(ui.lang, "indexPoints")}</s></div>
+      <div class="idx-delta ${dir}">${dir === "up" ? "▲" : dir === "down" ? "▼" : "▬"} ${Math.abs(move).toFixed(1)}%<small>${t(ui.lang, "indexSince")}</small></div>
+    </div>
+    ${indexSpark(trail)}
+    ${row(t(ui.lang, "indexRead"), tone)}
+    ${row(t(ui.lang, "indexLand"), `${formatIndex(ui.state.market.land * 300)}　${t(ui.lang, "indexVsOpen")} ${ui.state.market.land >= 1 ? "▲" : "▼"}${Math.abs((ui.state.market.land - 1) * 100).toFixed(1)}%`)}
+    ${row(t(ui.lang, "indexBuild"), `${formatIndex(ui.state.market.build * 300)}　${t(ui.lang, "indexVsOpen")} ${ui.state.market.build >= 1 ? "▲" : "▼"}${Math.abs((ui.state.market.build - 1) * 100).toFixed(1)}%`)}
     ${row(t(ui.lang, "marketTrend"), `${heatWord} · ${heatNote}`)}
     ${row(t(ui.lang, "marketAdvice"), advice)}
     ${row(t(ui.lang, "marketProjects"), `${ui.state.completed} / ${ui.catalog.balance.projects}`)}
