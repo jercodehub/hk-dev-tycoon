@@ -158,6 +158,8 @@ button:disabled { cursor: not-allowed; }
   background: var(--panel-2);
 }
 .ghost, .primary, .chip, .choice { min-height: 44px; padding: 8px 12px; font-size: var(--fs-button); font-weight: 700; }
+.file-button { display: block; text-align: center; }
+.file-button input { display: none; }
 .primary, .go {
   background: #8eb6ff;
   border-color: #e7f0ff;
