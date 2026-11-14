@@ -48,6 +48,16 @@ test("onboarding survives serialization and hydration", () => {
   assert.equal(isOnboarding(restored), true);
 });
 
+test("legacy notice seen flag survives without changing the campaign", () => {
+  const state = start(15);
+  const marked = { ...state, flags: { ...state.flags, legacyNoticeSeen: true } };
+  const restored = hydrateCampaign(catalog, serializeCampaign(marked));
+  assert.equal(restored.flags.legacyNoticeSeen, true);
+  assert.equal(restored.cash, state.cash);
+  assert.equal(restored.completed, state.completed);
+  assert.deepEqual(restored.offers.map((offer) => offer.slot), state.offers.map((offer) => offer.slot));
+});
+
 test("v8 saves without onboarding infer completion from project history", () => {
   const fresh = serializeCampaign(start(17));
   delete fresh.onboarding;

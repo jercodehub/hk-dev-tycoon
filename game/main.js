@@ -107,6 +107,8 @@ const ui = {
   flourish: false,
   toast: null,
   toastQueue: [],
+  legacyNotice: false,
+  legacyGuide: false,
   teach: null,
   similarOpen: true,
   ignoreClick: false,
@@ -1656,6 +1658,20 @@ function identityOverlay() {
   </div></div>`;
 }
 
+function legacyGuideOverlay() {
+  if (!ui.legacyNotice && !ui.legacyGuide) return "";
+  const guide = ui.legacyGuide;
+  return `<div class="menu legacy-notice" role="dialog" aria-modal="true">
+    <div class="card">
+      <p class="kicker">${t(ui.lang, guide ? "legacyGuideTitle" : "legacyNoticeTitle")}</p>
+      <p class="note">${t(ui.lang, guide ? "legacyGuideBody" : "legacyNoticeBody")}</p>
+      <div class="stack">
+        ${guide ? `<button class="primary" data-action="legacy-close-guide">${t(ui.lang, "legacyGuideClose")}</button>` : `<button class="primary" data-action="legacy-guide">${t(ui.lang, "legacyNoticeGuide")}</button><button class="ghost" data-action="legacy-dismiss">${t(ui.lang, "legacyNoticeDismiss")}</button>`}
+      </div>
+    </div>
+  </div>`;
+}
+
 function render() {
   if (!ui.catalog) return;
   if (ui.state?.phase !== "sell" || ui.lapse || ui.teach) stopSaleTimer();
@@ -1673,6 +1689,7 @@ function render() {
     ${historyDrawer()}
     ${floorDrawer()}
     ${lockedDrawer()}
+    ${legacyGuideOverlay()}
     ${ui.toast ? `<button type="button" class="toast" data-action="toast-dismiss">${t(ui.lang, achievementKey(ui.toast))}<small>${t(ui.lang, "toastDismiss")}</small></button>` : ""}`;
   if (ui.renaming) {
     const field = document.querySelector("#project-name");
@@ -1705,6 +1722,8 @@ function foundCompany() {
   ui.build = null;
   ui.sale = null;
   ui.lapse = false;
+  ui.legacyNotice = false;
+  ui.legacyGuide = false;
   ui.teach = null;
   ui.similarOpen = false;
   stopLapse();
@@ -1724,6 +1743,8 @@ function newGame() {
   ui.historyFocus = null;
   ui.error = null;
   ui.lapse = false;
+  ui.legacyNotice = false;
+  ui.legacyGuide = false;
   ui.teach = null;
   ui.similarOpen = false;
   stopLapse();
@@ -1866,6 +1887,19 @@ function onClick(event) {
   }
   if (action === "close-menu") {
     ui.menu = false;
+    render();
+    return;
+  }
+  if (action === "legacy-dismiss" || action === "legacy-guide") {
+    ui.state = { ...ui.state, flags: { ...(ui.state.flags || {}), legacyNoticeSeen: true } };
+    ui.legacyNotice = false;
+    ui.legacyGuide = action === "legacy-guide";
+    persist();
+    render();
+    return;
+  }
+  if (action === "legacy-close-guide") {
+    ui.legacyGuide = false;
     render();
     return;
   }
@@ -2116,6 +2150,7 @@ async function boot() {
   if (migrated.ok) {
     try {
       ui.state = hydrateCampaign(ui.catalog, migrated.state);
+      ui.legacyNotice = Boolean(raw && !raw.onboarding && !raw.flags?.legacyNoticeSeen);
     } catch {
       ui.state = null;
       localStorage.removeItem(SAVE_KEY);
