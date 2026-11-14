@@ -1025,13 +1025,28 @@ function pricePanel() {
   const costPsf = Math.round(projectCostPsf());
   const rows = UNIT_SPECS.map((spec) => {
     const psf = typePsf(spec, fair);
-    const offered = quote.byType?.[spec.id]?.offered || 0;
+    const row = quote.byType?.[spec.id] || { offered: 0, poolBefore: 0, brought: 0 };
+    const supply = row.offered || 0;
+    const demand = (row.poolBefore || 0) + (row.brought || 0);
+    const top = Math.max(supply, demand, 1);
+    const lane = (value) => (value <= 0 ? 0 : Math.max(3, Math.round((value / top) * 100)));
+    const gap = supply - demand;
+    const status = supply === 0
+      ? `<span>${t(ui.lang, "priceNoUnits")}</span>`
+      : gap > 0
+        ? `<span class="short">${t(ui.lang, "priceShort", { n: formatCount(gap) })}</span>`
+        : `<span class="ok">${t(ui.lang, "priceEnough")}</span>`;
     const dear = (ui.sale.choices.askMulByType?.[spec.id] ?? 1) >= 1.08;
     return `<div class="prow">
-      <div class="pname">${t(ui.lang, UNIT_KEYS[spec.id][0])}<small>${t(ui.lang, "priceArea", { ft: spec.ft2, n: formatCount(offered) })}</small></div>
+      <div class="pname">${t(ui.lang, UNIT_KEYS[spec.id][0])}<small>${spec.ft2} ${t(ui.lang, "ft2Short")}</small></div>
       <button class="step" data-action="price-step" data-type="${spec.id}" data-dir="-1" aria-label="${escapeHtml(t(ui.lang, "priceDown"))}">−</button>
       <label class="num${dear ? " dear" : ""}"><input type="text" inputmode="numeric" data-price-type="${spec.id}" value="${formatHkd(psf)}" aria-label="${escapeHtml(t(ui.lang, UNIT_KEYS[spec.id][0]))}"><i>${t(ui.lang, "perFt2")}</i></label>
       <button class="step" data-action="price-step" data-type="${spec.id}" data-dir="1" aria-label="${escapeHtml(t(ui.lang, "priceUp"))}">+</button>
+      <div class="pbar">
+        <span class="lane sup"><i style="width:${lane(supply)}%"></i></span>
+        <span class="lane dem"><i style="width:${lane(demand)}%"></i></span>
+      </div>
+      <div class="pmeta"><span>${t(ui.lang, "priceSupply", { n: formatCount(supply) })}</span><span>${t(ui.lang, "priceDemand", { n: formatCount(demand) })}${row.brought ? ` <em>${t(ui.lang, "priceBrought", { n: formatCount(row.brought) })}</em>` : ""}</span>${status}</div>
     </div>`;
   }).join("");
   const two = quote.byType?.two || { ask: 0 };
