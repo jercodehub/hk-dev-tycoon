@@ -45,6 +45,9 @@ import {
   stakeOf,
   unitRowNote,
   unitTotal,
+  premiumGate,
+  settlePremium,
+  sellBackLand,
 } from "../game/campaign.js";
 import { playerFacingCopy, t } from "../game/copy.js";
 
@@ -254,6 +257,11 @@ test("one bad project does not permanently lock a flagship opportunity", () => {
       else {
         if (badTurn) disaster = true;
         state = chooseLand(catalog, state, affordable.slot).state;
+        if (premiumGate(state) === "rejected") state = sellBackLand(catalog, state).state;
+        else if (premiumGate(state)) {
+          const paid = settlePremium(state, "standard");
+          state = paid.ok ? paid.state : settlePremium(state, "actual").state;
+        }
       }
     } else if (state.phase === "build") {
       const bad = state.project.index === 3;
