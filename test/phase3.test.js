@@ -672,3 +672,21 @@ test("player-facing copy does not print banned labels", () => {
   ];
   for (const phrase of banned) assert.equal(blob.includes(phrase), false, phrase);
 });
+
+test("each unit type can be priced on its own", () => {
+  const district = "中西區";
+  const flat = projectSale(district, { price: "fair" });
+  const dearTwo = resolveSale(catalog, projectContext(district), {
+    showflat: false,
+    cheer: 0,
+    leftover: "cut",
+    roll: 1,
+    askMulByType: { studio: 1, one: 1, two: 1.45, three: 1, feature: 1 },
+  });
+  assert.ok(dearTwo.byType.two.ask > flat.byType.two.ask, "two-bed ask rises on its own");
+  assert.equal(dearTwo.byType.one.ask, flat.byType.one.ask, "other types keep their price");
+  assert.ok(dearTwo.byType.two.convert < flat.byType.two.convert, "dearer two-beds convert worse");
+  assert.equal(dearTwo.byType.one.convert, flat.byType.one.convert, "other types keep their conversion");
+  assert.ok(dearTwo.byType.two.sold <= flat.byType.two.sold, "dearer two-beds sell no faster");
+  assert.ok(dearTwo.askPerFt2 > flat.askPerFt2, "the reported average follows the mix");
+});

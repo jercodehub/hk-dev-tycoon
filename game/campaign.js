@@ -1667,12 +1667,19 @@ export function normalizeChoices(raw = {}, balance) {
   const rebate = raw.rebate === "std" || raw.rebate === "high" ? raw.rebate : "none";
   const adBudget = raw.adBudget === "low" || raw.adBudget === "high" ? raw.adBudget : "none";
   const adTarget = Object.prototype.hasOwnProperty.call(AD_TARGET_UNITS, raw.adTarget) ? raw.adTarget : null;
+  const baseMul = askMultiplier(price, balance);
+  const askMulByType = {};
+  for (const spec of UNIT_SPECS) {
+    const value = Number(raw.askMulByType?.[spec.id]);
+    askMulByType[spec.id] = Number.isFinite(value) && value > 0 ? clamp(value, 0.5, 1.8) : baseMul;
+  }
   return {
     showflat,
     cheer,
     leftover,
     price,
-    askMul: askMultiplier(price, balance),
+    askMul: baseMul,
+    askMulByType,
     rebate,
     adBudget,
     adTarget,
@@ -1773,16 +1780,15 @@ export function resolveSale(catalog, state, rawChoices, roll) {
         ? state.project.saleRoll
         : 1;
   const askMul = choices.askMul;
-  const pricedConvert = priceConvert(askMul, balance);
   const promo = promoSpec(choices, balance);
-  const twoAsk = fairPerFt2 * 450 * askMul;
+  const twoAsk = fairPerFt2 * 450 * choices.askMulByType.two;
   const bowlRaw = affordability({
     lump: twoAsk,
     budget: balance.starterBudget * buyer,
     cheer: choices.cheer,
     gains: balance.cheerBowl,
   });
-  const studioAsk = fairPerFt2 * 280 * askMul;
+  const studioAsk = fairPerFt2 * 280 * choices.askMulByType.studio;
   const whaleBudget = balance.whaleBudget * buyer * (marketHeat === "loose" ? balance.looseWhaleMul : balance.spicyWhaleMul);
   const whaleSensitive = studioAsk > whaleBudget;
   let cheerBonus = 0;
@@ -1801,10 +1807,13 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   let frozenExact = 0;
   let sold = 0;
   let units = 0;
+  let mulWeighted = 0;
   for (const spec of UNIT_SPECS) {
     const offered = mix[spec.id];
     units += offered;
-    const ask = fairPerFt2 * spec.ft2 * askMul;
+    const typeMul = choices.askMulByType[spec.id];
+    mulWeighted += offered * typeMul;
+    const ask = fairPerFt2 * spec.ft2 * typeMul;
     let convert = balance.baseConvert[spec.id] + cheerBonus;
     if (choices.showflat) convert += balance.showflatBoost[spec.id];
     if (spec.id === "studio" && marketHeat === "loose") convert += balance.looseStudio;
@@ -1818,7 +1827,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     }
     if (spec.id === "two" && !bowlRaw.ok) convert *= balance.bowlCrack;
     if (spec.id === "studio" && whaleSensitive) convert *= balance.whalePriceCut;
-    convert *= pricedConvert;
+    convert *= priceConvert(typeMul, balance);
     if (offer.type === "mtr") {
       // Rail bonus: landTypes.mtr.sellBoost is +8 to +12 percentage points of through-rate.
       convert += Number(balance.landTypes?.mtr?.sellBoost) || 0;
@@ -1900,6 +1909,8 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   if (unsold > 0 && choices.leftover === "cut") reputationDelta += balance.repCut;
   if (unsold > 0 && choices.leftover === "hold") reputationDelta += balance.repHold;
   const perUnit = units ? money(grossExact / Math.max(sold, 1)) : 0;
+  const avgMul = units ? mulWeighted / units : askMul;
+  choices.price = priceVerdict(avgMul, balance);
   return {
     choices,
     marketHeat,
@@ -1923,7 +1934,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     adCost,
     paidAdCost,
     fairPerFt2: money(fairPerFt2),
-    askPerFt2: money(fairPerFt2 * askMul),
+    askPerFt2: money(fairPerFt2 * avgMul),
     askPerUnit: perUnit,
     through,
     sold,
