@@ -1354,13 +1354,13 @@ function sellLive() {
   return `<section class="card sale-stage showroom">
       <div class="lv-top"><b>${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</b><span>${t(ui.lang, "liveRoundOf", { n: round })}</span></div>
       <div class="lv-hero">
-        <div class="lv-heat"><b id="heat-num">${heat}</b><s>${t(ui.lang, "heat")}</s></div>
+        <div class="lv-heat"><b id="sold-num">${plainCount(shown)}</b><s>${t(ui.lang, "soldOf", { n: plainCount(quote.units) })}</s></div>
         <div class="lv-over"><b>${t(ui.lang, "overSub", { n: over })}</b><span>${t(ui.lang, "queueLine", { n: plainCount(poolTotal) })}</span></div>
       </div>
       <div class="lv-track"><i id="heat-fill" style="width:${heat}%"></i></div>
       <div class="lv-legend">
-        <span>${t(ui.lang, "soldNow")} <b id="sold-num">${plainCount(shown)}</b></span>
         <span>${t(ui.lang, "unitsLeft")} <b id="left-num">${plainCount(left)}</b></span>
+        <span>${t(ui.lang, "sellThrough")} <b id="pct-num">${quote.units ? Math.round((shown / quote.units) * 100) : 0}%</b></span>
         <span>${t(ui.lang, "heroProfit")} <b id="tally">${compactHkd(profit)}</b></span>
       </div>
       <div class="pops" id="pops"></div>
@@ -1550,8 +1550,8 @@ function paintSale(quote, tProgress) {
   const shownHeat = Math.round(quote.heat * (0.2 + 0.8 * tProgress));
   const heat = document.querySelector("#heat-fill");
   if (heat) heat.style.width = `${Math.min(100, shownHeat)}%`;
-  const heatNum = document.querySelector("#heat-num");
-  if (heatNum) heatNum.textContent = String(Math.min(100, shownHeat));
+  const pctNum = document.querySelector("#pct-num");
+  if (pctNum) pctNum.textContent = `${quote.units ? Math.round((ui.sale.shownSold / quote.units) * 100) : 0}%`;
   const sold = document.querySelector("#sold-num");
   if (sold) sold.textContent = plainCount(ui.sale.shownSold);
   const left = document.querySelector("#left-num");
