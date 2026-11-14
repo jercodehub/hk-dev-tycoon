@@ -1338,25 +1338,31 @@ function sellLive() {
   const shown = showOutcome ? quote.sold : ui.sale.shownSold;
   const heat = showOutcome ? quote.heat : Math.round(quote.heat * 0.15);
   const poolTotal = Object.values(quote.poolsBefore || {}).reduce((a, b) => a + b, 0);
-  const over = Math.max(1, Math.round(poolTotal / Math.max(1, quote.units)));
-  const feed = UNIT_SPECS.filter((sp) => quote.byType?.[sp.id]?.sold > 0).slice(0, 3)
-    .map((sp) => `<div><b>${t(ui.lang, UNIT_KEYS[sp.id][0])}</b> ${compactHkd(quote.byType[sp.id].ask)} · ${quote.byType[sp.id].sold} 伙</div>`).join("");
+  const over = Math.round((poolTotal / Math.max(1, quote.units)) * 10) / 10;
+  const left = Math.max(0, quote.units - shown);
+  const profit = shown && quote.sold ? Math.round((quote.profit * shown) / quote.sold) : 0;
+  const round = Math.min(3, (ui.sale.choices.cheer || 0) + 1);
+  const hot = UNIT_SPECS.filter((sp) => quote.byType?.[sp.id]?.sold > 0).slice(0, 2);
+  const feed = hot.length
+    ? hot.map((sp) => `${t(ui.lang, UNIT_KEYS[sp.id][0])} ${compactHkd(quote.byType[sp.id].ask)} · ${formatCount(quote.byType[sp.id].sold)} 伙`).join(" · ")
+    : t(ui.lang, "liveNoSales");
   return `<section class="card sale-stage showroom">
-      <p class="kicker">${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</p>
-      <div class="live-q"><b>超額 ${over} 倍</b><span>排隊 ${formatCount(poolTotal)} 人 · 剩 ${formatCount(Math.max(0, quote.units - shown))} 伙</span></div>
-      <div class="heat" aria-hidden="true"><span id="heat-fill" style="width:${heat}%"></span></div>
-      <div class="sale-nums">
-        <div><span>${t(ui.lang, "heat")}</span><strong id="heat-num">${heat}</strong></div>
-        <div><span>${t(ui.lang, "soldNow")}</span><strong id="sold-num">${formatCount(shown)}</strong></div>
-        <div><span>${t(ui.lang, "unitsLeft")}</span><strong id="left-num">${formatCount(Math.max(0, quote.units - shown))}</strong></div>
+      <div class="lv-top"><b>${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</b><span>${t(ui.lang, "liveRoundOf", { n: round })}</span></div>
+      <div class="lv-hero">
+        <div class="lv-heat"><b id="heat-num">${heat}</b><s>${t(ui.lang, "heat")}</s></div>
+        <div class="lv-over"><b>${t(ui.lang, "overSub", { n: over })}</b><span>${t(ui.lang, "queueLine", { n: formatCount(poolTotal) })}</span></div>
       </div>
-      ${fillMarks(quote, shown)}
+      <div class="lv-track"><i id="heat-fill" style="width:${heat}%"></i></div>
+      <div class="lv-legend">
+        <span>${t(ui.lang, "soldNow")} <b id="sold-num">${formatCount(shown)}</b></span>
+        <span>${t(ui.lang, "unitsLeft")} <b id="left-num">${formatCount(left)}</b></span>
+        <span>${t(ui.lang, "heroProfit")} <b id="tally">${compactHkd(profit)}</b></span>
+      </div>
       <div class="pops" id="pops"></div>
       <p class="fine" id="cake-line">${quote.cakeSweep > 0 && shown > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : ""}</p>
-      <p class="fine">${t(ui.lang, "floorCash")} <strong id="tally">${compactHkd(shown && quote.sold ? Math.round((quote.gross * shown) / quote.sold) : 0)}</strong></p>
       ${cheerExtraLine(ui.sale.choices)}
-      <div class="live-feed"><span>${t(ui.lang, "liveFeed")}</span>${feed || `<div>${t(ui.lang, "liveNoSales")}</div>`}</div>
       ${livePanel(quote)}
+      <div class="lv-feed"><em>${t(ui.lang, "liveFeed")}</em>${feed}</div>
       ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : ""}
     </section>`;
 }
@@ -1373,9 +1379,10 @@ function livePanel(quote) {
   if (ui.sale.mode !== "live") return "";
   const left = Math.max(0, ui.catalog.balance.cheerMax - ui.sale.choices.cheer);
   if (left <= 0) return "";
-  const event = LIVE_EVENTS[ui.sale.choices.cheer % LIVE_EVENTS.length];
+  const idx = ui.sale.choices.cheer % LIVE_EVENTS.length;
   const cards = LIVE_DECISIONS.map(([id, title, sub]) => `<button data-action="sale-decide" data-id="${id}"><b>${t(ui.lang, title)}</b><s>${t(ui.lang, sub)}</s></button>`).join("");
-  return `<div class="live-event"><p>${t(ui.lang, event)}</p><span>${t(ui.lang, "liveRound", { n: left })}</span></div>
+  return `<div class="live-event"><p>${t(ui.lang, LIVE_EVENTS[idx])}</p><i>${t(ui.lang, `${LIVE_EVENTS[idx]}Sub`)}</i></div>
+    <div class="lv-head"><b>${t(ui.lang, "liveDecide")}</b><span>${t(ui.lang, "liveRound", { n: left })}</span></div>
     <div class="live-decide">${cards}</div>`;
 }
 
@@ -1546,8 +1553,8 @@ function paintSale(quote, tProgress) {
   if (left) left.textContent = formatCount(Math.max(0, quote.units - ui.sale.shownSold));
   const tally = document.querySelector("#tally");
   if (tally) {
-    const cash = quote.sold ? Math.round((quote.gross * ui.sale.shownSold) / quote.sold) : 0;
-    tally.textContent = compactHkd(cash);
+    const profit = quote.sold ? Math.round((quote.profit * ui.sale.shownSold) / quote.sold) : 0;
+    tally.textContent = compactHkd(profit);
   }
   const pops = document.querySelector("#pops");
   if (pops) pops.innerHTML = ui.sale.pops.map((pop) => `<span class="pop">${escapeHtml(pop.text)}</span>`).join("");
