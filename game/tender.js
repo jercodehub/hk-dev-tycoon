@@ -73,9 +73,12 @@ export function depositFor(bidPsf, gfaFt2, rate = TENDER.depositRate) {
 
 /** Highest per-foot bid a player can lodge before the deposit cap bites. */
 export function maxBidPsf({ cash, gfaFt2, rate = TENDER.depositRate, capShare = TENDER.depositCapShare } = {}) {
-  const budget = Math.max(0, Number(cash) || 0) * capShare;
+  const wallet = Math.max(0, Number(cash) || 0);
   const gfa = Math.max(1, roundMoney(gfaFt2));
-  return Math.floor(budget / (gfa * rate));
+  // two ceilings: the deposit cap today, and paying the rest at build time
+  const byDeposit = (wallet * capShare) / rate;
+  const byBalance = wallet / Math.max(0.01, 1 - rate);
+  return Math.floor(Math.min(byDeposit, byBalance) / gfa);
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   UNIT_SPECS,
   acknowledgeMismatch,
   addUnits,
+  availableCash,
   buildOutlook,
   buildSalesBand,
   campaignHeat,
@@ -41,6 +42,11 @@ import {
   isTutorial,
   isOnboarding,
   jvEligible,
+  maxTenderBid,
+  noteTenderLoss,
+  submitTender,
+  tenderActive,
+  tenderIntel,
   migrateSave,
   mismatchEcho,
   mixDelta,
@@ -58,6 +64,7 @@ import {
   saleLedger,
   saleReveal,
   serializeCampaign,
+  forfeitTenderDeposit,
   settlementPreview,
   shouldTeachMismatch,
   similarProject,
@@ -107,6 +114,7 @@ const ui = {
   identity: false,
   build: null,
   sale: null,
+  tender: { slot: null, bid: 0, result: null },
   drawer: null,
   historyFocus: null,
   thaw: null,
@@ -213,6 +221,10 @@ function errorText(code) {
       short_cash: "現金唔夠你份額。",
       need_remedy: "先揀趕工定接受差啲銷情。",
       bad_stake: "呢幅地未開合營。",
+      tender_over: "超出可出價上限，減返少少。",
+      deposit_cap: "按金超過現金四成。",
+      already_bidding: "你已經入咗標。",
+      no_bid: "未填出價。",
     },
     en: {
       insufficient_cash: "Not enough cash.",
@@ -225,6 +237,10 @@ function errorText(code) {
       short_cash: "Cash does not cover your share.",
       need_remedy: "Choose a stall fix first.",
       bad_stake: "This site has no venture.",
+      tender_over: "Above the bid ceiling. Bring it down a little.",
+      deposit_cap: "The deposit would pass 40% of your cash.",
+      already_bidding: "You already have a bid on this plot.",
+      no_bid: "Enter a bid first.",
     },
   };
   return (table[ui.lang] || table.tc)[code] || code;
@@ -675,6 +691,12 @@ function landCard(offer) {
     <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${formatCount(offer.gfaFt2)} ${t(ui.lang, "ft")} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
     <p class="fine plot-price">${priceName} ${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)}</p>
     <p class="fine ledger-preview">${deal}${venture}</p>${rail}`;
+  if (tenderActive(ui.state) && offer.type === "gov") {
+    return `<button class="choice plot tender-entry" data-action="tender-open" data-slot="${offer.slot}">
+      ${body}
+      <p class="fine tender-cta">${t(ui.lang, "tenderOpen")} · ${t(ui.lang, "tenderDepositShort", { cash: compactHkd(offer.landTotal * 0.1) })}</p>
+    </button>`;
+  }
   if (!jvEligible(offer)) {
     return `<button class="choice plot" data-action="buy" data-slot="${offer.slot}" data-stake="1" ${broke ? "disabled" : ""}>
       ${body}
@@ -706,6 +728,121 @@ function landView() {
     <div class="land-grid">${ui.state.offers.map(landCard).join("")}</div>`;
 }
 
+
+function tenderOffer() {
+  return (ui.state?.offers || []).find((offer) => offer.slot === ui.tender.slot) || null;
+}
+function tenderBid(offer) {
+  const typed = Math.round(Number(ui.tender.bid) || 0);
+  return typed > 0 ? typed : Math.round(offer.landPerFt2);
+}
+function tenderTotals(offer) {
+  const bid = tenderBid(offer);
+  const total = bid * offer.gfaFt2;
+  const ceiling = Math.round(offer.landPerFt2 * 1.8);
+  return {
+    bid,
+    total,
+    deposit: Math.round(total * 0.1),
+    maxPsf: Math.min(maxTenderBid(ui.state, offer), ceiling),
+  };
+}
+function tenderResultCard(offer, result) {
+  const win = result.outcome === "win";
+  const lose = result.outcome === "lose";
+  const title = win ? t(ui.lang, "tenderWin") : lose ? t(ui.lang, "tenderLose") : t(ui.lang, "tenderVoid");
+  const hero = win
+    ? compactHkd(result.yourBidPsf * offer.gfaFt2)
+    : lose
+      ? t(ui.lang, "tenderShort", { pct: (result.shortfallPct * 100).toFixed(1) })
+      : t(ui.lang, "tenderVoidHero");
+  const rows = win
+    ? `<div class="row"><span>${t(ui.lang, "tenderYourBid")}</span><strong>${formatHkd(result.yourBidPsf)}${t(ui.lang, "perFt")}</strong></div>
+       <div class="row"><span>${t(ui.lang, "tenderSecond")}</span><strong>${formatHkd(result.secondPsf || 0)}${t(ui.lang, "perFt")}</strong></div>
+       <div class="row"><span>${t(ui.lang, "tenderDepositRow")}</span><strong>${compactHkd(result.deposit)} ${t(ui.lang, "tenderFrozen")}</strong></div>`
+    : lose
+      ? `<div class="row"><span>${t(ui.lang, "tenderClearing")}</span><strong>${formatHkd(result.clearingPsf || 0)}${t(ui.lang, "perFt")}</strong></div>
+         <div class="row"><span>${t(ui.lang, "tenderYourBid")}</span><strong>${formatHkd(result.yourBidPsf)}${t(ui.lang, "perFt")}</strong></div>
+         <div class="row"><span>${t(ui.lang, "tenderDepositRow")}</span><strong>${compactHkd(result.deposit)} ${t(ui.lang, "tenderRefunded")}</strong></div>`
+      : `<div class="row"><span>${t(ui.lang, "tenderYourBid")}</span><strong>${formatHkd(result.yourBidPsf)}${t(ui.lang, "perFt")}</strong></div>
+         <div class="row"><span>${t(ui.lang, "tenderDepositRow")}</span><strong>${compactHkd(result.deposit)} ${t(ui.lang, "tenderRefunded")}</strong></div>`;
+  const note = win
+    ? t(ui.lang, "tenderWinNote", { psf: formatHkd(result.yourBidPsf), pct: ((result.premiumPct || 0) * 100).toFixed(1) })
+    : lose
+      ? t(ui.lang, "tenderIntelNote", { district: escapeHtml(districtLabel(ui.lang, offer.district)), from: Math.round((ui.tender.prevIntel || 0.12) * 100), to: 8 })
+      : t(ui.lang, "tenderVoidNote", { rounds: 2 });
+  const actions = win
+    ? `<button class="ghost" data-action="tender-forfeit">${t(ui.lang, "tenderForfeit")}</button><button class="go" data-action="tender-award">${t(ui.lang, "tenderAward")}</button>`
+    : `<button class="go" data-action="tender-dismiss">${t(ui.lang, "tenderBackLand")}</button>`;
+  return `<div class="tender-result ${win ? "win" : lose ? "lose" : "void"}">
+    <p class="kicker">${title}</p>
+    <h2>${hero}</h2>
+    <p class="fine">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${formatCount(offer.gfaFt2)} ${t(ui.lang, "ft")}</p>
+    <div class="tender-rows">${rows}</div>
+    <p class="fine tender-note">${note}</p>
+    <div class="tender-actions">${actions}</div>
+  </div>`;
+}
+function tenderView() {
+  const offer = tenderOffer();
+  if (!offer) {
+    ui.tender.slot = null;
+    return landView();
+  }
+  const { bid, total, deposit, maxPsf } = tenderTotals(offer);
+  const intel = Math.round(tenderIntel(ui.state, offer.district) * 100);
+  const over = bid > maxPsf;
+  if (ui.tender.result) {
+    return `${errorBanner()}
+      <p class="kicker">${t(ui.lang, "tenderKicker")} · ${escapeHtml(districtLabel(ui.lang, offer.district))}</p>
+      ${tenderResultCard(offer, ui.tender.result)}`;
+  }
+  return `${errorBanner()}
+    <p class="kicker">${t(ui.lang, "tenderKicker")} · ${escapeHtml(districtLabel(ui.lang, offer.district))}</p>
+    <section class="tender-panel">
+      <p class="tender-label">${t(ui.lang, "tenderIntel")}</p>
+      <div class="row"><span>${t(ui.lang, "tenderLastDeal")}</span><strong>${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")}</strong></div>
+      <div class="row"><span>${t(ui.lang, "tenderRange")}</span><strong>±${intel}%</strong></div>
+      <p class="fine">${t(ui.lang, "tenderNarrow")}</p>
+    </section>
+    <section class="tender-panel">
+      <p class="tender-label">${t(ui.lang, "tenderYourBid")}</p>
+      <div class="bid-row">
+        <button type="button" data-action="tender-step" data-dir="-1" aria-label="${t(ui.lang, "tenderMinus")}">−</button>
+        <label class="bid-field"><input id="tender-bid" inputmode="numeric" autocomplete="off" value="${bid}" /><span>${t(ui.lang, "perFt")}</span></label>
+        <button type="button" data-action="tender-step" data-dir="1" aria-label="${t(ui.lang, "tenderPlus")}">+</button>
+      </div>
+      <div class="row"><span>${t(ui.lang, "tenderTotal")}</span><strong id="tender-total">${compactHkd(total)}</strong></div>
+      <div class="row"><span>${t(ui.lang, "tenderDepositRow")}</span><strong id="tender-deposit">${compactHkd(deposit)}</strong></div>
+      <div class="row"><span>${t(ui.lang, "tenderMax")}</span><strong id="tender-max">${formatHkd(maxPsf)}${t(ui.lang, "perFt")}</strong></div>
+      <p class="fine tender-over" id="tender-over"${over ? "" : " hidden"}>${t(ui.lang, "tenderOver")}</p>
+    </section>
+    <p class="fine tender-hint">${t(ui.lang, "tenderHint")}</p>
+    <div class="tender-actions">
+      <button class="ghost" data-action="tender-close">${t(ui.lang, "tenderBack")}</button>
+      <button class="go${over ? " is-blocked" : ""}" id="tender-submit" data-action="tender-submit" ${over ? "disabled" : ""}>${t(ui.lang, "tenderSubmit")}</button>
+    </div>
+    ${ui.tender.result ? tenderResultCard(offer, ui.tender.result) : ""}`;
+}
+function paintTender() {
+  const offer = tenderOffer();
+  if (!offer) return;
+  const { total, deposit, maxPsf } = tenderTotals(offer);
+  const totalNode = document.getElementById("tender-total");
+  const depositNode = document.getElementById("tender-deposit");
+  const maxNode = document.getElementById("tender-max");
+  if (totalNode) totalNode.textContent = compactHkd(total);
+  if (depositNode) depositNode.textContent = compactHkd(deposit);
+  if (maxNode) maxNode.textContent = `${formatHkd(maxPsf)}${t(ui.lang, "perFt")}`;
+  const over = tenderBid(offer) > maxPsf;
+  const hint = document.getElementById("tender-over");
+  const submit = document.getElementById("tender-submit");
+  if (hint) hint.hidden = !over;
+  if (submit) {
+    submit.disabled = over;
+    submit.classList.toggle("is-blocked", over);
+  }
+}
 function popWord(band) {
   if (band === "high") return t(ui.lang, "popHigh");
   if (band === "low") return t(ui.lang, "popLow");
@@ -1924,7 +2061,7 @@ function mainView() {
   if (ui.lapse) return lapseView();
   if (ui.teach) return mismatchView();
   if (needsRemedy()) return remedyView();
-  if (ui.state.phase === "land") return landView();
+  if (ui.state.phase === "land") return ui.tender.slot ? tenderView() : landView();
   if (ui.state.phase === "build") return buildView();
   if (ui.state.phase === "sell") return sellView();
   if (ui.state.phase === "settle") return settleView();
@@ -1981,6 +2118,7 @@ function buildHint(left) {
 
 function dock() {
   if (ui.menu) return "";
+  if (ui.tender.slot) return "";
   if (!ui.state) return `<footer class="dock"><button class="go" data-action="found">${t(ui.lang, "found")}</button></footer>`;
   if (ui.lapse) return `<footer class="dock"><button class="go" data-action="skip-lapse">${t(ui.lang, "lapseSkip")}</button></footer>`;
   if (ui.teach) {
@@ -2381,6 +2519,7 @@ function foundCompany() {
   ui.error = null;
   ui.build = null;
   ui.sale = null;
+  ui.tender = { slot: null, bid: 0, result: null };
   ui.lapse = false;
   ui.legacyNotice = false;
   ui.legacyGuide = false;
@@ -2426,6 +2565,7 @@ function newGame() {
   ui.state = null;
   ui.sale = null;
   ui.build = null;
+  ui.tender = { slot: null, bid: 0, result: null };
   ui.menu = false;
   ui.identity = false;
   ui.marketSheet = false;
@@ -2673,6 +2813,93 @@ function onClick(event) {
     return;
   }
   if (!ui.state) return;
+  if (action === "tender-open") {
+    const offer = (ui.state.offers || []).find((item) => item.slot === slot);
+    if (!offer) return;
+    const locked = (ui.state.deposits || []).find((item) => item.slot === slot);
+    ui.tender = {
+      slot,
+      bid: locked ? locked.bidPsf : Math.round(offer.landPerFt2),
+      result: locked
+        ? {
+            outcome: "win",
+            yourBidPsf: locked.bidPsf,
+            clearingPsf: locked.clearingPsf,
+            secondPsf: locked.secondPsf,
+            deposit: locked.amount,
+            refund: 0,
+            premiumPct: locked.secondPsf ? (locked.bidPsf - locked.secondPsf) / locked.secondPsf : 0,
+          }
+        : null,
+    };
+    ui.error = null;
+    render();
+    return;
+  }
+  if (action === "tender-close" || action === "tender-dismiss") {
+    ui.tender = { slot: null, bid: 0, result: null };
+    ui.error = null;
+    render();
+    return;
+  }
+  if (action === "tender-step") {
+    const offer = tenderOffer();
+    if (!offer) return;
+    const dir = Number(target.dataset.dir) || 0;
+    const next = Math.max(100, tenderBid(offer) + dir * 100);
+    ui.tender.bid = next;
+    render();
+    return;
+  }
+  if (action === "tender-submit") {
+    const offer = tenderOffer();
+    if (!offer || ui.tender.result) return;
+    const totals = tenderTotals(offer);
+    if (totals.bid > totals.maxPsf) {
+      ui.error = "tender_over";
+      render();
+      return;
+    }
+    const attempt = submitTender(ui.state, offer, totals.bid);
+    if (!attempt.ok) {
+      ui.error = attempt.error;
+      render();
+      return;
+    }
+    ui.tender.prevIntel = tenderIntel(ui.state, offer.district);
+    let next = attempt.state;
+    if (attempt.result.outcome === "lose") next = noteTenderLoss(next, offer.district);
+    ui.state = next;
+    ui.tender.result = attempt.result;
+    ui.error = null;
+    render();
+    return;
+  }
+  if (action === "tender-award") {
+    const offer = tenderOffer();
+    const result = ui.tender.result;
+    if (!offer || !result) return;
+    const won = chooseLand(ui.catalog, ui.state, offer.slot, 1, {
+      landPrice: result.yourBidPsf * offer.gfaFt2,
+      depositCredit: result.deposit,
+    });
+    if (!won.ok) {
+      ui.error = won.error;
+      render();
+      return;
+    }
+    ui.tender = { slot: null, bid: 0, result: null };
+    apply(won);
+    return;
+  }
+  if (action === "tender-forfeit") {
+    const offer = tenderOffer();
+    if (!offer) return;
+    ui.state = forfeitTenderDeposit(ui.state, offer.slot);
+    ui.tender = { slot: null, bid: 0, result: null };
+    render();
+    return;
+  }
   if (action === "buy") {
     const stake = target.dataset.stake ? Number(target.dataset.stake) : 1;
     apply(chooseLand(ui.catalog, ui.state, slot, stake));
@@ -2985,6 +3212,11 @@ function onInput(event) {
   }
   if (event.target.id === "chair-name") {
     ui.draft.chairName = event.target.value.slice(0, 10);
+    return;
+  }
+  if (event.target.id === "tender-bid") {
+    ui.tender.bid = Math.max(0, Math.round(Number(String(event.target.value).replace(/[^0-9]/g, "")) || 0));
+    paintTender();
     return;
   }
   if (event.target.id === "project-name") {

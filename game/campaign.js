@@ -1402,6 +1402,21 @@ export function availableCash(state) {
   return money(Math.max(0, (Number(state?.cash) || 0) - lockedDeposits(state)));
 }
 
+export function tenderActive(state) {
+  return landTenderEnabled(state) && !isOnboarding(state);
+}
+
+export function tenderIntel(state, district) {
+  const pct = state?.flags?.intel?.[district];
+  return typeof pct === "number" ? pct : TENDER.intelBase;
+}
+
+export function noteTenderLoss(state, district) {
+  const prev = state?.flags?.intel || {};
+  const pct = Math.min(tenderIntel(state, district), TENDER.intelTight);
+  return { ...state, flags: { ...state.flags, intel: { ...prev, [district]: pct } } };
+}
+
 export function maxTenderBid(state, offer) {
   if (!offer) return 0;
   return maxBidPsf({ cash: availableCash(state), gfaFt2: offer.gfaFt2 });
@@ -1459,6 +1474,9 @@ export function submitTender(state, offer, bidPsf) {
       district: offer.district,
       type: offer.type,
       amount: result.deposit,
+      bidPsf: result.yourBidPsf,
+      clearingPsf: result.clearingPsf,
+      secondPsf: result.secondPsf ?? null,
       round: state.completed || 0,
       status: "won",
     });
@@ -1509,6 +1527,7 @@ export function createCampaign(catalog, { company, seed = 1 } = {}) {
     unitsSold: 0,
     unitsLaunched: 0,
     ownBuilds: 0,
+    flags: { landTender: true },
     seed: seed >>> 0,
     rngCursor,
     poolBias: emptyBias(),
@@ -1540,7 +1559,7 @@ export function skipLand(catalog, state) {
   });
 }
 
-export function chooseLand(catalog, state, slot, rawStake = 1) {
+export function chooseLand(catalog, state, slot, rawStake = 1, opts = {}) {
   if (state.phase !== "land") return fail(state, "bad_phase");
   const offer = (state.offers || []).find((item) => item.slot === slot);
   if (!offer) return fail(state, "bad_slot");
@@ -1548,14 +1567,18 @@ export function chooseLand(catalog, state, slot, rawStake = 1) {
   if (stake == null) return fail(state, "bad_stake");
   if (stake < 1 && !jvEligible(offer)) return fail(state, "bad_stake");
   const landDiscount = state.assets?.landBank ? 0.12 : 0;
-  const landPaid = money(offer.landTotal * stake * (1 - landDiscount));
-  if (state.cash < landPaid) return fail(state, "insufficient_cash");
+  const baseTotal = opts.landPrice != null ? money(opts.landPrice) : offer.landTotal;
+  const landPaid = money(baseTotal * stake * (1 - landDiscount));
+  const depositCredit = Math.min(landPaid, Math.max(0, Number(opts.depositCredit) || 0));
+  const due = money(landPaid - depositCredit);
+  if (state.cash < due) return fail(state, "insufficient_cash");
   const { value: move, rngCursor } = runRng(state, (rng) => drawMove(state, catalog, rng));
   const market = tickMarket(state.market, move, catalog.balance);
   return succeed({
     ...state,
     rngCursor,
-    cash: money(state.cash - landPaid),
+    cash: money(state.cash - due),
+    deposits: (state.deposits || []).filter((item) => item.slot !== offer.slot),
     market,
     offers: null,
     phase: "build",
@@ -2647,7 +2670,7 @@ export function hydrateCampaign(catalog, saved) {
     market: hydrateMarket(saved.market, catalog.balance),
     seed: saved.seed >>> 0,
     rngCursor: saved.rngCursor >>> 0,
-    flags: { ...(saved.flags || {}) },
+    flags: { landTender: true, ...(saved.flags || {}) },
     unitsSold: saved.unitsSold || 0,
     unitsLaunched: saved.unitsLaunched || 0,
     managedFt2: typeof saved.managedFt2 === "number" ? saved.managedFt2 : historyFt2,
