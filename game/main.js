@@ -1073,7 +1073,8 @@ function profitHero(quote) {
   const profit = quote.profit || 0;
   const cost = revenue - profit;
   const avg = quote.askPerFt2 || 0;
-  const costPsf = Math.round(projectCostPsf());
+  const soldFt2 = avg > 0 ? revenue / avg : 0;
+  const costPsf = soldFt2 > 0 ? Math.round(cost / soldFt2) : Math.round(projectCostPsf());
   const gain = Math.round(avg - costPsf);
   const margin = revenue ? Math.round((profit / revenue) * 100) : 0;
   return `<div class="profit-hero">
