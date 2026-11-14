@@ -15,8 +15,8 @@ test("a new player can start the first project with the guided setup", async ({ 
   await page.locator('button[data-action="confirm-build"]').click();
   const skipLapse = page.locator('button[data-action="skip-lapse"]');
   if (await skipLapse.count()) await skipLapse.click();
-  await expect(page.locator(".onboarding-lock")).toContainText("完成第一個項目後解鎖");
   await expect(page.locator('button[data-action="showflat"]')).toHaveCount(0);
+  await expect(page.locator('button[data-action="loan"]')).toHaveCount(0);
 
   const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
   const viewportWidth = await page.evaluate(() => window.innerWidth);
