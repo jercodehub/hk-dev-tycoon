@@ -1684,6 +1684,8 @@ export function normalizeChoices(raw = {}, balance) {
     adBudget,
     adTarget,
     adPlans: normalizeAdPlans(raw, balance),
+    liveGain: clamp(Math.round(Number(raw.liveGain) || 0), -30, 30),
+    liveSpend: Math.max(0, Math.round(Number(raw.liveSpend) || 0)),
   };
 }
 
@@ -1814,7 +1816,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     const typeMul = choices.askMulByType[spec.id];
     mulWeighted += offered * typeMul;
     const ask = fairPerFt2 * spec.ft2 * typeMul;
-    let convert = balance.baseConvert[spec.id] + cheerBonus;
+    let convert = balance.baseConvert[spec.id] + cheerBonus + choices.liveGain;
     if (choices.showflat) convert += balance.showflatBoost[spec.id];
     if (spec.id === "studio" && marketHeat === "loose") convert += balance.looseStudio;
     if (spec.id !== "studio" && marketHeat === "spicy") convert += balance.spicyLiveIn;
@@ -1887,7 +1889,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   const playerRevenue = money((books.revenue - books.landCut) * stake);
   let netCash = money(playerRevenue - showflatCost - rebateCost - adCost);
   const landPaid = offer.landPaid != null ? offer.landPaid : money(offer.landTotal * stake);
-  const profit = money(netCash - landPaid - (contractor.total || 0) - paidAdCost);
+  const profit = money(netCash - landPaid - (contractor.total || 0) - paidAdCost - (choices.liveSpend || 0));
   const unsold = units - sold;
   const ratio = units === 0 ? 0 : sold / units;
   let outcome = "fail";

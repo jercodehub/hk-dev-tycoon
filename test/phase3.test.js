@@ -690,3 +690,12 @@ test("each unit type can be priced on its own", () => {
   assert.ok(dearTwo.byType.two.sold <= flat.byType.two.sold, "dearer two-beds sell no faster");
   assert.ok(dearTwo.askPerFt2 > flat.askPerFt2, "the reported average follows the mix");
 });
+
+test("live decisions can lift conversion or cost cash", () => {
+  const base = projectContext("中西區");
+  const plain = resolveSale(catalog, base, { cheer: 3 });
+  const lifted = resolveSale(catalog, base, { cheer: 3, liveGain: 9 });
+  assert.ok(lifted.sold >= plain.sold, "conversion boost should not sell fewer");
+  const spent = resolveSale(catalog, base, { cheer: 3, liveSpend: 8000000 });
+  assert.ok(spent.profit < plain.profit, "live spend should cut profit");
+});

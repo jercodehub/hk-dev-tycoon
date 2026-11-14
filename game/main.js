@@ -1321,8 +1321,27 @@ function sellLive() {
       <p class="fine">${t(ui.lang, "floorCash")} <strong id="tally">${compactHkd(shown && quote.sold ? Math.round((quote.gross * shown) / quote.sold) : 0)}</strong></p>
       ${cheerExtraLine(ui.sale.choices)}
       <div class="live-feed"><span>${t(ui.lang, "liveFeed")}</span>${feed || `<div>${t(ui.lang, "liveNoSales")}</div>`}</div>
-      ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : `<p class="kicker">${t(ui.lang, "selling", { n: Math.max(0, ui.catalog.balance.cheerMax - ui.sale.choices.cheer) })}</p>`}
+      ${livePanel(quote)}
+      ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : ""}
     </section>`;
+}
+
+const LIVE_EVENTS = ["liveEvent1", "liveEvent2", "liveEvent3", "liveEvent4"];
+const LIVE_DECISIONS = [
+  ["showflat", "decideShowflat", "decideShowflatSub"],
+  ["agents", "decideAgents", "decideAgentsSub"],
+  ["raise", "decideRaise", "decideRaiseSub"],
+  ["parking", "decideParking", "decideParkingSub"],
+];
+
+function livePanel(quote) {
+  if (ui.sale.mode !== "live") return "";
+  const left = Math.max(0, ui.catalog.balance.cheerMax - ui.sale.choices.cheer);
+  if (left <= 0) return "";
+  const event = LIVE_EVENTS[ui.sale.choices.cheer % LIVE_EVENTS.length];
+  const cards = LIVE_DECISIONS.map(([id, title, sub]) => `<button data-action="sale-decide" data-id="${id}"><b>${t(ui.lang, title)}</b><s>${t(ui.lang, sub)}</s></button>`).join("");
+  return `<div class="live-event"><p>${t(ui.lang, event)}</p><span>${t(ui.lang, "liveRound", { n: left })}</span></div>
+    <div class="live-decide">${cards}</div>`;
 }
 
 const TARGET_UNITS = { starter: "two", rent: "studio", couple: "one", upgrade: "three", feature: "feature" };
@@ -1412,6 +1431,30 @@ function sellView() {
 
 function revealNow(quote) {
   return saleReveal(quote.sold, ui.sale.choices.cheer, ui.catalog.balance.cheerMax);
+}
+
+function advanceSaleRound() {
+  if (ui.sale.mode === "setup") return;
+  if (ui.sale.choices.cheer >= ui.catalog.balance.cheerMax) return;
+  ui.sale.choices.cheer += 1;
+  const quote = currentQuote();
+  const reveal = revealNow(quote);
+  const bumped = reveal.done ? quote.sold : Math.max(ui.sale.shownSold, reveal.shown);
+  if (bumped > ui.sale.shownSold) {
+    ui.sale.pops.unshift({ text: `+${bumped - ui.sale.shownSold}` });
+    ui.sale.pops = ui.sale.pops.slice(0, 3);
+  }
+  ui.sale.shownSold = bumped;
+  if (reveal.done) {
+    ui.sale.mode = "done";
+    stopSaleTimer();
+    render();
+    return;
+  }
+  render();
+  if (ui.sale.reduced) return;
+  const tProgress = Math.min(1, (performance.now() - ui.sale.started) / 7000);
+  paintSale(quote, tProgress);
 }
 
 function launchSale() {
@@ -1894,9 +1937,9 @@ function dock() {
     if (!isOnboarding(ui.state) && ui.sale.marketingStage === "mid") return "";
     if (ui.sale.mode === "setup") return `<footer class="dock"><button class="go" data-action="launch-sale">${t(ui.lang, "openSale")}</button></footer>`;
     const left = ui.catalog.balance.cheerMax - ui.sale.choices.cheer;
-    const cheer = `<button class="go" data-action="cheer" ${left <= 0 ? "disabled" : ""}>${t(ui.lang, "cheer")}<small>${cheerNote(left)}</small></button>`;
+    const cheer = `<button class="go" data-action="cheer" ${left <= 0 ? "disabled" : ""}>${t(ui.lang, left > 0 ? "liveNext" : "cheer")}<small>${cheerNote(left)}</small></button>`;
     const settle = `<button class="go" data-action="commit-sale">${t(ui.lang, "toSettle")}</button>`;
-    if (ui.sale.mode === "done") return `<footer class="dock cols-2">${cheer}${settle}</footer>`;
+    if (ui.sale.mode === "done") return `<footer class="dock">${settle}</footer>`;
     return `<footer class="dock">${cheer}</footer>`;
   }
   if (phase === "settle") return `<footer class="dock"><button class="go" data-action="confirm-settle">${t(ui.lang, "nextStep")}</button></footer>`;
@@ -2751,31 +2794,34 @@ function onClick(event) {
     launchSale();
     return;
   }
+  if (action === "sale-decide") {
+    ensureSale();
+    if (ui.sale.mode !== "live") return;
+    const left = ui.catalog.balance.cheerMax - ui.sale.choices.cheer;
+    if (left <= 0) return;
+    if (id === "showflat") {
+      ui.sale.choices.showflat = true;
+      ui.sale.choices.liveSpend = (ui.sale.choices.liveSpend || 0) + 8000000;
+    } else if (id === "agents") {
+      ui.sale.choices.liveSpend = (ui.sale.choices.liveSpend || 0) + 3000000;
+      ui.sale.choices.liveGain = (ui.sale.choices.liveGain || 0) + 6;
+    } else if (id === "raise") {
+      const next = { ...(ui.sale.choices.askMulByType || {}) };
+      for (const key of Object.keys(next)) next[key] = Math.min(1.8, next[key] * 1.02);
+      ui.sale.choices.askMulByType = next;
+      ui.sale.choices.liveGain = (ui.sale.choices.liveGain || 0) - 5;
+    } else if (id === "parking") {
+      const soldSoFar = Math.max(1, Math.round((currentQuote().sold || 0) * (ui.sale.choices.cheer / Math.max(1, ui.catalog.balance.cheerMax))));
+      ui.sale.choices.liveSpend = (ui.sale.choices.liveSpend || 0) + soldSoFar * 600000;
+      ui.sale.choices.liveGain = (ui.sale.choices.liveGain || 0) + 9;
+    }
+    advanceSaleRound();
+    return;
+  }
   if (action === "cheer") {
     ensureSale();
     if (ui.sale.mode === "setup") return;
-    if (ui.sale.choices.cheer >= ui.catalog.balance.cheerMax) return;
-    ui.sale.choices.cheer += 1;
-    const quote = currentQuote();
-    const reveal = revealNow(quote);
-    const bumped = reveal.done ? quote.sold : Math.max(ui.sale.shownSold, reveal.shown);
-    if (bumped > ui.sale.shownSold) {
-      ui.sale.pops.unshift({ text: `+${bumped - ui.sale.shownSold}` });
-      ui.sale.pops = ui.sale.pops.slice(0, 3);
-    }
-    ui.sale.shownSold = bumped;
-    if (reveal.done) {
-      ui.sale.mode = "done";
-      stopSaleTimer();
-      render();
-      return;
-    }
-    if (ui.sale.reduced) {
-      render();
-      return;
-    }
-    const tProgress = Math.min(1, (performance.now() - ui.sale.started) / 7000);
-    paintSale(quote, tProgress);
+    advanceSaleRound();
     return;
   }
   if (action === "commit-sale") {
