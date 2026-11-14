@@ -1606,6 +1606,23 @@ const AD_TARGET_UNITS = {
   feature: ["feature"],
 };
 
+const AD_MEDIA = ["online", "tv", "portal"];
+
+function normalizeAdPlans(raw, balance) {
+  const source = Array.isArray(raw.adPlans) ? raw.adPlans : [];
+  const plans = source.map((plan) => ({
+    medium: AD_MEDIA.includes(plan?.medium) ? plan.medium : "online",
+    target: Object.prototype.hasOwnProperty.call(AD_TARGET_UNITS, plan?.target) ? plan.target : "starter",
+    budget: plan?.budget === "high" ? "high" : "low",
+    paidBudget: plan?.paidBudget === "high" ? "high" : plan?.paidBudget === "low" ? "low" : "none",
+  }));
+  if (plans.length) return plans;
+  if (raw.adBudget !== "none" && Object.prototype.hasOwnProperty.call(AD_TARGET_UNITS, raw.adTarget)) {
+    return [{ medium: "online", target: raw.adTarget, budget: raw.adBudget, paidBudget: "none" }];
+  }
+  return [];
+}
+
 export function normalizeChoices(raw = {}, balance) {
   const cheer = clamp(Math.round(Number(raw.cheer) || 0), 0, balance.cheerMax);
   const showflat = Boolean(raw.showflat);
@@ -1623,20 +1640,38 @@ export function normalizeChoices(raw = {}, balance) {
     rebate,
     adBudget,
     adTarget,
+    adPlans: normalizeAdPlans(raw, balance),
   };
 }
 
 function promoSpec(choices, balance) {
   const table = balance.promo || {};
   const rebate = table.rebate?.[choices.rebate] || { through: 0, rate: 0 };
-  const aimed = choices.adBudget !== "none" && AD_TARGET_UNITS[choices.adTarget];
-  const ad = aimed ? table.ad?.[choices.adBudget] || { through: 0, perFt2: 0 } : { through: 0, perFt2: 0 };
+  const plans = choices.adPlans || [];
+  const adThroughByUnit = {};
+  let adPerFt2 = 0;
+  let adPaidPerFt2 = 0;
+  const adUnits = [];
+  for (const plan of plans) {
+    const aimed = AD_TARGET_UNITS[plan.target];
+    const ad = table.ad?.[plan.budget] || { through: 0, perFt2: 0 };
+    const paid = table.ad?.[plan.paidBudget] || { through: 0, perFt2: 0 };
+    if (!aimed) continue;
+    adPerFt2 += Number(ad.perFt2) || 0;
+    adPaidPerFt2 += Number(paid.perFt2) || 0;
+    for (const unit of aimed) {
+      adThroughByUnit[unit] = (adThroughByUnit[unit] || 0) + (Number(ad.through) || 0);
+      if (!adUnits.includes(unit)) adUnits.push(unit);
+    }
+  }
   return {
     rebateThrough: Number(rebate.through) || 0,
     rebateRate: Number(rebate.rate) || 0,
-    adThrough: aimed ? Number(ad.through) || 0 : 0,
-    adPerFt2: aimed ? Number(ad.perFt2) || 0 : 0,
-    adUnits: aimed ? AD_TARGET_UNITS[choices.adTarget] : [],
+    adThrough: 0,
+    adThroughByUnit,
+    adPerFt2,
+    adPaidPerFt2,
+    adUnits,
   };
 }
 
@@ -1739,7 +1774,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     if (spec.id !== "studio" && marketHeat === "spicy") convert += balance.spicyLiveIn;
     convert += promo.rebateThrough;
     const aimed = promo.adUnits.includes(spec.id) && offered > 0;
-    if (aimed) convert += promo.adThrough;
+    if (aimed) convert += promo.adThroughByUnit[spec.id] || 0;
     if (contractor.collapsed) {
       const drag = typeof contractor.saleDrag === "number" ? contractor.saleDrag : balance.collapseThrough;
       convert -= drag;
@@ -1758,7 +1793,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     convert += convertAdd(state);
     convert = clamp(convert, 0.05, 0.98);
     const pool = poolsBefore[spec.pool];
-    const brought = aimed ? Math.max(1, Math.round(offered * promo.adThrough)) : 0;
+    const brought = aimed ? Math.max(1, Math.round(offered * (promo.adThroughByUnit[spec.id] || 0))) : 0;
     let soldN = Math.min(offered, Math.round((pool + brought) * convert));
     if (spec.id === "studio" && cakeSweep > 0) soldN = Math.min(offered, Math.max(soldN, cakeSweep));
     const cap = aimed ? offered : Math.min(pool, offered);
@@ -1787,10 +1822,11 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   const stake = stakeOf(offer);
   const showflatFull = choices.showflat ? money(balance.showflatPerFt2 * offer.gfaFt2) : 0;
   const rebateFull = money(gross * promo.rebateRate);
-  const adFull = money(promo.adPerFt2 * offer.gfaFt2);
+  const adFull = money(Math.max(0, promo.adPerFt2 - promo.adPaidPerFt2) * offer.gfaFt2);
   const showflatCost = money(showflatFull * stake);
   const rebateCost = money(rebateFull * stake);
   const adCost = money(adFull * stake);
+  const paidAdCost = money(promo.adPaidPerFt2 * offer.gfaFt2 * stake);
   const books = splitProfit({
     revenue: gross + fireGross,
     land: offer.landTotal,
@@ -1804,7 +1840,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
   const playerRevenue = money((books.revenue - books.landCut) * stake);
   let netCash = money(playerRevenue - showflatCost - rebateCost - adCost);
   const landPaid = offer.landPaid != null ? offer.landPaid : money(offer.landTotal * stake);
-  const profit = money(netCash - landPaid - (contractor.total || 0));
+  const profit = money(netCash - landPaid - (contractor.total || 0) - paidAdCost);
   const unsold = units - sold;
   const ratio = units === 0 ? 0 : sold / units;
   let outcome = "fail";
@@ -1847,6 +1883,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     showflatCost,
     rebateCost,
     adCost,
+    paidAdCost,
     fairPerFt2: money(fairPerFt2),
     askPerFt2: money(fairPerFt2 * askMul),
     askPerUnit: perUnit,

@@ -166,6 +166,12 @@ button:disabled { cursor: not-allowed; }
 .marketing-card .chips { margin: 8px 0 14px; }
 .marketing-card .chip { flex: 1 1 150px; }
 .marketing-card .stats { margin: 16px 0; }
+.marketing-option { margin: 12px 0; padding: 12px; border: 1px solid rgba(148,176,220,.35); border-radius: 14px; }
+.marketing-option h3 { margin: 0 0 6px; }
+.marketing-option .chip { min-width: 0; flex: 1 1 120px; }
+.marketing-total, .marketing-summary { margin: 16px 0; padding: 12px; border: 1px solid rgba(226,177,90,.45); background: rgba(226,177,90,.08); border-radius: 12px; }
+.marketing-total { display: grid; gap: 4px; }
+.marketing-summary span { display: inline-block; margin: 0 8px 4px 0; }
 .press-report { margin: 16px 0; padding: 16px; border: 1px solid rgba(226,177,90,.45); background: rgba(226,177,90,.08); }
 .press-report h3 { margin: 4px 0 8px; }
 .press-report p:last-child { margin: 0; line-height: 1.6; }

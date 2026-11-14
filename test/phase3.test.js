@@ -503,6 +503,19 @@ test("forecast percent, promo, and per-type bars share one pre-cheer model", () 
   assert.ok(rentSale.byType.studio.convert > matched.byType.studio.convert);
   assert.equal(rentSale.byType.feature.convert, matched.byType.feature.convert);
 
+  const mixedPlans = [
+    { medium: "online", target: "starter", budget: "low" },
+    { medium: "tv", target: "upgrade", budget: "high" },
+    { medium: "portal", target: "rent", budget: "low" },
+  ];
+  const mixed = resolveSale(catalog, state, { ...baseChoices, price: "fair", adPlans: mixedPlans, cheer: 0, roll: 1 });
+  assert.ok(mixed.byType.two.convert > matched.byType.two.convert);
+  assert.ok(mixed.byType.three.convert > matched.byType.three.convert);
+  assert.ok(mixed.byType.studio.convert > matched.byType.studio.convert);
+  assert.ok(mixed.adCost > 0);
+  const paidMixed = resolveSale(catalog, state, { ...baseChoices, price: "fair", adPlans: mixedPlans.map((plan) => ({ ...plan, paidBudget: plan.budget })), cheer: 0, roll: 1 });
+  assert.equal(paidMixed.adCost, 0);
+
   const studios = { studio: 16, one: 0, two: 0, three: 0, feature: 0 };
   const studioState = projectContext("沙田區", { seed: 2, mix: studios, gfaFt2: 16 * 280 });
   const quiet = saleForecast(catalog, studioState, { price: "fair", showflat: false, leftover: "cut" });
