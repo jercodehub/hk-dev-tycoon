@@ -24,6 +24,7 @@ import {
   createCampaign,
   createCampaignCatalog,
   endSummary,
+  effectiveMarket,
   explainForecastGap,
   formatCount,
   fundBuild,
@@ -230,6 +231,16 @@ function stepKey(phase) {
     summary: "stepSummary",
     gameover: "stepGameOver",
   }[phase] || "stepCompany";
+}
+
+function eventKey(id) {
+  return {
+    "rate-cut": "eventRateCut",
+    "rate-hike": "eventRateHike",
+    "rail-announcement": "eventRail",
+    "materials-spike": "eventMaterials",
+    "cooling-market": "eventCooling",
+  }[id] || "";
 }
 
 function typeKey(type) {
@@ -642,7 +653,7 @@ function buildView() {
     gfaFt2: gfa,
     flavour: offer.flavour,
     heat,
-    buyer: ui.state.market?.buyer || 1,
+    buyer: effectiveMarket(ui.state.market).buyer || 1,
     bias: ui.state.poolBias || {},
     poolMul: poolMultipliers(ui.state),
   });
@@ -1488,6 +1499,8 @@ function hud() {
   const heatLeft = ui.state ? t(ui.lang, "heatLeft", { n: heatProjectsLeft(ui.state, ui.catalog.balance) }) : "";
   const heatSmall = heatNote ? `${heatNote}${heatLeft ? ` · ${heatLeft}` : ""}` : heatLeft;
   const policy = ui.state ? policyNotes(ui.state) : [];
+  const event = ui.state?.market?.event;
+  if (event && eventKey(event.id)) policy.push(`${t(ui.lang, "marketEvent")}: ${t(ui.lang, eventKey(event.id))}`);
   const comment = ui.state ? liveComment() : null;
   const frozen = ui.state ? frozenInfo(ui.state) : null;
   const thaw = ui.thaw ? `<small class="thaw">${t(ui.lang, "thawTick", { cash: compactHkd(ui.thaw) })}</small>` : "";

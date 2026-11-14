@@ -150,12 +150,34 @@ export function initialMarket() {
   return { price: 1, land: 1, build: 1, buyer: 1, step: 0, lastMove: 0 };
 }
 
+export const MARKET_EVENTS = [
+  { id: "rate-cut", landMul: 0.98, buildMul: 0.98, buyerMul: 1.03 },
+  { id: "rate-hike", landMul: 1.02, buildMul: 1.04, buyerMul: 0.97 },
+  { id: "rail-announcement", landMul: 1.05, buildMul: 1, buyerMul: 1.10 },
+  { id: "materials-spike", landMul: 1, buildMul: 1.10, buyerMul: 0.98 },
+  { id: "cooling-market", landMul: 0.96, buildMul: 0.99, buyerMul: 0.88 },
+];
+
+export function effectiveMarket(levels = {}) {
+  const event = levels.event || {};
+  return {
+    ...levels,
+    land: (levels.land || 1) * (event.landMul || 1),
+    build: (levels.build || 1) * (event.buildMul || 1),
+    buyer: (levels.buyer || 1) * (event.buyerMul || 1),
+  };
+}
+
 export function tickMarket(market, move, balance) {
   const price = clamp(round4(market.price * (1 + move)), balance.indexMin, balance.indexMax);
   const land = clamp(round4(market.land * (1 + move * balance.landElasticity)), balance.indexMin, balance.indexMax);
   const build = clamp(round4(market.build * (1 + move * balance.buildElasticity)), balance.indexMin, balance.indexMax);
   const buyer = clamp(round4(market.buyer * (1 + move * balance.buyerElasticity)), balance.indexMin, balance.indexMax);
-  return { price, land, build, buyer, step: market.step + 1, lastMove: round4(move) };
+  const step = market.step + 1;
+  const event = step > 0 && step % 5 === 0
+    ? { ...MARKET_EVENTS[(step / 5 - 1) % MARKET_EVENTS.length], startedAt: step }
+    : market.event || null;
+  return { price, land, build, buyer, step, lastMove: round4(move), ...(event ? { event } : {}) };
 }
 
 export function openDataQuote(market, region, balance) {
@@ -176,6 +198,7 @@ export function openDataQuote(market, region, balance) {
 }
 
 export function gameBench(catalog, district, levels) {
+  levels = effectiveMarket(levels);
   const region = regionOf(district);
   const open = openDataQuote(catalog.market, region, catalog.balance);
   const counts = catalog.market.areas[district];
@@ -981,7 +1004,7 @@ export function mixPoolGaps(catalog, state, mix) {
     gfaFt2: offer.gfaFt2,
     flavour,
     heat,
-    buyer: state.market?.buyer || 1,
+    buyer: effectiveMarket(state.market).buyer || 1,
     bias: state.poolBias || emptyBias(),
   });
   const clean = normalizeMix(mix);
@@ -1418,11 +1441,12 @@ export function chooseContractor(catalog, state, contractorId, rawMix, loanMode 
     rate: plan.rate,
     due: plan.due,
   };
+  const pricedMarket = effectiveMarket(state.market);
   const pricedAt = {
-    price: state.market.price,
-    land: state.market.land,
-    build: state.market.build,
-    buyer: state.market.buyer,
+    price: pricedMarket.price,
+    land: pricedMarket.land,
+    build: pricedMarket.build,
+    buyer: pricedMarket.buyer,
   };
   const { value, rngCursor } = runRng(state, (rng) => {
     const collapsed = rollCollapse(spec, rng.next());
