@@ -333,6 +333,37 @@ function stopSaleTimer() {
   }
 }
 
+let idleTimer = null;
+
+function stopIdle() {
+  if (idleTimer) {
+    clearInterval(idleTimer);
+    idleTimer = null;
+  }
+}
+
+function armIdle() {
+  if (idleTimer) return;
+  let left = 8;
+  const paint = () => {
+    const node = document.getElementById("idle-sec");
+    if (node) node.textContent = t(ui.lang, "idleAuto", { n: Math.max(0, left) });
+  };
+  paint();
+  idleTimer = window.setInterval(() => {
+    left -= 1;
+    if (left > 0) {
+      paint();
+      return;
+    }
+    stopIdle();
+    if (ui.state?.phase !== "sell" || ui.sale?.mode !== "live") return;
+    const el = document.createElement("button");
+    el.dataset.action = "cheer";
+    onClick({ target: el });
+  }, 1000);
+}
+
 function stopLapse() {
   if (lapseTimer) {
     clearTimeout(lapseTimer);
@@ -1364,7 +1395,6 @@ function sellLive() {
         <span>${t(ui.lang, "sellThrough")} <b id="pct-num">${quote.units ? Math.round((shown / quote.units) * 100) : 0}%</b></span>
         <span>${t(ui.lang, "heroProfit")} <b id="tally">${compactHkd(profit)}</b></span>
       </div>
-      <div class="pops" id="pops"></div>
       <p class="fine" id="cake-line">${quote.cakeSweep > 0 && shown > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : ""}</p>
       ${cheerExtraLine(ui.sale.choices)}
       ${livePanel(quote)}
@@ -1562,8 +1592,6 @@ function paintSale(quote, tProgress) {
     const profit = quote.sold ? Math.round((quote.profit * ui.sale.shownSold) / quote.sold) : 0;
     tally.textContent = compactHkd(profit);
   }
-  const pops = document.querySelector("#pops");
-  if (pops) pops.innerHTML = ui.sale.pops.map((pop) => `<span class="pop">${escapeHtml(pop.text)}</span>`).join("");
   const towers = document.querySelector("[data-towers]");
   if (towers) {
     const rows = towerShares(quote.units, ui.sale.shownSold);
@@ -1579,7 +1607,7 @@ function paintSale(quote, tProgress) {
     });
   }
   const cheerLeftText = cheerNote(ui.catalog.balance.cheerMax - ui.sale.choices.cheer);
-  for (const note of document.querySelectorAll("[data-action='cheer'] small")) note.textContent = cheerLeftText;
+  for (const note of document.querySelectorAll("[data-cheer-note]")) note.textContent = cheerLeftText;
   const cake = document.querySelector("#cake-line");
   if (cake) cake.textContent = quote.cakeSweep > 0 && ui.sale.shownSold > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : "";
   const bowl = document.querySelector("#hud-bowl-word");
@@ -1983,7 +2011,7 @@ function dock() {
     if (!isOnboarding(ui.state) && ui.sale.marketingStage === "mid") return "";
     if (ui.sale.mode === "setup") return `<footer class="dock"><button class="go" data-action="launch-sale">${t(ui.lang, "openSale")}</button></footer>`;
     const left = ui.catalog.balance.cheerMax - ui.sale.choices.cheer;
-    const cheer = `<button class="go" data-action="cheer" ${left <= 0 ? "disabled" : ""}>${t(ui.lang, left > 0 ? "liveNext" : "cheer")}<small>${cheerNote(left)}</small></button>`;
+    const cheer = `<button class="go" data-action="cheer" ${left <= 0 ? "disabled" : ""}>${t(ui.lang, left > 0 ? "liveNext" : "cheer")}<small><span data-cheer-note>${cheerNote(left)}</span><span id="idle-sec"></span></small></button>`;
     const settle = `<button class="go" data-action="commit-sale">${t(ui.lang, "toSettle")}</button>`;
     if (ui.sale.mode === "done") return `<footer class="dock">${settle}</footer>`;
     return `<footer class="dock">${cheer}</footer>`;
@@ -2251,6 +2279,8 @@ function legacyGuideOverlay() {
 function render() {
   if (!ui.catalog) return;
   if (ui.state?.phase !== "sell" || ui.lapse || ui.teach) stopSaleTimer();
+  const idleOk = ui.state?.phase === "sell" && ui.sale?.mode === "live" && !ui.sale?.film && !ui.menu;
+  if (!idleOk) stopIdle();
   document.documentElement.lang = ui.lang === "en" ? "en" : "zh-Hant";
   document.title = t(ui.lang, "title");
   const phase = !ui.state ? "company" : ui.lapse ? "lapse" : ui.teach ? "mismatch" : needsRemedy() ? "remedy" : ui.state.phase;
@@ -2275,6 +2305,7 @@ function render() {
     const shell = document.querySelector(".shell");
     if (shell) shell.scrollTop = prevScroll;
   }
+  if (idleOk) armIdle();
   if (ui.renaming) {
     const field = document.querySelector("#project-name");
     if (field) {
@@ -2841,6 +2872,7 @@ function onClick(event) {
     return;
   }
   if (action === "sale-decide") {
+    stopIdle();
     ensureSale();
     if (ui.sale.mode !== "live") return;
     const left = ui.catalog.balance.cheerMax - ui.sale.choices.cheer;
