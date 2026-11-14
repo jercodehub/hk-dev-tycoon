@@ -163,11 +163,27 @@ button:disabled { cursor: not-allowed; }
 .capital-option { display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; }
 .capital-option small { color: var(--muted); }
 .capital-option:disabled { opacity: .62; }
+.capital-option.owned { display: block; text-align: left; }
+.capital-option.owned strong { display: block; }
+.capital-option.owned small { display: block; margin-top: 2px; line-height: 1.35; }
 .marketing-card .chips { margin: 8px 0 14px; }
 .marketing-card .chip { flex: 1 1 150px; }
 .marketing-card .stats { margin: 16px 0; }
 .marketing-option { margin: 12px 0; padding: 12px; border: 1px solid rgba(148,176,220,.35); border-radius: 14px; }
 .marketing-option h3 { margin: 0 0 6px; }
+.marketing-option.is-off { opacity: .55; }
+.marketing-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.marketing-head h3 { margin: 0; }
+.media-switch { flex: 0 0 auto; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(148,176,220,.5); background: transparent; color: var(--muted); font: inherit; }
+.media-switch.on { background: rgba(96,150,255,.9); border-color: transparent; color: #06121f; font-weight: 700; }
+.gap-panel { margin: 12px 0 16px; padding: 12px; border: 1px solid rgba(148,176,220,.35); border-radius: 14px; }
+.gap-row { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding: 5px 0; border-top: 1px solid rgba(148,176,220,.15); }
+.gap-row span { font-weight: 600; font-size: .95em; }
+.gap-row small { grid-column: 1; opacity: .75; font-size: .82em; }
+.gap-row strong { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-variant-numeric: tabular-nums; }
+.gap-row.short strong { color: #ff8f7a; }
+.gap-tip { margin: 8px 0 0; font-weight: 600; color: #ffd27a; }
+.gap-tip.ok { color: #7fd6a4; }
 .marketing-option .chip { min-width: 0; flex: 1 1 120px; }
 .marketing-total, .marketing-summary { margin: 16px 0; padding: 12px; border: 1px solid rgba(226,177,90,.45); background: rgba(226,177,90,.08); border-radius: 12px; }
 .marketing-total { display: grid; gap: 4px; }
@@ -1051,3 +1067,49 @@ button:disabled {
   .confetti { display: none; }
   .heat span { transition: none; }
 }
+
+/* Contractor comparison list */
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 12px 0 6px; }
+.section-head h3 { margin: 0; font-size: var(--fs-decision); }
+.section-head span { font-size: var(--fs-kicker); color: var(--muted); text-align: right; }
+.clist { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel-2); }
+.crow { display: block; width: 100%; text-align: left; padding: 9px 10px; background: transparent; border: 0; border-top: 1px solid rgba(148, 176, 220, 0.14); color: var(--text); }
+.crow:first-child { border-top: 0; }
+.crow.on { background: #1b2a3f; box-shadow: inset 3px 0 0 var(--accent); }
+.crow .line1 { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
+.crow .dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #5b708c; }
+.crow.on .dot { border-color: var(--accent); background: radial-gradient(circle at center, var(--accent) 0 3.5px, transparent 3.5px); }
+.crow .name { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: var(--fs-secondary); }
+.crow .price { font-weight: 700; font-variant-numeric: tabular-nums; }
+.crow .line2 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 4px 0 0 24px; font-size: 11px; color: var(--muted); }
+.crow .line2 b { display: block; font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; }
+.crow .line2 b.bad { color: var(--danger); }
+.crow .line2 b.good { color: var(--ok); }
+.pill { font-size: 10px; padding: 1px 7px; border-radius: 999px; border: 1px solid; font-weight: 700; white-space: nowrap; }
+.pill.hi { color: var(--danger); border-color: #7a3a3a; background: #3a1f1f; }
+.pill.mid { color: var(--game); border-color: #6b552c; background: var(--game-bg); }
+.pill.lo { color: var(--ok); border-color: #2c6b57; background: var(--open-bg); }
+.clist .badge { margin: 0; background: #24406b; color: #bcd4ff; border: 1px solid #3d63a0; }
+.detail { margin-top: 8px; padding: 10px; border: 1px solid var(--accent); border-radius: 12px; background: #16243a; }
+.detail h4 { margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; font-size: var(--fs-secondary); }
+.detail h4 span { color: var(--ok); font-variant-numeric: tabular-nums; }
+.detail .drow { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-top: 1px solid rgba(148, 176, 220, 0.15); font-size: var(--fs-secondary); }
+.detail .drow:first-of-type { border-top: 0; }
+.detail .drow span { color: var(--muted); }
+.detail .drow b { font-variant-numeric: tabular-nums; }
+
+/* Management fee panel */
+.mgmt-card { margin-top: 10px; }
+.mgmt-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mgmt-head h3 { margin: 0; font-size: var(--fs-decision); display: flex; align-items: center; gap: 6px; }
+.mgmt-head b { color: var(--ok); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.mgmt-card .badge.ok { margin: 0; background: var(--open-bg); color: var(--ok); border: 1px solid #2c6b57; }
+.mgmt-toggle { width: 100%; margin-top: 8px; min-height: 40px; }
+.mgmt-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: var(--fs-secondary); }
+.mgmt-table th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.mgmt-table th.n, .mgmt-table td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.mgmt-table td { padding: 6px 0; border-bottom: 1px solid rgba(148, 176, 220, 0.12); }
+.mgmt-table td small { display: block; color: var(--muted); font-size: 10px; }
+.mgmt-table tr.current td { color: #dce9ff; }
+.mgmt-table tfoot td { border-bottom: 0; border-top: 1px solid var(--line); font-weight: 700; padding-top: 7px; }
+.mgmt-table tfoot td.n { color: var(--ok); }

@@ -21,6 +21,10 @@ export const ASSEMBLY_OPTIONS = {
   modular: { costMul: 0.92, gfaMul: 1.06 },
 };
 
+// Property-management fee: $5 per ft2 per month, charged once per project
+// against every unit the company has sold so far.
+export const MANAGEMENT_FEE_PER_FT2_YEAR = 60;
+
 export function emptyAssets() {
   return { builder: 0, manager: 0, landBank: 0, ai: 0, district: 0, invested: 0 };
 }
@@ -37,7 +41,7 @@ export function investCapital(catalog, state, assetId) {
 
 function assetIncome(state) {
   const assets = state.assets || {};
-  return money((assets.manager ? 8000000 : 0) + (assets.ai ? 4000000 : 0) + (assets.district ? 12000000 : 0));
+  return money((assets.ai ? 4000000 : 0) + (assets.district ? 12000000 : 0));
 }
 export const JV_SHARES = [0.25, 0.35, 0.5];
 export const UNIT_SPECS = [
@@ -1420,9 +1424,8 @@ export function contractorQuote(catalog, state, contractorId) {
   if (!spec || state.project?.offer == null) return null;
   const bench = gameBench(catalog, state.project.offer.district, state.market);
   const base = money(bench.fairBuildPerFt2 * state.project.offer.gfaFt2);
-  const companyDiscount = state.assets?.builder ? 0.08 : 0;
   const assembly = ASSEMBLY_OPTIONS[state.project.assembly || "standard"] || ASSEMBLY_OPTIONS.standard;
-  const cost = money(base * spec.costMul * assembly.costMul * (1 - companyDiscount));
+  const cost = money(base * spec.costMul * assembly.costMul);
   const stake = stakeOf(state.project.offer);
   const playerCost = money(cost * stake);
   return {
@@ -1449,6 +1452,7 @@ export function chooseContractor(catalog, state, contractorId, rawMix, loanMode 
   if (state.phase !== "build") return fail(state, "bad_phase");
   const spec = catalog.balance.contractors[contractorId];
   if (!spec) return fail(state, "bad_contractor");
+  if (contractorId === "own" && !state.assets?.builder) return fail(state, "bad_contractor");
   const flavour = districtFlavour(state.project.offer.district, catalog.balance);
   const heat = campaignHeat(state, catalog.balance);
   const assembly = ASSEMBLY_OPTIONS[assemblyId] || ASSEMBLY_OPTIONS.standard;
@@ -1601,6 +1605,7 @@ export function chooseRemedy(catalog, state, choice) {
 
 const AD_TARGET_UNITS = {
   rent: ["studio"],
+  couple: ["one"],
   starter: ["two"],
   upgrade: ["three"],
   feature: ["feature"],
@@ -1615,6 +1620,7 @@ function normalizeAdPlans(raw, balance) {
     target: Object.prototype.hasOwnProperty.call(AD_TARGET_UNITS, plan?.target) ? plan.target : "starter",
     budget: plan?.budget === "high" ? "high" : "low",
     paidBudget: plan?.paidBudget === "high" ? "high" : plan?.paidBudget === "low" ? "low" : "none",
+    active: plan?.active !== false,
   }));
   if (plans.length) return plans;
   if (raw.adBudget !== "none" && Object.prototype.hasOwnProperty.call(AD_TARGET_UNITS, raw.adTarget)) {
@@ -1653,6 +1659,7 @@ function promoSpec(choices, balance) {
   let adPaidPerFt2 = 0;
   const adUnits = [];
   for (const plan of plans) {
+    if (plan.active === false) continue;
     const aimed = AD_TARGET_UNITS[plan.target];
     const ad = table.ad?.[plan.budget] || { through: 0, perFt2: 0 };
     const paid = table.ad?.[plan.paidBudget] || { through: 0, perFt2: 0 };
@@ -1813,6 +1820,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
       convert: round4(convert),
       poolBefore: pool,
       poolAfter: pool - fromPool,
+      brought,
       sensitive: spec.id === "studio" ? whaleSensitive : false,
     };
   }
@@ -2168,9 +2176,11 @@ export function confirmSettle(catalog, state) {
       units: 0,
       partnerShare: 0,
       cakeSweep: 0,
+      soldFt2: 0,
     };
   } else {
     const sale = state.project.sale;
+    const soldFt2 = UNIT_SPECS.reduce((sum, spec) => sum + ((sale.byType?.[spec.id]?.sold || 0) * spec.ft2), 0);
     cash = money(cash + sale.netCash);
     reputation = clamp(reputation + sale.reputationDelta, 0, 100);
     unitsSold += sale.sold;
@@ -2206,6 +2216,7 @@ export function confirmSettle(catalog, state) {
       remedyCost: state.project.contractor?.total || 0,
       askPerFt2: sale.askPerFt2 || 0,
       forecastPct: sale.forecastPct ?? null,
+      soldFt2,
     };
     voice = pushVoice(voice, commentSample(state.project));
   }
@@ -2244,13 +2255,16 @@ export function confirmSettle(catalog, state) {
     forgiven: creditResult.forgiven,
     hadYellow: Boolean(state.credit?.hadYellow || creditResult.yellow),
   };
+  const managedFt2 = (state.managedFt2 || 0) + (entry.soldFt2 || 0);
+  const managementFee = state.assets?.manager ? money(managedFt2 * MANAGEMENT_FEE_PER_FT2_YEAR) : 0;
   const base = {
     ...state,
     onboarding: { completed: true, step: "done" },
-    cash: money(creditResult.cash + assetIncome(state)),
+    cash: money(creditResult.cash + assetIncome(state) + managementFee),
     reputation: clamp(reputation + (state.assets?.ai ? 1 : 0), 0, 100),
     unitsSold,
     unitsLaunched,
+    managedFt2,
     completed,
     history,
     voice,
@@ -2338,6 +2352,7 @@ export function serializeCampaign(state) {
     flags: state.flags,
     unitsSold: state.unitsSold,
     unitsLaunched: state.unitsLaunched,
+    managedFt2: state.managedFt2 || 0,
     poolBias: { ...emptyBias(), ...(state.poolBias || {}) },
     voice: { ...emptyVoice(), ...(state.voice || {}) },
     frozen: (state.frozen || []).map((item) => ({ ...item })),
@@ -2432,6 +2447,15 @@ function rehydrateContractor(saved, offer, catalog) {
 export function hydrateCampaign(catalog, saved) {
   if (!saved || saved.v !== SAVE_VERSION) throw new Error("unsupported save");
   if (!PHASES.includes(saved.phase)) throw new Error("unsupported save");
+  const history = Array.isArray(saved.history) ? saved.history.map((item) => ({ ...item })) : [];
+  // Saves written before management fees existed have no per-project area.
+  // Estimate it from units sold so the portfolio total stays sensible.
+  for (const item of history) {
+    if (typeof item.soldFt2 !== "number") {
+      item.soldFt2 = item.skipped ? 0 : (item.sold || 0) * 450;
+    }
+  }
+  const historyFt2 = history.reduce((sum, item) => sum + (item.soldFt2 || 0), 0);
   const state = {
     v: SAVE_VERSION,
     company: normalizeCompany(saved.company),
@@ -2448,6 +2472,7 @@ export function hydrateCampaign(catalog, saved) {
     flags: { ...(saved.flags || {}) },
     unitsSold: saved.unitsSold || 0,
     unitsLaunched: saved.unitsLaunched || 0,
+    managedFt2: typeof saved.managedFt2 === "number" ? saved.managedFt2 : historyFt2,
     poolBias: { ...emptyBias(), ...(saved.poolBias || {}) },
     voice: {
       n: saved.voice?.n || 0,
@@ -2456,7 +2481,7 @@ export function hydrateCampaign(catalog, saved) {
       stuck: Number(saved.voice?.stuck) || 0,
     },
     frozen: Array.isArray(saved.frozen) ? saved.frozen.map((item) => ({ ...item })) : [],
-    history: Array.isArray(saved.history) ? saved.history.map((item) => ({ ...item })) : [],
+    history,
     credit: { ...emptyCredit(), ...(saved.credit || {}) },
     storyCounts: { ...(saved.storyCounts || {}) },
     storyLog: Array.isArray(saved.storyLog) ? [...saved.storyLog] : [],
@@ -2644,8 +2669,14 @@ export function settlementPreview(catalog, state) {
     ...(state.credit || emptyCredit()),
     carried: money((state.credit?.carried || 0) + bridge),
   }, catalog.balance);
+  const soldFt2 = state.assets?.manager
+    ? UNIT_SPECS.reduce((sum, spec) => sum + ((sale?.byType?.[spec.id]?.sold || 0) * spec.ft2), 0)
+    : 0;
+  const managementFee = state.assets?.manager
+    ? money(((state.managedFt2 || 0) + soldFt2) * MANAGEMENT_FEE_PER_FT2_YEAR)
+    : 0;
   return {
-    cash: creditResult.cash,
+    cash: money(creditResult.cash + managementFee),
     owed: creditResult.owed,
     yellow: Boolean(creditResult.yellow) && !creditResult.gameOver,
     due: loan?.due || 0,

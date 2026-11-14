@@ -516,6 +516,24 @@ test("forecast percent, promo, and per-type bars share one pre-cheer model", () 
   const paidMixed = resolveSale(catalog, state, { ...baseChoices, price: "fair", adPlans: mixedPlans.map((plan) => ({ ...plan, paidBudget: plan.budget })), cheer: 0, roll: 1 });
   assert.equal(paidMixed.adCost, 0);
 
+  const offPlans = mixedPlans.map((plan) => ({ ...plan, active: false }));
+  const offSale = resolveSale(catalog, state, { ...baseChoices, price: "fair", adPlans: offPlans, cheer: 0, roll: 1 });
+  assert.equal(offSale.adCost, 0);
+  assert.equal(offSale.byType.two.convert, matched.byType.two.convert);
+  assert.equal(offSale.byType.one.convert, matched.byType.one.convert);
+  assert.equal(offSale.byType.three.convert, matched.byType.three.convert);
+
+  const coupleOnly = resolveSale(catalog, state, {
+    ...baseChoices,
+    price: "fair",
+    adPlans: [{ medium: "online", target: "couple", budget: "high", active: true }],
+    cheer: 0,
+    roll: 1,
+  });
+  assert.ok(coupleOnly.byType.one.convert > matched.byType.one.convert);
+  assert.equal(coupleOnly.byType.two.convert, matched.byType.two.convert);
+  assert.ok(coupleOnly.byType.one.brought > 0);
+
   const studios = { studio: 16, one: 0, two: 0, three: 0, feature: 0 };
   const studioState = projectContext("沙田區", { seed: 2, mix: studios, gfaFt2: 16 * 280 });
   const quiet = saleForecast(catalog, studioState, { price: "fair", showflat: false, leftover: "cut" });
