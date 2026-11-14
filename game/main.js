@@ -1019,6 +1019,11 @@ function setTypePsf(type, psf, fair) {
   ui.sale.choices.askMulByType = { ...(ui.sale.choices.askMulByType || {}), [type]: clamped / fairPsf };
 }
 
+function plainCount(value) {
+  const n = Math.round(Number(value) || 0);
+  return String(n);
+}
+
 function filmOverlay(film) {
   const act = film.act || 1;
   if (act === 1) {
@@ -1027,13 +1032,13 @@ function filmOverlay(film) {
     const crowd = Array.from({ length: dots }, () => `<i style="width:${size}px;height:${size}px"></i>`).join("");
     return `<div class="film"><div class="film-act">
       <b class="big">超額 ${film.over} 倍</b>
-      <span>排隊 ${formatCount(film.pool)} 人 · ${formatCount(film.units)} 伙</span>
+      <span>排隊 ${plainCount(film.pool)} 人 · ${plainCount(film.units)} 伙</span>
       <div class="crowd" style="width:${Math.min(300, dots * (size + 5))}px">${crowd}</div>
     </div></div>`;
   }
   return `<div class="film"><div class="film-act act2">
     <span class="cap">目標伙數</span>
-    <div class="tally"><b id="film-count">0</b><s>／${formatCount(film.units)} 伙</s></div>
+    <div class="tally"><b id="film-count">0</b><s>／${plainCount(film.units)} 伙</s></div>
     <div class="fill"><i style="width:${film.units ? Math.min(100, Math.round((film.sold / film.units) * 100)) : 0}%"></i></div>
   </div></div>`;
 }
@@ -1044,7 +1049,7 @@ function countUpFilm(target) {
   const started = performance.now();
   const step = (now) => {
     const p = Math.min(1, (now - started) / 900);
-    node.textContent = formatCount(Math.round(target * p));
+    node.textContent = plainCount(target * p);
     if (p < 1 && document.body.contains(node)) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -1344,18 +1349,18 @@ function sellLive() {
   const round = Math.min(3, (ui.sale.choices.cheer || 0) + 1);
   const hot = UNIT_SPECS.filter((sp) => quote.byType?.[sp.id]?.sold > 0).slice(0, 2);
   const feed = hot.length
-    ? hot.map((sp) => `${t(ui.lang, UNIT_KEYS[sp.id][0])} ${compactHkd(quote.byType[sp.id].ask)} · ${formatCount(quote.byType[sp.id].sold)} 伙`).join(" · ")
+    ? hot.map((sp) => `${t(ui.lang, UNIT_KEYS[sp.id][0])} ${compactHkd(quote.byType[sp.id].ask)} · ${plainCount(quote.byType[sp.id].sold)} 伙`).join(" · ")
     : t(ui.lang, "liveNoSales");
   return `<section class="card sale-stage showroom">
       <div class="lv-top"><b>${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</b><span>${t(ui.lang, "liveRoundOf", { n: round })}</span></div>
       <div class="lv-hero">
         <div class="lv-heat"><b id="heat-num">${heat}</b><s>${t(ui.lang, "heat")}</s></div>
-        <div class="lv-over"><b>${t(ui.lang, "overSub", { n: over })}</b><span>${t(ui.lang, "queueLine", { n: formatCount(poolTotal) })}</span></div>
+        <div class="lv-over"><b>${t(ui.lang, "overSub", { n: over })}</b><span>${t(ui.lang, "queueLine", { n: plainCount(poolTotal) })}</span></div>
       </div>
       <div class="lv-track"><i id="heat-fill" style="width:${heat}%"></i></div>
       <div class="lv-legend">
-        <span>${t(ui.lang, "soldNow")} <b id="sold-num">${formatCount(shown)}</b></span>
-        <span>${t(ui.lang, "unitsLeft")} <b id="left-num">${formatCount(left)}</b></span>
+        <span>${t(ui.lang, "soldNow")} <b id="sold-num">${plainCount(shown)}</b></span>
+        <span>${t(ui.lang, "unitsLeft")} <b id="left-num">${plainCount(left)}</b></span>
         <span>${t(ui.lang, "heroProfit")} <b id="tally">${compactHkd(profit)}</b></span>
       </div>
       <div class="pops" id="pops"></div>
@@ -1548,9 +1553,9 @@ function paintSale(quote, tProgress) {
   const heatNum = document.querySelector("#heat-num");
   if (heatNum) heatNum.textContent = String(Math.min(100, shownHeat));
   const sold = document.querySelector("#sold-num");
-  if (sold) sold.textContent = formatCount(ui.sale.shownSold);
+  if (sold) sold.textContent = plainCount(ui.sale.shownSold);
   const left = document.querySelector("#left-num");
-  if (left) left.textContent = formatCount(Math.max(0, quote.units - ui.sale.shownSold));
+  if (left) left.textContent = plainCount(Math.max(0, quote.units - ui.sale.shownSold));
   const tally = document.querySelector("#tally");
   if (tally) {
     const profit = quote.sold ? Math.round((quote.profit * ui.sale.shownSold) / quote.sold) : 0;
