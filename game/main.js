@@ -1043,11 +1043,8 @@ function pricePanel() {
       <button class="step" data-action="price-step" data-type="${spec.id}" data-dir="-1" aria-label="${escapeHtml(t(ui.lang, "priceDown"))}">−</button>
       <label class="num${dear ? " dear" : ""}"><input type="text" inputmode="numeric" data-price-type="${spec.id}" value="${formatHkd(psf)}" aria-label="${escapeHtml(t(ui.lang, UNIT_KEYS[spec.id][0]))}"><i>${t(ui.lang, "perFt2")}</i></label>
       <button class="step" data-action="price-step" data-type="${spec.id}" data-dir="1" aria-label="${escapeHtml(t(ui.lang, "priceUp"))}">+</button>
-      <div class="pbar">
-        <span class="lane sup"><i style="width:${lane(supply)}%"></i></span>
-        <span class="lane dem"><i style="width:${lane(projected)}%"></i></span>
-      </div>
-      <div class="pmeta"><span>${t(ui.lang, "priceSupply", { n: formatCount(supply) })}</span><span>${t(ui.lang, "priceDemand", { n: formatCount(demand) })}${row.brought ? ` <em>${t(ui.lang, "priceBrought", { n: formatCount(row.brought) })}</em>` : ""} → ${t(ui.lang, "priceProjected", { n: formatCount(projected) })}</span>${status}</div>
+      <div class="pbar"><span class="fill" style="width:${supply ? Math.round((projected / supply) * 100) : 0}%"></span></div>
+      <div class="pmeta"><span>${t(ui.lang, "priceSupply", { n: formatCount(supply) })} · ${t(ui.lang, "priceSold", { n: formatCount(projected) })}</span><span class="${gap > 0 ? "short" : "ok"}">${supply === 0 ? t(ui.lang, "priceNoUnits") : t(ui.lang, "priceLeft", { n: formatCount(gap) })}</span></div>
     </div>`;
   }).join("");
   const two = quote.byType?.two || { ask: 0 };

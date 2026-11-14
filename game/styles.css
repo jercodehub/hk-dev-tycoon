@@ -1237,8 +1237,8 @@ button:disabled {
 .price-panel .prow .step:first-of-type { grid-area: minus; }
 .price-panel .prow .num { grid-area: num; }
 .price-panel .prow .step:last-of-type { grid-area: plus; }
-.price-panel .pbar { grid-area: bar; display: grid; gap: 3px; margin: 2px 0 1px; }
-.price-panel .pbar .lane { display: block; height: 5px; border-radius: 3px; background: rgba(120,150,185,.16); overflow: hidden; }
+.price-panel .pbar { grid-area: bar; height: 6px; border-radius: 3px; background: #1d2836; overflow: hidden; margin: 2px 0 1px; }
+.price-panel .pbar { grid-area: bar; } .price-panel .pbar .fill { display: block; height: 6px; border-radius: 3px; background: #6ea8ff; } .price-panel .pbar .lane { display: block; height: 5px; border-radius: 3px; background: rgba(120,150,185,.16); overflow: hidden; }
 .price-panel .pbar .lane i { display: block; height: 100%; border-radius: 3px; }
 .price-panel .pbar .sup i { background: #6ea8ff; }
 .price-panel .pbar .dem i { background: #e2b15a; }
