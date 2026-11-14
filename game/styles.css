@@ -1384,3 +1384,68 @@ button:disabled {
 .msheet-line { display: flex; gap: 10px; padding: 10px 14px; border-top: 1px solid #1b2836; font-size: 12.5px; line-height: 1.55; color: #cfdbe7; }
 .msheet-line em { font-style: normal; color: #8fa3b8; flex: none; width: 54px; }
 .market-sheet .ghost { margin-top: 10px; }
+
+/* Land tender sheet */
+.tender-entry { text-align: left; }
+.tender-entry .tender-cta { color: var(--game); font-weight: 800; margin-top: 8px; }
+.tender-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin: 10px 0;
+}
+.tender-label { margin: 0 0 8px; color: var(--muted); font-size: var(--fs-kicker); font-weight: 800; letter-spacing: 0.04em; }
+.bid-row { display: flex; align-items: stretch; gap: 8px; margin: 6px 0 10px; }
+.bid-row > button {
+  width: 54px;
+  min-height: 54px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 800;
+}
+.bid-field {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 54px;
+  border-radius: 12px;
+  border: 1px solid var(--game);
+  background: #241d12;
+  padding: 0 10px;
+}
+.bid-field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--game);
+  font: inherit;
+  font-size: 26px;
+  font-weight: 800;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.bid-field span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.tender-over { color: var(--danger); font-weight: 700; }
+.tender-hint { color: var(--muted); line-height: 1.5; }
+.tender-actions { display: flex; gap: 8px; margin: 12px 0 4px; }
+.tender-actions button { flex: 1; }
+.tender-result {
+  margin-top: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.tender-result.win { border-color: var(--game); background: linear-gradient(180deg, #241d12, var(--panel)); }
+.tender-result.lose { border-color: #6b3a24; }
+.tender-result h2 { margin: 4px 0 2px; font-size: 1.9rem; font-variant-numeric: tabular-nums; }
+.tender-result .tender-rows { margin: 10px 0 6px; }
+.tender-note { color: var(--muted); line-height: 1.5; }

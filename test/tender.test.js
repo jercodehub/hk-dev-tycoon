@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   availableCash,
+  chooseLand,
   createCampaign,
   createCampaignCatalog,
   createRng,
@@ -14,6 +15,7 @@ import {
   releaseTenderDeposit,
   serializeCampaign,
   submitTender,
+  tenderActive,
   tenderBook,
 } from "../game/campaign.js";
 import {
@@ -97,13 +99,13 @@ test("the deposit cap blocks an oversized bid", () => {
   assert.equal(result.deposit, 0);
 });
 
-test("maxBidPsf never exceeds the deposit cap", () => {
+test("maxBidPsf covers the deposit cap and the balance due at build time", () => {
   const cash = 50000000;
   const gfa = 100000;
   const psf = maxBidPsf({ cash, gfaFt2: gfa });
-  const deposit = depositFor(psf, gfa);
-  assert.ok(deposit <= cash * TENDER.depositCapShare);
-  assert.ok(depositFor(psf + 1, gfa) > cash * TENDER.depositCapShare);
+  assert.ok(depositFor(psf, gfa) <= cash * TENDER.depositCapShare);
+  assert.ok(psf * gfa <= cash / (1 - TENDER.depositRate));
+  assert.ok((psf + 1) * gfa > cash / (1 - TENDER.depositRate));
 });
 
 test("losing narrows district intel and winning leaves it alone", () => {
@@ -127,10 +129,14 @@ test("the tender book is stable for the same site and round", () => {
   assert.notDeepEqual(first.rivals, later.rivals);
 });
 
-test("the tender stays switched off by default", () => {
+test("the tender is live for new campaigns but paused during onboarding", () => {
   const state = createCampaign(catalog, { seed: 99, company: { name: "測試" } });
-  assert.equal(landTenderEnabled(state), false);
-  const attempt = submitTender(state, state.offers[0], 6000);
+  assert.equal(landTenderEnabled(state), true);
+  assert.equal(tenderActive(state), false);
+  assert.equal(tenderActive({ ...state, completed: 3 }), true);
+  const off = { ...state, completed: 3, flags: { landTender: false } };
+  assert.equal(tenderActive(off), false);
+  const attempt = submitTender(off, off.offers[0], 6000);
   assert.equal(attempt.ok, false);
   assert.equal(attempt.error, "tender_disabled");
 });
@@ -191,4 +197,26 @@ test("deposits survive a save round trip and old saves default to none", () => {
   delete legacy.deposits;
   const migrated = hydrateCampaign(catalog, legacy);
   assert.deepEqual(migrated.deposits, []);
+});
+
+test("awarding a tender charges the balance and clears the deposit", () => {
+  const base = createCampaign(catalog, { seed: 808, company: { name: "測試" } });
+  const offer = base.offers[0];
+  const bid = Math.round(offer.landPerFt2 * 1.05);
+  const state = {
+    ...base,
+    completed: 4,
+    flags: { ...base.flags, landTender: true },
+    deposits: [{ slot: offer.slot, district: offer.district, type: offer.type, amount: 5000000, round: 4, status: "won" }],
+  };
+  const won = chooseLand(catalog, state, offer.slot, 1, {
+    landPrice: bid * offer.gfaFt2,
+    depositCredit: 5000000,
+  });
+  assert.equal(won.ok, true);
+  const paid = Math.round(bid * offer.gfaFt2);
+  assert.equal(won.state.cash, state.cash - (paid - 5000000));
+  assert.deepEqual(won.state.deposits, []);
+  assert.equal(won.state.project.offer.landPaid, paid);
+  assert.equal(won.state.phase, "build");
 });
