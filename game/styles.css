@@ -1373,3 +1373,14 @@ button:disabled {
 .idx-delta small { display: block; font-size: 10.5px; color: #8fa3b8; font-weight: 600; }
 .idx-spark { padding: 0 8px 6px; }
 .idx-axis { display: flex; justify-content: space-between; padding: 0 6px 8px; font-size: 10.5px; color: #7f93a7; }
+
+.idx-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; padding: 4px 14px 10px; }
+.idx-cards > div { border: 1px solid #22303f; border-radius: 9px; background: #0f1721; padding: 7px 8px; min-width: 0; }
+.idx-cards span { display: block; font-size: 10.5px; color: #8fa3b8; }
+.idx-cards b { display: block; font-size: 13px; margin-top: 2px; color: #e8eef6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.idx-cards b i { font-style: normal; font-size: 10px; color: #7f93a7; margin-left: 3px; }
+.idx-cards b.up, .idx-cards b.up i { color: #4fbf8b; }
+.idx-cards b.down, .idx-cards b.down i { color: #e5675f; }
+.msheet-line { display: flex; gap: 10px; padding: 10px 14px; border-top: 1px solid #1b2836; font-size: 12.5px; line-height: 1.55; color: #cfdbe7; }
+.msheet-line em { font-style: normal; color: #8fa3b8; flex: none; width: 54px; }
+.market-sheet .ghost { margin-top: 10px; }
