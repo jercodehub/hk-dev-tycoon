@@ -25,6 +25,8 @@ import {
   CAPITAL_ASSETS,
   ASSEMBLY_OPTIONS,
   MANAGEMENT_FEE_PER_FT2_YEAR,
+  OWN_LEVELS,
+  ownSpec,
   endSummary,
   effectiveMarket,
   explainForecastGap,
@@ -546,6 +548,8 @@ function ensureSale() {
     mode: "setup",
     started: 0,
     shownSold: 0,
+    gapOpen: false,
+    targetOpen: null,
     pops: [],
     reduced: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   };
@@ -768,9 +772,10 @@ function buildView() {
   const outlook = buildOutlook(ui.catalog, buildState, ui.build.mix, ui.build.contractor, ui.build.loan || "cash");
   const warn = outlook.warnBig ? `<p class="loan-warn">${t(ui.lang, "loanWarn")}</p>` : "";
   const contractorIds = ["jingjin", "huimen", "xinjing", ...(ui.state.assets?.builder ? ["own"] : [])];
+  const specOf = (id) => (id === "own" ? ownSpec(ui.catalog.balance, ui.state.ownBuilds || 0) : ui.catalog.balance.contractors[id]);
   const cards = contractorIds.map((id) => {
     const quote = contractorQuote(ui.catalog, buildState, id);
-    const spec = ui.catalog.balance.contractors[id];
+    const spec = specOf(id);
     const on = ui.build.contractor === id;
     const tier = spec.collapse >= 0.15 ? "hi" : spec.collapse >= 0.03 ? "mid" : "lo";
     const tierKey = tier === "hi" ? "riskVeryHigh" : tier === "mid" ? "riskMid" : "riskLow";
@@ -780,7 +785,7 @@ function buildView() {
     return `<button class="crow${on ? " on" : ""}" data-action="pick-contractor" data-id="${id}" aria-pressed="${on}">
       <span class="line1">
         <span class="dot" aria-hidden="true"></span>
-        <span class="name">${t(ui.lang, id)}${id === "own" ? `<span class="badge">${t(ui.lang, "contractorOwned")}</span>` : ""}</span>
+        <span class="name">${t(ui.lang, id)}${id === "own" ? `<span class="badge lv">${t(ui.lang, "ownLevel", { n: spec.level })}</span>` : ""}</span>
         <span class="price">${compactHkd(quote.playerCost)}</span>
         <span class="pill ${tier}">${t(ui.lang, tierKey)}</span>
       </span>
@@ -792,16 +797,68 @@ function buildView() {
       </span>
     </button>`;
   }).join("");
-  const pickedSpec = ui.build.contractor ? ui.catalog.balance.contractors[ui.build.contractor] : null;
+  const pickedSpec = ui.build.contractor ? specOf(ui.build.contractor) : null;
+  const balance = ui.catalog.balance;
+  const effectiveRep = pickedSpec ? pickedSpec.rep - Math.round(pickedSpec.leak * balance.leakRepWeight) : 0;
+  const priceDrag = pickedSpec ? pickedSpec.leak * balance.leakPriceDrag * 100 : 0;
+  const perHundred = pickedSpec ? pickedSpec.leak * balance.leakPriceDrag * 100000000 : 0;
+  const collapseFreq = pickedSpec && pickedSpec.collapse > 0 ? Math.round(1 / pickedSpec.collapse) : 0;
+  const rushThrough = balance.remedy?.rushThrough ?? balance.collapseThrough;
+  const ownBuilds = ui.state.ownBuilds || 0;
+  const nextLevel = OWN_LEVELS.find((step) => step.min > ownBuilds) || null;
+  const currentLevel = OWN_LEVELS.filter((step) => ownBuilds >= step.min).at(-1) || OWN_LEVELS[0];
+  const levelPct = nextLevel
+    ? Math.min(100, Math.max(0, ((ownBuilds - currentLevel.min) / (nextLevel.min - currentLevel.min)) * 100))
+    : 100;
+  const levelBlock = ui.build.contractor === "own"
+    ? `<div class="level">
+        <div class="level-head"><span>${t(ui.lang, "ownExp")}</span><b>${nextLevel ? t(ui.lang, "ownExpCount", { n: ownBuilds, target: nextLevel.min }) : t(ui.lang, "ownExpMaxCount", { n: ownBuilds })}</b></div>
+        <div class="lbar"><i style="width:${levelPct.toFixed(1)}%"></i></div>
+        ${nextLevel
+          ? `<p>${t(ui.lang, "ownNextLevel", { n: nextLevel.min - ownBuilds, level: nextLevel.level })}</p>
+             <p>${t(ui.lang, "ownNextPreview", {
+               level: nextLevel.level,
+               cost: nextLevel.costMul.toFixed(2),
+               leak: Math.round(nextLevel.leak * 100),
+               collapse: (nextLevel.collapse * 100).toFixed(1).replace(/\.0$/, ""),
+               quality: nextLevel.quality.toFixed(2),
+             })}</p>`
+          : `<p>${t(ui.lang, "ownMaxLevel", { level: currentLevel.level })}</p>`}
+      </div>`
+    : "";
   const contractorDetail = picked && pickedSpec
     ? `<div class="detail">
-        <h4>${t(ui.lang, ui.build.contractor)}<span>${compactHkd(picked.playerCost)}</span></h4>
+        <h4>${t(ui.lang, ui.build.contractor)}${ui.build.contractor === "own" ? ` Lv${pickedSpec.level}` : ""}<span>${compactHkd(picked.playerCost)}</span></h4>
         <div class="drow"><span>${t(ui.lang, "detailCostMul")}</span><b>×${pickedSpec.costMul.toFixed(2)}</b></div>
-        <div class="drow"><span>${t(ui.lang, "detailLeak")}</span><b>${Math.round(pickedSpec.leak * 100)}%</b></div>
-        <div class="drow"><span>${t(ui.lang, "detailCollapse")}</span><b>${Math.round(pickedSpec.collapse * 100)}%</b></div>
         <div class="drow"><span>${t(ui.lang, "detailQuality")}</span><b>${pickedSpec.quality.toFixed(2)}</b></div>
-        <div class="drow"><span>${t(ui.lang, "detailRep")}</span><b>${pickedSpec.rep >= 0 ? "+" : ""}${pickedSpec.rep}</b></div>
-        <div class="drow"><span>${t(ui.lang, "detailRemedy")}</span><b>+${compactHkd(remedyExtra(ui.catalog.balance, picked.cost, stakeOf(offer), "rush"))}</b></div>
+        <div class="drow"><span>${t(ui.lang, "detailRep")}</span><b>${effectiveRep >= 0 ? "+" : ""}${effectiveRep}</b></div>
+        <p class="impact-title">${t(ui.lang, "impactTitle")}</p>
+        <div class="impact">
+          <div class="icard">
+            <h5>${t(ui.lang, "metricLeak")} <b>${Math.round(pickedSpec.leak * 100)}%</b></h5>
+            <p>${t(ui.lang, "impactPrice")} <b class="bad">−${priceDrag.toFixed(1)}%</b></p>
+            <p>${t(ui.lang, "impactPer100m")} <b class="bad">${compactHkd(perHundred)}</b></p>
+          </div>
+          <div class="icard warn">
+            <h5>${t(ui.lang, "metricCollapse")} <b>${(pickedSpec.collapse * 100).toFixed(1).replace(/\.0$/, "")}%</b></h5>
+            <p>${collapseFreq ? t(ui.lang, "impactFreq", { n: formatCount(collapseFreq) }) : t(ui.lang, "impactNever")}</p>
+            <p>${t(ui.lang, "impactRush")} <b class="bad">+${compactHkd(remedyExtra(balance, picked.cost, stakeOf(offer), "rush"))}</b></p>
+          </div>
+        </div>
+        <div class="remedy">
+          <p class="impact-title">${t(ui.lang, "remedyTitle")}</p>
+          <table>
+            <thead><tr><th>${t(ui.lang, "remedyImpact")}</th><th class="n">${t(ui.lang, "remedyRushShort")}</th><th class="n">${t(ui.lang, "remedyWorseShort")}</th></tr></thead>
+            <tbody>
+              <tr><td>${t(ui.lang, "remedyCost")}</td><td class="n">+${Math.round(balance.collapseExtra * 100)}%</td><td class="n">+${Math.round(balance.remedy.worseExtra * 100)}%</td></tr>
+              <tr><td>${t(ui.lang, "detailQuality")}</td><td class="n">×${balance.collapseQuality.toFixed(2)}</td><td class="n">×${balance.remedy.worseQuality.toFixed(2)}</td></tr>
+              <tr><td>${t(ui.lang, "metricLeak")}</td><td class="n">+${Math.round(balance.collapseLeakAdd * 100)}%</td><td class="n">+${Math.round(balance.remedy.worseLeak * 100)}%</td></tr>
+              <tr><td>${t(ui.lang, "detailRep")}</td><td class="n">${balance.collapseRep}</td><td class="n">${balance.remedy.worseRep}</td></tr>
+              <tr><td>${t(ui.lang, "remedyThrough")}</td><td class="n">−${Math.round(rushThrough * 100)}%</td><td class="n">−${Math.round(balance.remedy.worseThrough * 100)}%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        ${levelBlock}
         <p class="fine">${t(ui.lang, `${ui.build.contractor}Note`)}</p>
       </div>`
     : "";
@@ -1189,7 +1246,13 @@ function shortagePanel(quote) {
   const tip = worst
     ? `<p class="gap-tip">${t(ui.lang, "gapSuggest", { name: t(ui.lang, worst.key) })}</p>`
     : `<p class="gap-tip ok">${t(ui.lang, "gapBalanced")}</p>`;
-  return `<div class="gap-panel"><p class="fine"><strong>${t(ui.lang, "gapTitle")}</strong></p>${body}${tip}</div>`;
+  const label = worst
+    ? t(ui.lang, "gapShortLine", { name: t(ui.lang, worst.key), n: formatCount(worst.gap) })
+    : t(ui.lang, "gapAllFine");
+  return `<button type="button" class="gapbar${worst ? " short" : " ok"}" data-action="toggle-gap" aria-expanded="${Boolean(ui.sale.gapOpen)}">
+      <span>${label}</span><i>${ui.sale.gapOpen ? t(ui.lang, "gapHide") : t(ui.lang, "gapShow")}</i>
+    </button>
+    ${ui.sale.gapOpen ? `<div class="gap-panel"><p class="fine"><strong>${t(ui.lang, "gapTitle")}</strong></p>${body}${tip}</div>` : ""}`;
 }
 
 function marketingView() {
@@ -1208,19 +1271,24 @@ function marketingView() {
     const one = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, adPlans: on ? [plan] : [] });
     const added = Number(one.byType?.[TARGET_UNITS[plan.target]]?.brought) || 0;
     const meta = on
-      ? `${t(ui.lang, "marketingCost")} ${compactHkd(marketingCost([plan]))} · ${t(ui.lang, "marketingAdded", { n: formatCount(added) })}`
+      ? `<b>${compactHkd(marketingCost([plan]))}</b> · ${t(ui.lang, "marketingAdded", { n: formatCount(added) })}`
       : t(ui.lang, "marketingOffNote");
+    const open = ui.sale.targetOpen === medium;
+    const targetKey = MARKETING_TARGETS.find(([id]) => id === plan.target)?.[1] || "adStarter";
     const targets = MARKETING_TARGETS.map(([id, key]) => `<button class="chip${plan.target === id ? " on" : ""}" data-action="marketing-target" data-id="${id}" data-medium="${medium}" ${on ? "" : "disabled"}>${t(ui.lang, key)}</button>`).join("");
-    return `<article class="marketing-option${on ? "" : " is-off"}">
-      <div class="marketing-head"><h3>${t(ui.lang, mediaKey)}</h3><button class="media-switch${on ? " on" : ""}" type="button" data-action="marketing-toggle" data-medium="${medium}" aria-pressed="${on}">${on ? t(ui.lang, "marketingOn") : t(ui.lang, "marketingOff")}</button></div>
-      <p class="fine">${meta}</p>
-      <div class="chips">${targets}</div>
+    return `<article class="media-row${on ? "" : " is-off"}">
+      <div class="mrow">
+        <span class="mname">${t(ui.lang, mediaKey)}</span>
+        <span class="mmeta">${meta}</span>
+        <button class="media-switch${on ? " on" : ""}" type="button" data-action="marketing-toggle" data-medium="${medium}" aria-pressed="${on}">${on ? t(ui.lang, "marketingOn") : t(ui.lang, "marketingOff")}</button>
+      </div>
+      ${on ? `<div class="targetrow"><span class="lab">${t(ui.lang, "marketingTarget")}</span><button type="button" class="tbtn" data-action="toggle-target" data-medium="${medium}" aria-expanded="${open}">${t(ui.lang, targetKey)} ${open ? "▴" : "▾"}</button></div>` : ""}
+      ${on && open ? `<div class="chips target-chips">${targets}</div>` : ""}
     </article>`;
   }).join("");
   const cost = marketingCost(plans);
-  const canStart = ui.state.cash >= cost;
   const skip = active.length === 0;
-  return `${tutorialBanner()}<section class="card marketing-card"><span class="kicker">${t(ui.lang, "marketingKicker")}</span><h2>${t(ui.lang, "marketingKicker")}</h2><p class="note">${t(ui.lang, "marketingLead")}</p>${shortagePanel(priced)}${cards}<div class="marketing-total"><strong>${t(ui.lang, "marketingTotal")}</strong><span>${t(ui.lang, "marketingCost")} ${compactHkd(cost)} · ${t(ui.lang, "marketingLeads", { n: formatCount(numbers.leads) })} · ${t(ui.lang, "marketingBuyers", { n: formatCount(numbers.buyers) })}</span></div><button class="primary" data-action="marketing-continue" ${canStart ? "" : "disabled"}>${skip ? t(ui.lang, "marketingSkip") : t(ui.lang, "marketingContinue")}</button>${skip ? `<p class="fine">${t(ui.lang, "marketingSkipNote")}</p>` : ""}</section>`;
+  return `${tutorialBanner()}<section class="card marketing-card"><h2>${t(ui.lang, "marketingKicker")}</h2><p class="note">${t(ui.lang, "marketingLead")}</p>${shortagePanel(priced)}${cards}<div class="marketing-total"><strong>${t(ui.lang, "marketingTotal")}</strong><span>${compactHkd(cost)} · ${t(ui.lang, "marketingLeads", { n: formatCount(numbers.leads) })} · ${t(ui.lang, "marketingBuyers", { n: formatCount(numbers.buyers) })}</span></div>${skip ? `<p class="fine">${t(ui.lang, "marketingSkipNote")}</p>` : ""}</section>`;
 }
 
 function sellView() {
@@ -2415,6 +2483,19 @@ function onClick(event) {
     if (ui.sale.marketingStage !== "pre") return;
     const medium = target.dataset.medium;
     ui.sale.marketingPlans = ui.sale.marketingPlans.map((plan) => plan.medium === medium ? { ...plan, target: id } : plan);
+    render();
+    return;
+  }
+  if (action === "toggle-gap") {
+    ensureSale();
+    ui.sale.gapOpen = !ui.sale.gapOpen;
+    render();
+    return;
+  }
+  if (action === "toggle-target") {
+    ensureSale();
+    const medium = target.dataset.medium;
+    ui.sale.targetOpen = ui.sale.targetOpen === medium ? null : medium;
     render();
     return;
   }
