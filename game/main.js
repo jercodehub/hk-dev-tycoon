@@ -24,6 +24,7 @@ import {
   createCampaign,
   createCampaignCatalog,
   CAPITAL_ASSETS,
+  ASSEMBLY_OPTIONS,
   endSummary,
   effectiveMarket,
   explainForecastGap,
@@ -490,6 +491,7 @@ function commitBuild() {
     ui.build.contractor,
     ui.build.mix,
     ui.build.loan || "cash",
+    ui.build.assembly || "standard",
   );
   if (!result.ok) {
     ui.error = result.error;
@@ -515,6 +517,7 @@ function ensureBuild() {
     mix: { ...ui.state.project.offer.mixHint },
     contractor: null,
     loan: "cash",
+    assembly: ui.state.project.assembly || "standard",
   };
 }
 
@@ -647,7 +650,8 @@ function buildView() {
   ensureBuild();
   const onboarding = isOnboarding(ui.state);
   const offer = ui.state.project.offer;
-  const gfa = offer.gfaFt2;
+  const assembly = ASSEMBLY_OPTIONS[ui.build.assembly || "standard"] || ASSEMBLY_OPTIONS.standard;
+  const gfa = Math.round(offer.gfaFt2 * assembly.gfaMul);
   const used = gfaUsed(ui.build.mix);
   const left = gfa - used;
   const heat = campaignHeat(ui.state, ui.catalog.balance);
@@ -742,6 +746,7 @@ function buildView() {
         <span class="kicker">${t(ui.lang, "buildKicker")} · ${t(ui.lang, siteKey(offer.siteTier))}</span>
       </div>
       ${stakeNote}
+      <div class="assembly-panel"><p class="fine">${t(ui.lang, "assembly")} · ${t(ui.lang, "assemblyNote")}</p><div class="chips">${Object.keys(ASSEMBLY_OPTIONS).map((id) => `<button class="chip${(ui.build.assembly || "standard") === id ? " on" : ""}" data-action="assembly" data-id="${id}" aria-pressed="${(ui.build.assembly || "standard") === id}">${t(ui.lang, `assembly${id[0].toUpperCase()}${id.slice(1)}`)}<small>${Math.round((ASSEMBLY_OPTIONS[id].gfaMul - 1) * 100)}% GFA · ${Math.round((1 - ASSEMBLY_OPTIONS[id].costMul) * 100)}% cost</small></button>`).join("")}</div></div>
       <div id="gfa-live" class="${left < 0 ? "over" : ""}">
         <span>${t(ui.lang, "gfa")} ${formatCount(gfa)}</span>
         <span class="psf" id="gfa-psf">${t(ui.lang, "costPsf", { n: formatHkd(costPsf) })}</span>
@@ -768,7 +773,8 @@ function buildView() {
 
 function paintBuild() {
   if (!ui.build || ui.state?.phase !== "build") return;
-  const gfa = ui.state.project.offer.gfaFt2;
+  const assembly = ASSEMBLY_OPTIONS[ui.build.assembly || "standard"] || ASSEMBLY_OPTIONS.standard;
+  const gfa = Math.round(ui.state.project.offer.gfaFt2 * assembly.gfaMul);
   const used = gfaUsed(ui.build.mix);
   const left = gfa - used;
   const live = document.querySelector("#gfa-live");
@@ -2044,6 +2050,15 @@ function onClick(event) {
     render();
     return;
   }
+  if (action === "assembly") {
+    ensureBuild();
+    if (!ASSEMBLY_OPTIONS[id]) return;
+    ui.build.assembly = id;
+    ui.state = { ...ui.state, project: { ...ui.state.project, assembly: id } };
+    ui.build.mix = mixPreset(Math.round(ui.state.project.offer.gfaFt2 * ASSEMBLY_OPTIONS[id].gfaMul), "starter");
+    render();
+    return;
+  }
   if (action === "mix-preset") {
     ensureBuild();
     ui.build.mix = mixPreset(ui.state.project.offer.gfaFt2, id);
@@ -2054,7 +2069,8 @@ function onClick(event) {
     ensureBuild();
     const unit = target.dataset.unit;
     const delta = Number(target.dataset.delta) || 0;
-    const gfa = ui.state.project.offer.gfaFt2;
+    const assembly = ASSEMBLY_OPTIONS[ui.build.assembly || "standard"] || ASSEMBLY_OPTIONS.standard;
+    const gfa = Math.round(ui.state.project.offer.gfaFt2 * assembly.gfaMul);
     if (delta > 0 && !canAddUnit(gfa, ui.build.mix, unit)) return;
     ui.build.mix = addUnits(gfa, ui.build.mix, unit, delta);
     render();
