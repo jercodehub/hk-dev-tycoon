@@ -1198,6 +1198,15 @@ function row(label, value) {
   return `<div class="row"><span>${label}</span><strong>${value}</strong></div>`;
 }
 
+function pressReport(sale, project) {
+  if (!sale || !project || sale.skipped) return "";
+  const name = project.name || districtLabel(ui.lang, project.offer?.district);
+  const hot = sale.choices?.adBudget === "high" && Number(sale.forecastPct || 0) >= 75;
+  const titleKey = hot ? "pressHotTitle" : sale.outcome === "clear" ? "pressClearTitle" : "pressQuietTitle";
+  const bodyKey = hot ? "pressHotBody" : sale.outcome === "clear" ? "pressClearBody" : "pressQuietBody";
+  return `<aside class="press-report"><p class="kicker">${t(ui.lang, "pressKicker")}</p><h3>${escapeHtml(t(ui.lang, titleKey, { name }))}</h3><p>${escapeHtml(t(ui.lang, bodyKey, { name }))}</p></aside>`;
+}
+
 function settleView() {
   const project = ui.state.project;
   if (project?.skipped) {
@@ -1248,6 +1257,7 @@ function settleView() {
     ${confetti}
     ${towerRow(sale.units, sale.sold, { gold: party })}
     ${outcomeLine(sale)}
+    ${pressReport(sale, project)}
     ${row(t(ui.lang, "repChange"), `${sale.reputationDelta >= 0 ? "+" : ""}${sale.reputationDelta}`)}
     ${sale.clearBonus ? row(t(ui.lang, "clearBonus"), `+${formatHkd(sale.clearBonus)}`) : ""}
     <p class="fine">${escapeHtml(districtLabel(ui.lang, project.offer.district))} · ${t(ui.lang, flavourKey(project.offer.flavour))} · ${t(ui.lang, typeKey(project.offer.type))}</p>

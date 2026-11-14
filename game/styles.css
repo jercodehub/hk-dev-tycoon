@@ -166,6 +166,9 @@ button:disabled { cursor: not-allowed; }
 .marketing-card .chips { margin: 8px 0 14px; }
 .marketing-card .chip { flex: 1 1 150px; }
 .marketing-card .stats { margin: 16px 0; }
+.press-report { margin: 16px 0; padding: 16px; border: 1px solid rgba(226,177,90,.45); background: rgba(226,177,90,.08); }
+.press-report h3 { margin: 4px 0 8px; }
+.press-report p:last-child { margin: 0; line-height: 1.6; }
 .primary, .go {
   background: #8eb6ff;
   border-color: #e7f0ff;
