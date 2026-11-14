@@ -21,6 +21,22 @@ export const ASSEMBLY_OPTIONS = {
   standard: { costMul: 1, gfaMul: 1 },
   modular: { costMul: 0.92, gfaMul: 1.06 },
 };
+// Private land: the cheaper the plot, the more premium it owes before it can
+// become housing. Farmland also has to clear a rezoning roll first.
+export const PRIVATE_KINDS = {
+  residential: { landMul: 1, premiumMul: 0, weight: 34, label: "住宅地" },
+  industrial: { landMul: 0.42, premiumMul: 0.55, weight: 38, label: "工廈地" },
+  farm: { landMul: 0.14, premiumMul: 0.78, weight: 28, label: "農地" },
+};
+export const PREMIUM_ROUTES = {
+  standard: 1.08,
+  negotiateMin: 0.8,
+  negotiateMax: 1.2,
+  actual: 1.15,
+  rezoningChance: 0.85,
+  retryFee: 0.02,
+  sellBack: 0.7,
+};
 
 // The in-house builder improves with every project it delivers.
 export const OWN_LEVELS = [
@@ -706,6 +722,7 @@ function parseStake(raw) {
 
 export function jvEligible(offer) {
   if (!offer) return false;
+  if (offer.type === "private") return false;
   const tier = offer.siteTier || "small";
   if (tier === "small") return false;
   return offer.verdict === "expensive" || tier === "mid" || tier === "large" || tier === "flagship";
@@ -776,7 +793,7 @@ function tierDelta(state) {
 }
 
 function typeWeights(state) {
-  const weights = { ura: 1, mtr: 1, gov: 1 };
+  const weights = { ura: 1, mtr: 1, gov: 1, private: 1 };
   for (const effect of activeEffects(state)) {
     if (typeof effect.mtrWeight === "number") weights.mtr *= effect.mtrWeight;
     if (typeof effect.uraWeight === "number") weights.ura *= effect.uraWeight;
@@ -1137,7 +1154,8 @@ function lerp(min, max, t) {
 export function priceOffer(skeleton, levels, catalog, heat = "loose") {
   const bench = gameBench(catalog, skeleton.district, levels);
   const profitShare = profitShareRate(skeleton.type, skeleton, catalog.balance);
-  const landExact = bench.fairLandPerFt2 * skeleton.premium;
+  const kind = PRIVATE_KINDS[skeleton.privateKind] || PRIVATE_KINDS.residential;
+  const landExact = bench.fairLandPerFt2 * skeleton.premium * (skeleton.type === "private" ? kind.landMul : 1);
   const buildExact = bench.fairBuildPerFt2;
   const flavour = districtFlavour(skeleton.district, catalog.balance);
   const useHeat = heat === "spicy" ? "spicy" : "loose";
@@ -1162,6 +1180,10 @@ export function priceOffer(skeleton, levels, catalog, heat = "loose") {
       buyer: levels.buyer,
     },
     landPerFt2: money(landExact),
+    privateKind: skeleton.type === "private" ? (skeleton.privateKind || "residential") : null,
+    premiumPsf: skeleton.type === "private" && kind.premiumMul
+      ? money(bench.fairLandPerFt2 * kind.premiumMul)
+      : 0,
     landTotal: money(landExact * skeleton.gfaFt2),
     fairLandPerFt2: money(bench.fairLandPerFt2),
     verdict: priceVerdict(skeleton.premium, catalog.balance),
@@ -1188,7 +1210,18 @@ function rolledPremium(type, district, rng, balance, state, fixed) {
   return Math.round(clamp(prem, 0.55, 1.6) * 1000) / 1000;
 }
 
+function pickPrivateKind(rng) {
+  const rows = Object.entries(PRIVATE_KINDS);
+  const total = rows.reduce((sum, [, row]) => sum + row.weight, 0);
+  let cursor = rng.next() * total;
+  for (const [id, row] of rows) {
+    cursor -= row.weight;
+    if (cursor <= 0) return id;
+  }
+  return rows[rows.length - 1][0];
+}
 function makeOffer({ slot, type, district, gfaFt2, premium, rng, catalog, levels, used, heat, tier = "small", forceSmall = false, fixedGfa = false, state = null }) {
+  const privateKind = type === "private" ? pickPrivateKind(rng) : null;
   const spec = catalog.balance.landTypes[type];
   const picked = district || pickDistrict(type, rng, catalog.balance, used);
   const rawBase = gfaFt2 || snapGfa(lerp(spec.gfaMin, spec.gfaMax, rng.next()));
@@ -1203,6 +1236,7 @@ function makeOffer({ slot, type, district, gfaFt2, premium, rng, catalog, levels
       district: picked,
       gfaFt2: gfa,
       premium: prem,
+      privateKind,
     },
     levels,
     catalog,
@@ -1259,10 +1293,10 @@ function pickWeighted(rng, weights) {
 
 function randomOffers(rng, state, catalog, heat, tier, forceSmall) {
   const weights = typeWeights(state);
-  const skewed = Math.abs(weights.ura - weights.mtr) > 0.001 || Math.abs(weights.mtr - weights.gov) > 0.001;
+  const skewed = new Set([weights.ura, weights.mtr, weights.gov, weights.private]).size > 1;
   const types = skewed
     ? [pickWeighted(rng, weights), pickWeighted(rng, weights), pickWeighted(rng, weights)]
-    : shuffle(["ura", "mtr", "gov"], rng);
+    : shuffle(["ura", "mtr", "gov", "private"], rng).slice(0, 3);
   const used = new Set();
   return ["A", "B", "C"].map((slot, index) =>
     makeOffer({
@@ -1574,6 +1608,19 @@ export function chooseLand(catalog, state, slot, rawStake = 1, opts = {}) {
   if (state.cash < due) return fail(state, "insufficient_cash");
   const { value: move, rngCursor } = runRng(state, (rng) => drawMove(state, catalog, rng));
   const market = tickMarket(state.market, move, catalog.balance);
+  let premium = null;
+  if (offer.type === "private" && offer.premiumPsf > 0) {
+    const roll = createRng((tenderSeed(state, offer) ^ 0x9e3779b9) >>> 0).next();
+    const rejected = offer.privateKind === "farm" && roll >= PREMIUM_ROUTES.rezoningChance;
+    premium = {
+      kind: offer.privateKind,
+      base: money(offer.premiumPsf * offer.gfaFt2),
+      status: rejected ? "rejected" : "pending",
+      route: null,
+      amount: 0,
+      tries: 0,
+    };
+  }
   return succeed({
     ...state,
     rngCursor,
@@ -1596,7 +1643,81 @@ export function chooseLand(catalog, state, slot, rawStake = 1, opts = {}) {
       contractor: null,
       choices: null,
       sale: null,
+      premium,
     },
+  });
+}
+
+// ---- Premium gate ---------------------------------------------------------
+
+export function premiumGate(state) {
+  const status = state?.project?.premium?.status;
+  return status === "pending" || status === "rejected" ? status : null;
+}
+
+export function premiumQuote(state, route) {
+  const premium = state?.project?.premium;
+  if (!premium || premium.status !== "pending") return null;
+  const base = Math.max(0, premium.base || 0);
+  if (route === "standard") return { route, amount: money(base * PREMIUM_ROUTES.standard), due: "now", mul: PREMIUM_ROUTES.standard };
+  if (route === "negotiate") {
+    const roll = createRng((base ^ (state.seed || 0) ^ ((state.completed + 1) * 2654435761)) >>> 0).next();
+    const mul = PREMIUM_ROUTES.negotiateMin + roll * (PREMIUM_ROUTES.negotiateMax - PREMIUM_ROUTES.negotiateMin);
+    return { route, amount: money(base * mul), due: "now", mul };
+  }
+  if (route === "actual") return { route, amount: money(base * PREMIUM_ROUTES.actual), due: "settle", mul: PREMIUM_ROUTES.actual };
+  return null;
+}
+
+export function settlePremium(state, route) {
+  const quote = premiumQuote(state, route);
+  if (!quote) return fail(state, "no_premium");
+  if (quote.due === "now" && state.cash < quote.amount) return fail(state, "insufficient_cash");
+  const premium = {
+    ...state.project.premium,
+    status: quote.due === "settle" ? "deferred" : "done",
+    route,
+    amount: quote.amount,
+    paidAt: quote.due === "now" ? state.completed : null,
+  };
+  return succeed({
+    ...state,
+    cash: quote.due === "now" ? money(state.cash - quote.amount) : state.cash,
+    project: { ...state.project, premium },
+  });
+}
+
+export function retryRezoning(state) {
+  const premium = state?.project?.premium;
+  if (!premium || premium.status !== "rejected") return fail(state, "no_premium");
+  const fee = money((state.project.offer?.landPaid || 0) * PREMIUM_ROUTES.retryFee);
+  if (state.cash < fee) return fail(state, "insufficient_cash");
+  const roll = createRng((premium.base ^ ((state.completed + 1) * 7919) ^ (state.seed || 0)) >>> 0).next();
+  const passed = roll < PREMIUM_ROUTES.rezoningChance;
+  return succeed({
+    ...state,
+    cash: money(state.cash - fee),
+    project: {
+      ...state.project,
+      premium: { ...premium, status: passed ? "pending" : "rejected", tries: (premium.tries || 0) + 1 },
+    },
+  });
+}
+
+export function sellBackLand(catalog, state) {
+  if (state.phase !== "build") return fail(state, "bad_phase");
+  const premium = state?.project?.premium;
+  if (!premium || premium.status !== "rejected") return fail(state, "no_premium");
+  const refund = money((state.project.offer?.landPaid || 0) * PREMIUM_ROUTES.sellBack);
+  const { value: move, rngCursor } = runRng(state, (rng) => drawMove(state, catalog, rng));
+  const market = tickMarket(state.market, move, catalog.balance);
+  return succeed({
+    ...state,
+    rngCursor,
+    market,
+    cash: money(state.cash + refund),
+    phase: "settle",
+    project: { index: state.completed + 1, skipped: true, move, refund },
   });
 }
 
@@ -1632,6 +1753,7 @@ export function rollCollapse(spec, roll) {
 
 export function chooseContractor(catalog, state, contractorId, rawMix, loanMode = "cash", assemblyId = "standard") {
   if (state.phase !== "build") return fail(state, "bad_phase");
+  if (premiumGate(state)) return fail(state, "need_premium");
   catalog = withOwnLevel(catalog, state);
   const spec = catalog.balance.contractors[contractorId];
   if (!spec) return fail(state, "bad_contractor");
@@ -2112,7 +2234,7 @@ export function resolveSale(catalog, state, rawChoices, roll) {
     operating: books.operating,
     clearBonus,
     netCash,
-    profit,
+    profit: money(profit - (state.project?.premium?.amount || 0)),
     reputationDelta,
   };
 }
@@ -2379,6 +2501,7 @@ export function confirmSettle(catalog, state) {
     const sale = state.project.sale;
     const soldFt2 = UNIT_SPECS.reduce((sum, spec) => sum + ((sale.byType?.[spec.id]?.sold || 0) * spec.ft2), 0);
     cash = money(cash + sale.netCash);
+    if (state.project.premium?.status === "deferred") cash = money(cash - (state.project.premium.amount || 0));
     reputation = clamp(reputation + sale.reputationDelta, 0, 100);
     unitsSold += sale.sold;
     unitsLaunched += sale.units;
@@ -2517,6 +2640,8 @@ function slimOffer(offer) {
     district: offer.district,
     gfaFt2: offer.gfaFt2,
     premium: offer.premium,
+    privateKind: offer.privateKind || null,
+    premiumPsf: offer.premiumPsf || 0,
     quotedAt: offer.quotedAt,
     siteTier: offer.siteTier || "small",
     forcedSmall: Boolean(offer.forcedSmall),
@@ -2591,6 +2716,7 @@ export function serializeCampaign(state) {
           mixWeak: Boolean(state.project.mixWeak),
           mix: state.project.mix ? { ...state.project.mix } : null,
           choices: state.project.choices || null,
+          premium: state.project.premium ? { ...state.project.premium } : null,
           saleRoll: typeof state.project.saleRoll === "number" ? state.project.saleRoll : null,
         }
       : null,
@@ -2742,6 +2868,7 @@ export function hydrateCampaign(catalog, saved) {
       mixWeak: Boolean(saved.project.mixWeak),
       mix: saved.project.mix ? normalizeMix(saved.project.mix) : null,
       choices: saved.project.choices || null,
+      premium: saved.project.premium ? { ...saved.project.premium } : null,
       saleRoll: typeof saved.project.saleRoll === "number" ? saved.project.saleRoll : null,
       sale: null,
     };
@@ -2862,6 +2989,7 @@ export function settlementPreview(catalog, state) {
   }
   const sale = state.project.sale;
   let cash = money((state.cash || 0) + (sale?.netCash || 0));
+  if (state.project.premium?.status === "deferred") cash = money(cash - (state.project.premium.amount || 0));
   const completed = (state.completed || 0) + 1;
   let released = 0;
   for (const item of state.frozen || []) {

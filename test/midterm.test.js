@@ -33,6 +33,9 @@ import {
   sizePools,
   skipLand,
   unitTotal,
+  premiumGate,
+  settlePremium,
+  sellBackLand,
 } from "../game/campaign.js";
 import { STORIES } from "../game/stories.js";
 
@@ -51,6 +54,11 @@ function start(seed = 7) {
 function finishProject(state, loan = "cash") {
   const slot = [...state.offers].sort((a, b) => a.landTotal - b.landTotal)[0];
   let next = chooseLand(catalog, state, slot.slot).state;
+  if (premiumGate(next) === "rejected") next = sellBackLand(catalog, next).state;
+  else if (premiumGate(next)) {
+    const paid = settlePremium(next, "standard");
+    next = paid.ok ? paid.state : settlePremium(next, "actual").state;
+  }
   let built = chooseContractor(catalog, next, "huimen", null, loan);
   if (!built.ok) built = chooseContractor(catalog, next, "huimen", null, loan === "cash" ? "big" : "cash");
   next = built.state;

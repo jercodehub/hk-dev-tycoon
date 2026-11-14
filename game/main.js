@@ -42,6 +42,13 @@ import {
   isTutorial,
   isOnboarding,
   jvEligible,
+  PRIVATE_KINDS,
+  PREMIUM_ROUTES,
+  premiumGate,
+  premiumQuote,
+  retryRezoning,
+  sellBackLand,
+  settlePremium,
   maxTenderBid,
   noteTenderLoss,
   submitTender,
@@ -269,7 +276,7 @@ function eventKey(id) {
 }
 
 function typeKey(type) {
-  return { ura: "typeUra", mtr: "typeMtr", gov: "typeGov" }[type];
+  return { ura: "typeUra", mtr: "typeMtr", gov: "typeGov", private: "typePrivate" }[type];
 }
 
 function typeNote(type) {
@@ -687,10 +694,13 @@ function landCard(offer) {
   const venture = jvEligible(offer) ? ` · ${t(ui.lang, "partnerShare")}` : "";
   const priceName = offer.type === "ura" ? t(ui.lang, "upfrontCost") : t(ui.lang, "landCost");
   const rail = offer.type === "mtr" ? `<p class="deal rail">${t(ui.lang, "mtrRail")}</p>` : "";
+  const privateLine = offer.type === "private"
+    ? `<p class="fine plot-premium">${t(ui.lang, "privateKind", { kind: t(ui.lang, privateKey(offer.privateKind)) })}${offer.premiumPsf > 0 ? ` · ${t(ui.lang, "premiumNeeded", { psf: formatHkd(offer.premiumPsf), total: compactHkd(offer.premiumPsf * offer.gfaFt2) })}` : ` · ${t(ui.lang, "premiumNone")}`}</p>`
+    : "";
   const body = `<div class="head"><h3>${t(ui.lang, "slot", { slot: offer.slot })} · ${t(ui.lang, typeKey(offer.type))}</h3>${stamp(offer.verdict)}</div>
     <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${formatCount(offer.gfaFt2)} ${t(ui.lang, "ft")} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
     <p class="fine plot-price">${priceName} ${formatHkd(offer.landPerFt2)}${t(ui.lang, "perFt")} · ${compactHkd(offer.landTotal)}</p>
-    <p class="fine ledger-preview">${deal}${venture}</p>${rail}`;
+    <p class="fine ledger-preview">${deal}${venture}</p>${privateLine}${rail}`;
   if (tenderActive(ui.state) && offer.type === "gov") {
     return `<button class="choice plot tender-entry" data-action="tender-open" data-slot="${offer.slot}">
       ${body}
@@ -865,7 +875,81 @@ function salesBlock(sales, state = ui.state) {
   </div>`;
 }
 
+function privateKey(kind) {
+  return kind === "industrial" ? "kindIndustrial" : kind === "farm" ? "kindFarm" : "kindResidential";
+}
+function premiumKey(kind) {
+  return kind === "industrial" ? "kindIndustrial" : kind === "farm" ? "kindFarm" : "kindResidential";
+}
+function premiumView() {
+  const project = ui.state.project;
+  const premium = project.premium;
+  const kind = t(ui.lang, premiumKey(premium.kind));
+  const kicker = `${t(ui.lang, "premiumKicker")} · ${kind}`;
+  if (premium.status === "rejected") {
+    const fee = Math.round((project.offer.landPaid || 0) * PREMIUM_ROUTES.retryFee);
+    const refund = Math.round((project.offer.landPaid || 0) * PREMIUM_ROUTES.sellBack);
+    return `${errorBanner()}
+      <p class="kicker">${kicker}</p>
+      <section class="card premium-card">
+        <h2>${t(ui.lang, "rezoningFail")}</h2>
+        <p class="note">${t(ui.lang, "rezoningFailNote")}</p>
+        <div class="row"><span>${t(ui.lang, "rezoningTries")}</span><strong>${premium.tries || 1}</strong></div>
+        <div class="row"><span>${t(ui.lang, "rezoningRetry")}</span><strong>${compactHkd(fee)}</strong></div>
+        <div class="row"><span>${t(ui.lang, "rezoningSell")}</span><strong>${compactHkd(refund)}</strong></div>
+      </section>
+      <div class="premium-actions">
+        <button class="ghost" data-action="premium-sell">${t(ui.lang, "rezoningSellBtn")}</button>
+        <button class="go" data-action="premium-retry" ${ui.state.cash < fee ? "disabled" : ""}>${t(ui.lang, "rezoningRetryBtn")}</button>
+      </div>`;
+  }
+  const standard = premiumQuote(ui.state, "standard");
+  const negotiate = premiumQuote(ui.state, "negotiate");
+  const actual = premiumQuote(ui.state, "actual");
+  const low = Math.round(premium.base * PREMIUM_ROUTES.negotiateMin);
+  const high = Math.round(premium.base * PREMIUM_ROUTES.negotiateMax);
+  const options = [
+    {
+      id: "premium-standard",
+      name: t(ui.lang, "premiumStandard"),
+      amount: compactHkd(standard.amount),
+      sub: t(ui.lang, "premiumStandardSub"),
+      disabled: ui.state.cash < standard.amount,
+    },
+    {
+      id: "premium-negotiate",
+      name: t(ui.lang, "premiumNegotiate"),
+      amount: `${compactHkd(low)}–${compactHkd(high)}`,
+      sub: t(ui.lang, "premiumNegotiateSub"),
+      disabled: ui.state.cash < Math.round(premium.base * PREMIUM_ROUTES.negotiateMax),
+    },
+    {
+      id: "premium-actual",
+      name: t(ui.lang, "premiumActual"),
+      amount: compactHkd(actual.amount),
+      sub: t(ui.lang, "premiumActualSub"),
+      disabled: false,
+    },
+  ];
+  return `${errorBanner()}
+    <p class="kicker">${kicker}</p>
+    <section class="card premium-card">
+      <p class="premium-lead">${t(ui.lang, "premiumLead")}</p>
+      <h2>${compactHkd(premium.base)}</h2>
+      <p class="fine">${t(ui.lang, "premiumBaseNote", { psf: formatHkd(Math.round(premium.base / project.offer.gfaFt2)) })}</p>
+      <div class="row"><span>${t(ui.lang, "premiumCash")}</span><strong>${compactHkd(ui.state.cash)}</strong></div>
+    </section>
+    <div class="premium-grid">
+      ${options.map((option) => `<button class="premium-option" data-action="${option.id}" ${option.disabled ? "disabled" : ""}>
+        <span class="premium-name">${option.name}</span>
+        <strong>${option.amount}</strong>
+        <small>${option.sub}</small>
+      </button>`).join("")}
+    </div>
+    <p class="fine premium-hint">${t(ui.lang, "premiumHint")}</p>`;
+}
 function buildView() {
+  if (premiumGate(ui.state)) return premiumView();
   ensureBuild();
   const onboarding = isOnboarding(ui.state);
   const offer = ui.state.project.offer;
@@ -1880,11 +1964,14 @@ function settleView() {
   const stake = stakeOf(project.offer);
   const youLine = stake < 1 ? row(t(ui.lang, "partnerShare"), t(ui.lang, "ledgerYou", { pct: Math.round(stake * 100) })) : "";
   const promo = (sale.promoFull || 0) > 0 ? row(t(ui.lang, "promoBill"), formatHkd(sale.promoFull)) : "";
+  const premiumRow = project.premium && project.premium.amount > 0
+    ? row(t(ui.lang, "premiumBill"), `${formatHkd(project.premium.amount)}${project.premium.status === "deferred" ? t(ui.lang, "premiumDeferredTag") : ""}`)
+    : "";
   const revenue = sale.revenue || sale.gross || 0;
   const { ledger, cashFlow } = settlementGroups({
     t, row, formatHkd, compactHkd, lang: ui.lang, revenue,
     landLabel: t(ui.lang, landKey), landCost: sale.landFull || project.offer.landTotal,
-    buildCost: sale.buildFull || project.contractor.total, promo, shareLine, youLine,
+    buildCost: sale.buildFull || project.contractor.total, promo, shareLine, youLine: youLine + premiumRow,
     profit: sale.profit, profitClass: cls, profitSign: sign,
     currentCash: ui.state.cash || 0, settledCash: preview.cash, owed: preview.owed, bankPaid: preview.paid,
   });
@@ -2138,6 +2225,7 @@ function dock() {
     return `<footer class="dock"><button class="wide" data-action="skip">${t(ui.lang, "skip")}<small>${t(ui.lang, "skipSub")}</small></button></footer>`;
   }
   if (phase === "build") {
+    if (premiumGate(ui.state)) return "";
     ensureBuild();
     const used = gfaUsed(ui.build.mix);
     const left = assemblyBuildState().project.offer.gfaFt2 - used;
@@ -2945,6 +3033,40 @@ function onClick(event) {
     if (id === "cash" || id === "small" || id === "big") ui.build.loan = id;
     ui.error = null;
     render();
+    return;
+  }
+  if (action === "premium-standard" || action === "premium-negotiate" || action === "premium-actual") {
+    const route = action.replace("premium-", "");
+    const paid = settlePremium(ui.state, route);
+    if (!paid.ok) {
+      ui.error = paid.error;
+      render();
+      return;
+    }
+    ui.error = null;
+    apply(paid);
+    return;
+  }
+  if (action === "premium-retry") {
+    const retried = retryRezoning(ui.state);
+    if (!retried.ok) {
+      ui.error = retried.error;
+      render();
+      return;
+    }
+    ui.error = null;
+    apply(retried);
+    return;
+  }
+  if (action === "premium-sell") {
+    const sold = sellBackLand(ui.catalog, ui.state);
+    if (!sold.ok) {
+      ui.error = sold.error;
+      render();
+      return;
+    }
+    ui.error = null;
+    apply(sold);
     return;
   }
   if (action === "confirm-build") {

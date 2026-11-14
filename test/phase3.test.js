@@ -42,6 +42,9 @@ import {
   unitPopularity,
   unitTotal,
   voiceComment,
+  premiumGate,
+  settlePremium,
+  sellBackLand,
 } from "../game/campaign.js";
 import { playerFacingCopy } from "../game/copy.js";
 import { STORIES } from "../game/stories.js";
@@ -326,8 +329,14 @@ test("a full 20-project run still closes", () => {
     if (state.phase === "story") state = chooseStory(catalog, state, state.story.choices[0].id).state;
     else if (state.phase === "land") {
       const affordable = [...state.offers].sort((a, b) => a.landTotal - b.landTotal);
-      if (affordable[0].landTotal <= state.cash) state = chooseLand(catalog, state, affordable[0].slot).state;
-      else state = skipLand(catalog, state).state;
+      if (affordable[0].landTotal <= state.cash) {
+        state = chooseLand(catalog, state, affordable[0].slot).state;
+        if (premiumGate(state) === "rejected") state = sellBackLand(catalog, state).state;
+        else if (premiumGate(state)) {
+          const paid = settlePremium(state, "standard");
+          state = paid.ok ? paid.state : settlePremium(state, "actual").state;
+        }
+      } else state = skipLand(catalog, state).state;
     } else if (state.phase === "build") {
       let built = chooseContractor(catalog, state, "huimen");
       if (!built.ok) built = chooseContractor(catalog, state, "huimen", null, "big");

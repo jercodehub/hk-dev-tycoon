@@ -1449,3 +1449,27 @@ button:disabled {
 .tender-result h2 { margin: 4px 0 2px; font-size: 1.9rem; font-variant-numeric: tabular-nums; }
 .tender-result .tender-rows { margin: 10px 0 6px; }
 .tender-note { color: var(--muted); line-height: 1.5; }
+
+/* Private land premium */
+.plot-premium { color: var(--game); }
+.premium-card { border-color: var(--game); }
+.premium-card h2 { font-size: 2rem; margin: 4px 0 2px; color: var(--game); font-variant-numeric: tabular-nums; }
+.premium-lead { margin: 0 0 4px; color: var(--muted); }
+.premium-grid { display: grid; gap: 8px; margin: 10px 0 6px; }
+.premium-option {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+.premium-option:disabled { opacity: 0.45; }
+.premium-option strong { font-size: 1.4rem; color: var(--game); font-variant-numeric: tabular-nums; }
+.premium-option small { color: var(--muted); }
+.premium-name { font-weight: 800; }
+.premium-actions { display: flex; gap: 8px; margin-top: 10px; }
+.premium-actions button { flex: 1; }
+.premium-hint { color: var(--muted); line-height: 1.5; }

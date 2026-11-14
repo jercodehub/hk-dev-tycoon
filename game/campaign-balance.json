@@ -59,6 +59,15 @@
       "partnerRate": 0,
       "profitShareMin": 0,
       "profitShareMax": 0
+    },
+    "private": {
+      "premiumMin": 0.5,
+      "premiumMax": 0.85,
+      "gfaMin": 12000,
+      "gfaMax": 55000,
+      "partnerRate": 0,
+      "profitShareMin": 0,
+      "profitShareMax": 0
     }
   },
   "heatEvery": 5,
