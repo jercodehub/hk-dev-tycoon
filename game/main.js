@@ -68,6 +68,7 @@ import {
 import { t } from "./copy.js";
 import { STORIES } from "./stories.js";
 import { districtLabel, formatHkd } from "./i18n.js";
+import { settlementGroups } from "./ui/settlement.js";
 
 const SAVE_KEY = "hk-dev-tycoon-v3";
 const OLD_KEYS = ["hk-dev-tycoon-v2", "hk-dev-tycoon-v1"];
@@ -1201,22 +1202,13 @@ function settleView() {
   const youLine = stake < 1 ? row(t(ui.lang, "partnerShare"), t(ui.lang, "ledgerYou", { pct: Math.round(stake * 100) })) : "";
   const promo = (sale.promoFull || 0) > 0 ? row(t(ui.lang, "promoBill"), formatHkd(sale.promoFull)) : "";
   const revenue = sale.revenue || sale.gross || 0;
-  const currentCash = ui.state.cash || 0;
-  const ledger = `<div class="settlement-group"><h3>${t(ui.lang, "financeLedger")}</h3>
-    ${row(t(ui.lang, "projectRevenue"), `+${formatHkd(revenue)}`)}
-    ${row(t(ui.lang, landKey), `−${formatHkd(sale.landFull || project.offer.landTotal)}`)}
-    ${row(t(ui.lang, "buildCost"), `−${formatHkd(sale.buildFull || project.contractor.total)}`)}
-    ${promo}
-    ${shareLine}
-    ${youLine}
-    <div class="big-profit ${cls}">${sign}${formatHkd(sale.profit)}</div>
-  </div>`;
-  const cashFlow = `<div class="settlement-group"><h3>${t(ui.lang, "cashFlow")}</h3>
-    ${row(t(ui.lang, "currentCash"), compactHkd(currentCash))}
-    ${row(t(ui.lang, "settledCash"), compactHkd(preview.cash))}
-    ${preview.owed > 0 ? row(t(ui.lang, "stillOwed"), compactHkd(preview.owed)) : row(t(ui.lang, "loanRow"), compactHkd(0))}
-    ${preview.paid > 0 ? row(t(ui.lang, "bankPaid"), compactHkd(preview.paid)) : ""}
-  </div>`;
+  const { ledger, cashFlow } = settlementGroups({
+    t, row, formatHkd, compactHkd, lang: ui.lang, revenue,
+    landLabel: t(ui.lang, landKey), landCost: sale.landFull || project.offer.landTotal,
+    buildCost: sale.buildFull || project.contractor.total, promo, shareLine, youLine,
+    profit: sale.profit, profitClass: cls, profitSign: sign,
+    currentCash: ui.state.cash || 0, settledCash: preview.cash, owed: preview.owed, bankPaid: preview.paid,
+  });
   return `${bridgeBanner()}<section class="card${party ? " clear-card" : ""}" data-action="skip-ceremony"><h2>${t(ui.lang, "settleKicker")}</h2>
     ${stampClear}
     ${confetti}
