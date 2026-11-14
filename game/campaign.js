@@ -7,6 +7,7 @@
 
 import { DISTRICTS } from "./i18n.js";
 import { STORIES } from "./stories.js";
+import { TENDER, createTender, depositFor, maxBidPsf, resolveTender } from "./tender.js";
 
 export const SAVE_VERSION = 8;
 export const CAPITAL_ASSETS = {
@@ -1385,6 +1386,104 @@ export function isOnboarding(state) {
   return Boolean(state && !state.onboarding?.completed && state.completed < 1);
 }
 
+// ---- Land tender plumbing -------------------------------------------------
+// The engine stays dormant until the flag is switched on, so the live game
+// keeps its current land flow while the tender screens are built.
+
+export function landTenderEnabled(state) {
+  return Boolean(state?.flags?.landTender);
+}
+
+export function lockedDeposits(state) {
+  return money((state?.deposits || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
+}
+
+export function availableCash(state) {
+  return money(Math.max(0, (Number(state?.cash) || 0) - lockedDeposits(state)));
+}
+
+export function maxTenderBid(state, offer) {
+  if (!offer) return 0;
+  return maxBidPsf({ cash: availableCash(state), gfaFt2: offer.gfaFt2 });
+}
+
+function marketTrend(market) {
+  const trail = Array.isArray(market?.history) ? market.history : [];
+  if (trail.length < TENDER.trendLookback + 1) return 0;
+  const now = trail[trail.length - 1];
+  const then = trail[trail.length - 1 - TENDER.trendLookback];
+  if (!then) return 0;
+  return clamp((now - then) / then, -1, 1);
+}
+
+function tenderSeed(state, offer) {
+  const text = `${offer?.slot || ""}|${offer?.district || ""}|${offer?.type || ""}`;
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  return ((state?.seed || 0) ^ hash ^ ((state?.completed || 0) * 2654435761)) >>> 0;
+}
+
+export function tenderBook(state, offer) {
+  if (!offer) return null;
+  return createTender({
+    basePsf: offer.landPerFt2,
+    gfaFt2: offer.gfaFt2,
+    kind: offer.type,
+    heat: offer.heat,
+    trend: marketTrend(state?.market),
+    rng: createRng(tenderSeed(state, offer)),
+  });
+}
+
+// Resolve a sealed bid and record the deposit when it wins.
+export function submitTender(state, offer, bidPsf) {
+  if (!landTenderEnabled(state)) return { ok: false, error: "tender_disabled", state, result: null };
+  if (!offer) return { ok: false, error: "bad_offer", state, result: null };
+  if ((state.deposits || []).some((item) => item.slot === offer.slot)) {
+    return { ok: false, error: "already_bidding", state, result: null };
+  }
+  const book = tenderBook(state, offer);
+  const result = resolveTender({
+    tender: book,
+    bidPsf,
+    cash: availableCash(state),
+    gfaFt2: offer.gfaFt2,
+  });
+  if (result.outcome === "blocked") {
+    return { ok: false, error: result.reason, state, result };
+  }
+  const deposits = (state.deposits || []).filter((item) => item.slot !== offer.slot);
+  if (result.outcome === "win") {
+    deposits.push({
+      slot: offer.slot,
+      district: offer.district,
+      type: offer.type,
+      amount: result.deposit,
+      round: state.completed || 0,
+      status: "won",
+    });
+  }
+  return { ok: true, error: null, state: { ...state, deposits }, result };
+}
+
+// Release a locked deposit without charging the player.
+export function releaseTenderDeposit(state, slot) {
+  const deposits = (state.deposits || []).filter((item) => item.slot !== slot);
+  return { ...state, deposits };
+}
+
+// Walking away from a won site forfeits the deposit for real.
+export function forfeitTenderDeposit(state, slot) {
+  const entry = (state.deposits || []).find((item) => item.slot === slot);
+  if (!entry) return state;
+  const amount = Number(entry.amount) || 0;
+  return {
+    ...state,
+    cash: money(Math.max(0, (state.cash || 0) - amount)),
+    deposits: (state.deposits || []).filter((item) => item.slot !== slot),
+  };
+}
+
 function drawMove(state, catalog, rng) {
   const base = catalog.balance.drifts[state.market.step % catalog.balance.drifts.length];
   const noise = catalog.balance.driftNoise ? (rng.next() - 0.5) * catalog.balance.driftNoise : 0;
@@ -1414,6 +1513,7 @@ export function createCampaign(catalog, { company, seed = 1 } = {}) {
     rngCursor,
     poolBias: emptyBias(),
     frozen: [],
+    deposits: [],
     voice: emptyVoice(),
     notice: null,
     credit: emptyCredit(),
@@ -2432,6 +2532,7 @@ export function serializeCampaign(state) {
     poolBias: { ...emptyBias(), ...(state.poolBias || {}) },
     voice: { ...emptyVoice(), ...(state.voice || {}) },
     frozen: (state.frozen || []).map((item) => ({ ...item })),
+    deposits: (state.deposits || []).map((item) => ({ ...item })),
     history: state.history.map((item) => ({ ...item })),
     credit: { ...emptyCredit(), ...(state.credit || {}) },
     storyCounts: { ...(state.storyCounts || {}) },
@@ -2561,6 +2662,7 @@ export function hydrateCampaign(catalog, saved) {
       stuck: Number(saved.voice?.stuck) || 0,
     },
     frozen: Array.isArray(saved.frozen) ? saved.frozen.map((item) => ({ ...item })) : [],
+    deposits: Array.isArray(saved.deposits) ? saved.deposits.map((item) => ({ ...item })) : [],
     history,
     credit: { ...emptyCredit(), ...(saved.credit || {}) },
     storyCounts: { ...(saved.storyCounts || {}) },
