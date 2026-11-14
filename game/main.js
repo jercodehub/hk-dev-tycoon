@@ -1302,8 +1302,13 @@ function sellLive() {
   const showOutcome = ui.sale.mode === "done";
   const shown = showOutcome ? quote.sold : ui.sale.shownSold;
   const heat = showOutcome ? quote.heat : Math.round(quote.heat * 0.15);
+  const poolTotal = Object.values(quote.poolsBefore || {}).reduce((a, b) => a + b, 0);
+  const over = Math.max(1, Math.round(poolTotal / Math.max(1, quote.units)));
+  const feed = UNIT_SPECS.filter((sp) => quote.byType?.[sp.id]?.sold > 0).slice(0, 3)
+    .map((sp) => `<div><b>${t(ui.lang, UNIT_KEYS[sp.id][0])}</b> ${compactHkd(quote.byType[sp.id].ask)} · ${quote.byType[sp.id].sold} 伙</div>`).join("");
   return `<section class="card sale-stage showroom">
       <p class="kicker">${t(ui.lang, "showroom")} · ${escapeHtml(ui.state.project.name || "")}</p>
+      <div class="live-q"><b>超額 ${over} 倍</b><span>排隊 ${formatCount(poolTotal)} 人 · 剩 ${formatCount(Math.max(0, quote.units - shown))} 伙</span></div>
       <div class="heat" aria-hidden="true"><span id="heat-fill" style="width:${heat}%"></span></div>
       <div class="sale-nums">
         <div><span>${t(ui.lang, "heat")}</span><strong id="heat-num">${heat}</strong></div>
@@ -1315,6 +1320,7 @@ function sellLive() {
       <p class="fine" id="cake-line">${quote.cakeSweep > 0 && shown > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : ""}</p>
       <p class="fine">${t(ui.lang, "floorCash")} <strong id="tally">${compactHkd(shown && quote.sold ? Math.round((quote.gross * shown) / quote.sold) : 0)}</strong></p>
       ${cheerExtraLine(ui.sale.choices)}
+      <div class="live-feed"><span>${t(ui.lang, "liveFeed")}</span>${feed || `<div>${t(ui.lang, "liveNoSales")}</div>`}</div>
       ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : `<p class="kicker">${t(ui.lang, "selling", { n: Math.max(0, ui.catalog.balance.cheerMax - ui.sale.choices.cheer) })}</p>`}
     </section>`;
 }
