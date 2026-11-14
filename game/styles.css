@@ -42,7 +42,7 @@ button:disabled { cursor: not-allowed; }
   grid-template-columns: auto 1fr auto;
   gap: 10px;
   align-items: center;
-  padding: 10px 12px 8px;
+  padding: 10px max(12px, calc((100% - 920px) / 2 + 12px)) 8px;
   background: #121a26;
   border-bottom: 1px solid var(--line);
   position: sticky;
@@ -112,9 +112,11 @@ button:disabled { cursor: not-allowed; }
 .shell[data-phase="gameover"] .stack,
 .shell[data-phase="sell"] .stack,
 .shell[data-phase="settle"] .stack {
-  margin-top: auto;
+  margin: auto 0;
 }
 .stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.settlement-group { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
+.settlement-group h3 { margin: 0 0 4px; font-size: var(--fs-secondary); color: var(--accent); }
 .card {
   background: var(--panel);
   border: 1px solid var(--line);

@@ -1059,7 +1059,7 @@ function sellLive() {
       <p class="fine" id="cake-line">${quote.cakeSweep > 0 && shown > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : ""}</p>
       <p class="fine">${t(ui.lang, "floorCash")} <strong id="tally">${compactHkd(shown && quote.sold ? Math.round((quote.gross * shown) / quote.sold) : 0)}</strong></p>
       ${cheerExtraLine(ui.sale.choices)}
-      ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : `<p class="kicker">${t(ui.lang, "selling")}</p>`}
+      ${showOutcome ? `${outcomeLine(quote)}${gapLine(quote)}${unitBars(barsFromQuote(quote))}` : `<p class="kicker">${t(ui.lang, "selling", { n: Math.max(0, ui.catalog.balance.cheerMax - ui.sale.choices.cheer) })}</p>`}
     </section>`;
 }
 
@@ -1199,6 +1199,23 @@ function settleView() {
   const stake = stakeOf(project.offer);
   const youLine = stake < 1 ? row(t(ui.lang, "partnerShare"), t(ui.lang, "ledgerYou", { pct: Math.round(stake * 100) })) : "";
   const promo = (sale.promoFull || 0) > 0 ? row(t(ui.lang, "promoBill"), formatHkd(sale.promoFull)) : "";
+  const revenue = sale.revenue || sale.gross || 0;
+  const currentCash = ui.state.cash || 0;
+  const ledger = `<div class="settlement-group"><h3>${t(ui.lang, "financeLedger")}</h3>
+    ${row(t(ui.lang, "projectRevenue"), `+${formatHkd(revenue)}`)}
+    ${row(t(ui.lang, landKey), `−${formatHkd(sale.landFull || project.offer.landTotal)}`)}
+    ${row(t(ui.lang, "buildCost"), `−${formatHkd(sale.buildFull || project.contractor.total)}`)}
+    ${promo}
+    ${shareLine}
+    ${youLine}
+    <div class="big-profit ${cls}">${sign}${formatHkd(sale.profit)}</div>
+  </div>`;
+  const cashFlow = `<div class="settlement-group"><h3>${t(ui.lang, "cashFlow")}</h3>
+    ${row(t(ui.lang, "currentCash"), compactHkd(currentCash))}
+    ${row(t(ui.lang, "settledCash"), compactHkd(preview.cash))}
+    ${preview.owed > 0 ? row(t(ui.lang, "stillOwed"), compactHkd(preview.owed)) : row(t(ui.lang, "loanRow"), compactHkd(0))}
+    ${preview.paid > 0 ? row(t(ui.lang, "bankPaid"), compactHkd(preview.paid)) : ""}
+  </div>`;
   return `${bridgeBanner()}<section class="card${party ? " clear-card" : ""}" data-action="skip-ceremony"><h2>${t(ui.lang, "settleKicker")}</h2>
     ${stampClear}
     ${confetti}
@@ -1208,13 +1225,7 @@ function settleView() {
     ${sale.clearBonus ? row(t(ui.lang, "clearBonus"), `+${formatHkd(sale.clearBonus)}`) : ""}
     <p class="fine">${escapeHtml(districtLabel(ui.lang, project.offer.district))} · ${t(ui.lang, flavourKey(project.offer.flavour))} · ${t(ui.lang, typeKey(project.offer.type))}</p>
     ${project.offer.type === "gov" ? `<p class="deal">${t(ui.lang, "govSettle")}</p>` : ""}
-    ${row(t(ui.lang, "saleIn"), formatHkd(sale.revenue || sale.gross))}
-    ${row(t(ui.lang, landKey), formatHkd(sale.landFull || project.offer.landTotal))}
-    ${row(t(ui.lang, "buildCost"), formatHkd(sale.buildFull || project.contractor.total))}
-    ${promo}
-    ${shareLine}
-    ${youLine}
-    <div class="big-profit ${cls}">${sign}${formatHkd(sale.profit)}</div>
+    ${ledger}
     ${sale.frozenAmount ? `<p class="fine">${t(ui.lang, "frozenLine", { cash: formatHkd(sale.frozenAmount) })}</p>` : ""}
     ${gapLine(sale)}
     ${mismatchEcho(project) ? `<p class="mismatch-line">${t(ui.lang, "mismatchTitle")}</p>` : ""}
@@ -1222,9 +1233,7 @@ function settleView() {
     ${loanLine}
     ${liveComment() ? `<p class="rep-line">${escapeHtml(t(ui.lang, liveComment()))}</p>` : ""}
     ${row(t(ui.lang, "soldNow"), `${sale.sold} / ${sale.units}`)}
-    ${row(t(ui.lang, "cashNow"), compactHkd(preview.cash))}
-    ${owed}
-    ${preview.paid > 0 ? row(t(ui.lang, "bankPaid"), compactHkd(preview.paid)) : ""}
+    ${cashFlow}
   </section>`;
 }
 
