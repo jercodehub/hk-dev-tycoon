@@ -2119,37 +2119,32 @@ function marketSheet() {
   if (!ui.marketSheet || !ui.state) return "";
   const heat = campaignHeat(ui.state, ui.catalog.balance);
   const heatWord = heat === "loose" ? t(ui.lang, "heatLoose") : t(ui.lang, "heatSpicy");
-  const heatNote = heat === "loose" ? t(ui.lang, "heatLooseNote") : t(ui.lang, "heatSpicyNote");
   const advice = heat === "loose" ? t(ui.lang, "heatLooseAdvice") : t(ui.lang, "heatSpicyAdvice");
-  const left = heatProjectsLeft(ui.state, ui.catalog.balance);
   const policy = policyNotes(ui.state);
   const event = ui.state.market?.event;
-  const comment = liveComment();
-  const row = (label, value) => `<div class="msheet-row"><span>${label}</span><b>${value}</b></div>`;
   const trail = (ui.state.market?.history || [1]).slice(-12);
   const now = marketIndex(ui.state.market);
   const before = marketIndex({ price: trail.length > 1 ? trail[trail.length - 2] : trail[0] });
   const move = before ? ((now - before) / before) * 100 : 0;
-  const since = trail.length > 1 ? Math.abs(((now - marketIndex({ price: trail[0] })) / marketIndex({ price: trail[0] })) * 100).toFixed(1) : "0.0";
   const dir = move > 0.05 ? "up" : move < -0.05 ? "down" : "flat";
   const tone = dir === "up" ? t(ui.lang, "indexUp") : dir === "down" ? t(ui.lang, "indexDown") : t(ui.lang, "indexFlat");
+  const line = (label, value) => `<div class="msheet-line"><em>${label}</em><div>${value}</div></div>`;
+  const read = `${tone}。${advice}`;
   return `<div class="menu"><div class="card market-sheet">
     <h3>${t(ui.lang, "marketSheetTitle")}</h3>
     <div class="idx-top">
       <div class="idx-big">${formatIndex(now)}<s>${t(ui.lang, "indexPoints")}</s></div>
       <div class="idx-delta ${dir}">${dir === "up" ? "▲" : dir === "down" ? "▼" : "▬"} ${Math.abs(move).toFixed(1)}%<small>${t(ui.lang, "indexSince")}</small></div>
     </div>
-    ${indexSpark(trail)}
-    ${row(t(ui.lang, "indexRead"), tone)}
-    ${row(t(ui.lang, "indexLand"), `${formatIndex(ui.state.market.land * 300)}　${t(ui.lang, "indexVsOpen")} ${ui.state.market.land >= 1 ? "▲" : "▼"}${Math.abs((ui.state.market.land - 1) * 100).toFixed(1)}%`)}
-    ${row(t(ui.lang, "indexBuild"), `${formatIndex(ui.state.market.build * 300)}　${t(ui.lang, "indexVsOpen")} ${ui.state.market.build >= 1 ? "▲" : "▼"}${Math.abs((ui.state.market.build - 1) * 100).toFixed(1)}%`)}
-    ${row(t(ui.lang, "marketTrend"), `${heatWord} · ${heatNote}`)}
-    ${row(t(ui.lang, "marketAdvice"), advice)}
-    ${row(t(ui.lang, "marketProjects"), `${ui.state.completed} / ${ui.catalog.balance.projects}`)}
-    ${row(t(ui.lang, "marketLeft"), t(ui.lang, "heatLeft", { n: left }))}
-    ${policy.length ? row(t(ui.lang, "marketPolicy"), policy.map((line) => escapeHtml(line)).join(" · ")) : ""}
-    ${event && eventKey(event.id) ? row(t(ui.lang, "marketEvent"), t(ui.lang, eventKey(event.id))) : ""}
-    ${comment ? row(t(ui.lang, "marketComment"), escapeHtml(t(ui.lang, comment))) : ""}
+    ${trail.length > 2 ? indexSpark(trail) : ""}
+    <div class="idx-cards">
+      <div><span>${t(ui.lang, "indexLand")}</span><b class="${ui.state.market.land >= 1 ? "up" : "down"}">${formatIndex(ui.state.market.land * 300)}<i>${ui.state.market.land >= 1 ? "▲" : "▼"}${Math.abs((ui.state.market.land - 1) * 100).toFixed(1)}%</i></b></div>
+      <div><span>${t(ui.lang, "indexBuild")}</span><b class="${ui.state.market.build >= 1 ? "up" : "down"}">${formatIndex(ui.state.market.build * 300)}<i>${ui.state.market.build >= 1 ? "▲" : "▼"}${Math.abs((ui.state.market.build - 1) * 100).toFixed(1)}%</i></b></div>
+      <div><span>${t(ui.lang, "marketTrend")}</span><b>${heatWord}</b></div>
+    </div>
+    ${line(t(ui.lang, "indexRead"), read)}
+    ${event && eventKey(event.id) ? line(t(ui.lang, "marketEvent"), t(ui.lang, eventKey(event.id))) : ""}
+    ${policy.length ? line(t(ui.lang, "marketPolicy"), policy.map((item) => escapeHtml(item)).join(" · ")) : ""}
     <button class="ghost" data-action="close-market">${t(ui.lang, "close")}</button>
   </div></div>`;
 }
