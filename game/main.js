@@ -1019,6 +1019,25 @@ function setTypePsf(type, psf, fair) {
   ui.sale.choices.askMulByType = { ...(ui.sale.choices.askMulByType || {}), [type]: clamped / fairPsf };
 }
 
+function profitHero(quote) {
+  const revenue = quote.revenue || 0;
+  const profit = quote.profit || 0;
+  const cost = revenue - profit;
+  const avg = quote.askPerFt2 || 0;
+  const costPsf = Math.round(projectCostPsf());
+  const gain = Math.round(avg - costPsf);
+  const margin = revenue ? Math.round((profit / revenue) * 100) : 0;
+  return `<div class="profit-hero">
+    <div class="ph-label">${t(ui.lang, "heroProfit")}</div>
+    <div class="ph-value">${compactHkd(profit)}</div>
+    <div class="ph-sub">${t(ui.lang, "heroRevenue", { n: compactHkd(revenue) })} · ${t(ui.lang, "heroCost", { n: compactHkd(Math.max(0, cost)) })} · ${t(ui.lang, "heroMargin", { n: margin })}</div>
+    <div class="ph-grid">
+      <div><span>${t(ui.lang, "heroAvg")}</span><b>${formatHkd(avg)}<i>${t(ui.lang, "perFt2")}</i></b></div>
+      <div><span>${t(ui.lang, "heroCostPsf")}</span><b>${formatHkd(costPsf)}<i>${t(ui.lang, "perFt2")}</i></b></div>
+      <div><span>${t(ui.lang, "heroGain")}</span><b class="gain">${formatHkd(gain)}<i>${t(ui.lang, "perFt2")}</i></b></div>
+    </div>
+  </div>`;
+}
 function pricePanel() {
   const fair = fairQuoteForPrices();
   const quote = resolveSale(ui.catalog, ui.state, ui.sale.choices);
@@ -1191,13 +1210,13 @@ function sellSetup() {
         ${projectTitle()}
       </div>
       <p class="note">${escapeHtml(districtLabel(ui.lang, offer.district))} · ${t(ui.lang, flavourKey(offer.flavour))} · ${t(ui.lang, siteKey(offer.siteTier))}</p>
+      ${profitHero(quote)}
       ${pricePanel()}
       ${forecastBlock(forecast)}
       ${towerRow(offer.units || quote.units, 0, { empty: true })}
       ${salePnl(saleChoices)}
       ${similarPeek()}
       ${onboarding ? "" : marketingSummary()}
-      ${unitBars(forecast.bars)}
       <p class="bowl ${quote.bowl.ok ? "ok" : "bad"}">${t(ui.lang, "bowl")} ${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")} · ${t(ui.lang, "twoBed")} ${compactHkd(quote.bowl.lump)}</p>
       ${onboarding ? onboardingLock() : `<button class="chip toggle${showOn ? " on" : ""}" data-action="showflat" aria-pressed="${showOn}">
         <strong>${t(ui.lang, "showflat")}${showOn ? ` · ${t(ui.lang, "picked")}` : ""}</strong>
