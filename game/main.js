@@ -348,6 +348,8 @@ function armIdle() {
   const paint = () => {
     const node = document.getElementById("idle-sec");
     if (node) node.textContent = t(ui.lang, "idleAuto", { n: Math.max(0, left) });
+    const nudge = document.getElementById("nudge-sec");
+    if (nudge) nudge.textContent = t(ui.lang, "nudgeSec", { n: Math.max(0, left) });
   };
   paint();
   idleTimer = window.setInterval(() => {
@@ -1373,7 +1375,7 @@ function sellLive() {
   const quote = currentQuote();
   const showOutcome = ui.sale.mode === "done";
   const shown = showOutcome ? quote.sold : ui.sale.shownSold;
-  const heat = showOutcome ? quote.heat : Math.round(quote.heat * 0.15);
+  const shownPct = quote.units ? Math.round((shown / quote.units) * 100) : 0;
   const poolTotal = Object.values(quote.poolsBefore || {}).reduce((a, b) => a + b, 0);
   const over = Math.round((poolTotal / Math.max(1, quote.units)) * 10) / 10;
   const left = Math.max(0, quote.units - shown);
@@ -1389,10 +1391,9 @@ function sellLive() {
         <div class="lv-heat"><b id="sold-num">${plainCount(shown)}</b><s>${t(ui.lang, "soldOf", { n: plainCount(quote.units) })}</s></div>
         <div class="lv-over"><b>${t(ui.lang, "overSub", { n: over })}</b><span>${t(ui.lang, "queueLine", { n: plainCount(poolTotal) })}</span></div>
       </div>
-      <div class="lv-track"><i id="heat-fill" style="width:${heat}%"></i></div>
+      <div class="lv-track"><i id="heat-fill" style="width:${shownPct}%"></i><b class="lv-pct" id="pct-num" style="left:${shownPct}%">${shownPct}%</b></div>
       <div class="lv-legend">
         <span>${t(ui.lang, "unitsLeft")} <b id="left-num">${plainCount(left)}</b></span>
-        <span>${t(ui.lang, "sellThrough")} <b id="pct-num">${quote.units ? Math.round((shown / quote.units) * 100) : 0}%</b></span>
         <span>${t(ui.lang, "heroProfit")} <b id="tally">${compactHkd(profit)}</b></span>
       </div>
       <p class="fine" id="cake-line">${quote.cakeSweep > 0 && shown > 0 ? t(ui.lang, "cakeLine", { n: quote.cakeSweep }) : ""}</p>
@@ -1418,6 +1419,7 @@ function livePanel(quote) {
   const idx = ui.sale.choices.cheer % LIVE_EVENTS.length;
   const cards = LIVE_DECISIONS.map(([id, title, sub]) => `<button data-action="sale-decide" data-id="${id}"><b>${t(ui.lang, title)}</b><s>${t(ui.lang, sub)}</s></button>`).join("");
   return `<div class="live-event"><p>${t(ui.lang, LIVE_EVENTS[idx])}</p><i>${t(ui.lang, `${LIVE_EVENTS[idx]}Sub`)}</i></div>
+    <div class="lv-nudge"><i></i><div><b>${t(ui.lang, "nudgeTitle")}</b><s>${t(ui.lang, "nudgeSub")}</s></div><em id="nudge-sec">${t(ui.lang, "nudgeSec", { n: 8 })}</em></div>
     <div class="lv-head"><b>${t(ui.lang, "liveDecide")}</b><span>${t(ui.lang, "liveRound", { n: left })}</span></div>
     <div class="live-decide">${cards}</div>`;
 }
@@ -1578,11 +1580,14 @@ function launchSale() {
 }
 
 function paintSale(quote, tProgress) {
-  const shownHeat = Math.round(quote.heat * (0.2 + 0.8 * tProgress));
+  const shownPct = quote.units ? Math.round((ui.sale.shownSold / quote.units) * 100) : 0;
   const heat = document.querySelector("#heat-fill");
-  if (heat) heat.style.width = `${Math.min(100, shownHeat)}%`;
+  if (heat) heat.style.width = `${Math.min(100, shownPct)}%`;
   const pctNum = document.querySelector("#pct-num");
-  if (pctNum) pctNum.textContent = `${quote.units ? Math.round((ui.sale.shownSold / quote.units) * 100) : 0}%`;
+  if (pctNum) {
+    pctNum.textContent = `${shownPct}%`;
+    pctNum.style.left = `${Math.min(100, shownPct)}%`;
+  }
   const sold = document.querySelector("#sold-num");
   if (sold) sold.textContent = plainCount(ui.sale.shownSold);
   const left = document.querySelector("#left-num");

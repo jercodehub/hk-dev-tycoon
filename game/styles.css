@@ -1308,3 +1308,53 @@ button:disabled {
 .lv-feed em { font-style: normal; color: #6f8399; font-size: 10px; white-space: nowrap; }
 .live-event { display: block; margin: 10px 0 0; }
 .live-event i { font-style: normal; display: block; font-size: 10.5px; color: #c9a877; margin-top: 3px; }
+
+.lv-track { position: relative; }
+.lv-pct {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9fc4f5;
+  white-space: nowrap;
+}
+.lv-pct[style*="left:100%"] { margin-left: -46px; }
+.lv-nudge {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 11px 0 0;
+  padding: 9px 11px;
+  border: 1px solid #8a5f1c;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #3a2a12, #2b2010);
+}
+.lv-nudge > i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ffc76b;
+  box-shadow: 0 0 0 4px rgba(255, 199, 107, 0.16);
+  flex: none;
+  animation: nudgePulse 1.4s ease-in-out infinite;
+}
+.lv-nudge b { display: block; font-size: 13px; font-weight: 800; color: #ffd79a; }
+.lv-nudge s { display: block; margin-top: 2px; font-size: 11.5px; color: #c9ab7c; text-decoration: none; }
+.lv-nudge em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #e7c48c;
+  border: 1px solid #6b4d1f;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #241a0e;
+  white-space: nowrap;
+}
+@keyframes nudgePulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 199, 107, 0.12); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 199, 107, 0.24); }
+}
