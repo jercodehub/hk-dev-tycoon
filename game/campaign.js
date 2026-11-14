@@ -206,8 +206,40 @@ export function createCampaignCatalog({ market, balance }) {
   return { market, balance };
 }
 
+export const INDEX_BASE = 300;
+
+export function deriveMarket(price, balance) {
+  const level = clamp(round4(price), balance.indexMin, balance.indexMax);
+  const scale = (power) => round4(clamp(Math.pow(level, power), balance.indexMin, balance.indexMax));
+  return {
+    price: level,
+    land: scale(balance.landElasticity),
+    build: scale(balance.buildElasticity),
+    buyer: scale(balance.buyerElasticity),
+  };
+}
+
+export function hydrateMarket(saved = {}, balance) {
+  const price = Number(saved.price) || 1;
+  const base = deriveMarket(price, balance);
+  const trail = Array.isArray(saved.history) && saved.history.length
+    ? saved.history.map((value) => Number(value) || base.price).slice(-12)
+    : [base.price];
+  return {
+    ...base,
+    step: Number(saved.step) || 0,
+    lastMove: Number(saved.lastMove) || 0,
+    history: trail,
+    ...(saved.event ? { event: saved.event } : {}),
+  };
+}
+
+export function marketIndex(market) {
+  return Math.round((market?.price || 1) * INDEX_BASE * 10) / 10;
+}
+
 export function initialMarket() {
-  return { price: 1, land: 1, build: 1, buyer: 1, step: 0, lastMove: 0 };
+  return { price: 1, land: 1, build: 1, buyer: 1, step: 0, lastMove: 0, history: [1] };
 }
 
 export const MARKET_EVENTS = [
@@ -230,14 +262,13 @@ export function effectiveMarket(levels = {}) {
 
 export function tickMarket(market, move, balance) {
   const price = clamp(round4(market.price * (1 + move)), balance.indexMin, balance.indexMax);
-  const land = clamp(round4(market.land * (1 + move * balance.landElasticity)), balance.indexMin, balance.indexMax);
-  const build = clamp(round4(market.build * (1 + move * balance.buildElasticity)), balance.indexMin, balance.indexMax);
-  const buyer = clamp(round4(market.buyer * (1 + move * balance.buyerElasticity)), balance.indexMin, balance.indexMax);
+  const { land, build, buyer } = deriveMarket(price, balance);
+  const history = [...(market.history || [market.price]), price].slice(-12);
   const step = market.step + 1;
   const event = step > 0 && step % 5 === 0
     ? { ...MARKET_EVENTS[(step / 5 - 1) % MARKET_EVENTS.length], startedAt: step }
     : market.event || null;
-  return { price, land, build, buyer, step, lastMove: round4(move), ...(event ? { event } : {}) };
+  return { price, land, build, buyer, step, lastMove: round4(move), history, ...(event ? { event } : {}) };
 }
 
 export function openDataQuote(market, region, balance) {
@@ -2512,7 +2543,7 @@ export function hydrateCampaign(catalog, saved) {
       ? { completed: Boolean(saved.onboarding.completed), step: saved.onboarding.step || "first-project" }
       : { completed: Number(saved.completed || 0) > 0, step: Number(saved.completed || 0) > 0 ? "done" : "first-project" },
     phase: saved.phase,
-    market: { ...saved.market },
+    market: hydrateMarket(saved.market, catalog.balance),
     seed: saved.seed >>> 0,
     rngCursor: saved.rngCursor >>> 0,
     flags: { ...(saved.flags || {}) },

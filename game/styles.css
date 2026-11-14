@@ -1358,3 +1358,18 @@ button:disabled {
   0%, 100% { box-shadow: 0 0 0 3px rgba(255, 199, 107, 0.12); }
   50% { box-shadow: 0 0 0 6px rgba(255, 199, 107, 0.24); }
 }
+
+.hchip.index .dir { font-style: normal; margin-left: 3px; font-size: 10px; }
+.hchip.index.up { border-color: #2f6a4f; color: #9fe0bd; background: #101f19; }
+.hchip.index.down { border-color: #6d2f2c; color: #f0a8a2; background: #221313; }
+.hchip.index.flat { border-color: #4a4331; color: #ded0a6; background: #1d1a12; }
+.idx-top { display: flex; align-items: flex-end; justify-content: space-between; padding: 12px 14px 6px; }
+.idx-big { font-size: 34px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+.idx-big s { text-decoration: none; font-size: 12px; color: #8fa3b8; font-weight: 600; margin-left: 4px; }
+.idx-delta { font-size: 13px; font-weight: 800; text-align: right; }
+.idx-delta.up { color: #4fbf8b; }
+.idx-delta.down { color: #e5675f; }
+.idx-delta.flat { color: #d8c07a; }
+.idx-delta small { display: block; font-size: 10.5px; color: #8fa3b8; font-weight: 600; }
+.idx-spark { padding: 0 8px 6px; }
+.idx-axis { display: flex; justify-content: space-between; padding: 0 6px 8px; font-size: 10.5px; color: #7f93a7; }
