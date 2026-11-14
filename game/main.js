@@ -109,6 +109,7 @@ const ui = {
   toastQueue: [],
   legacyNotice: false,
   legacyGuide: false,
+  confirmNewGame: false,
   teach: null,
   similarOpen: true,
   ignoreClick: false,
@@ -1645,12 +1646,23 @@ function historyDrawer() {
 
 function menuOverlay() {
   if (!ui.menu) return "";
+  if (ui.confirmNewGame) {
+    return `<div class="menu"><div class="card">
+      <h3>${t(ui.lang, "newGame")}</h3>
+      <p class="note">${t(ui.lang, "newGameConfirm")}</p>
+      <div class="stack"><button class="primary" data-action="confirm-new-game">${t(ui.lang, "confirmNewGame")}</button><button class="ghost" data-action="cancel-new-game">${t(ui.lang, "cancelNewGame")}</button></div>
+    </div></div>`;
+  }
   return `<div class="menu"><div class="card">
     <h3>${t(ui.lang, "menu")}</h3>
     <div class="stack">
       <button class="primary" data-action="close-menu">${t(ui.lang, "close")}</button>
       <button class="ghost" data-action="identity">${t(ui.lang, "identity")}</button>
       <button class="ghost" data-action="new-game">${t(ui.lang, "newGame")}</button>
+      <button class="ghost" data-action="export-save">${t(ui.lang, "exportSave")}</button>
+      <label class="ghost file-button">${t(ui.lang, "importSave")}<input type="file" accept="application/json,.json" data-action="import-save" /></label>
+      <p class="fine">${t(ui.lang, "saveVersion", { n: ui.state?.v || 8 })}</p>
+      ${ui.error === "saveImportInvalid" ? `<p class="banner bad">${t(ui.lang, "saveImportInvalid")}</p>` : ""}
     </div>
   </div></div>`;
 }
@@ -1740,6 +1752,36 @@ function foundCompany() {
   render();
 }
 
+function exportSave() {
+  if (!ui.state) return;
+  const blob = new Blob([JSON.stringify(serializeCampaign(ui.state), null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${String(ui.state.company?.name || "hk-dev-tycoon").replace(/[^\w\-]+/g, "-")}-save.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+async function importSave(file) {
+  if (!file || !ui.catalog) return;
+  try {
+    const raw = JSON.parse(await file.text());
+    const migrated = migrateSave(raw);
+    if (!migrated.ok) throw new Error("invalid_save");
+    const restored = hydrateCampaign(ui.catalog, migrated.state);
+    ui.state = restored;
+    ui.error = null;
+    ui.menu = false;
+    ui.confirmNewGame = false;
+    ui.legacyNotice = Boolean(raw && !raw.onboarding && !raw.flags?.legacyNoticeSeen);
+    persist();
+  } catch {
+    ui.error = "saveImportInvalid";
+    ui.menu = true;
+  }
+  render();
+}
+
 function newGame() {
   stopSaleTimer();
   ui.state = null;
@@ -1754,6 +1796,7 @@ function newGame() {
   ui.lapse = false;
   ui.legacyNotice = false;
   ui.legacyGuide = false;
+  ui.confirmNewGame = false;
   ui.teach = null;
   ui.similarOpen = false;
   stopLapse();
@@ -1896,7 +1939,26 @@ function onClick(event) {
   }
   if (action === "close-menu") {
     ui.menu = false;
+    ui.confirmNewGame = false;
     render();
+    return;
+  }
+  if (action === "export-save") {
+    exportSave();
+    return;
+  }
+  if (action === "new-game") {
+    ui.confirmNewGame = true;
+    render();
+    return;
+  }
+  if (action === "cancel-new-game") {
+    ui.confirmNewGame = false;
+    render();
+    return;
+  }
+  if (action === "confirm-new-game") {
+    newGame();
     return;
   }
   if (action === "legacy-dismiss" || action === "legacy-guide") {
@@ -1910,10 +1972,6 @@ function onClick(event) {
   if (action === "legacy-close-guide") {
     ui.legacyGuide = false;
     render();
-    return;
-  }
-  if (action === "new-game") {
-    newGame();
     return;
   }
   if (action === "preset-name") {
@@ -2169,6 +2227,9 @@ async function boot() {
   }
   app.addEventListener("click", onClick);
   app.addEventListener("input", onInput);
+  app.addEventListener("change", (event) => {
+    if (event.target.matches("input[data-action='import-save']")) importSave(event.target.files?.[0]);
+  });
   app.addEventListener("focusout", (event) => {
     if (event.target.id !== "project-name") return;
     writeProjectName(event.target.value, false);
