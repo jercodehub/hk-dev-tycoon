@@ -5,7 +5,7 @@
   "type": "module",
   "description": "香港地產狗 — 30-project entertainment sim",
   "scripts": {
-    "test": "node --test test/economy.test.js test/campaign.test.js test/phase3.test.js test/midterm.test.js test/nextpack.test.js test/pack8.test.js test/onboarding.test.js test/ui-settlement.test.js test/market-events.test.js",
+    "test": "node --test test/economy.test.js test/campaign.test.js test/phase3.test.js test/midterm.test.js test/nextpack.test.js test/pack8.test.js test/onboarding.test.js test/ui-settlement.test.js test/market-events.test.js test/capital-assets.test.js",
     "test:coverage": "node --experimental-test-coverage --test-coverage-lines=95 --test-coverage-functions=90 --test-coverage-branches=75 --test test/*.test.js",
     "test:e2e": "playwright test",
     "refresh-data": "python3 scripts/refresh_data.py",
