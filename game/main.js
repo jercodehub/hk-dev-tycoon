@@ -263,10 +263,26 @@ function siteKey(tier) {
   return { mid: "siteMid", large: "siteLarge", flagship: "siteFlagship" }[tier] || "siteSmall";
 }
 
+function assemblyBuildState() {
+  if (!ui.state?.project?.offer) return ui.state;
+  const assemblyId = ui.build?.assembly || ui.state.project.assembly || "standard";
+  const assembly = ASSEMBLY_OPTIONS[assemblyId] || ASSEMBLY_OPTIONS.standard;
+  const offer = ui.state.project.offer;
+  return {
+    ...ui.state,
+    project: {
+      ...ui.state.project,
+      assembly: assemblyId,
+      offer: { ...offer, gfaFt2: Math.round(offer.gfaFt2 * assembly.gfaMul) },
+    },
+  };
+}
+
 function loanBaseCost() {
-  const offer = ui.state?.project?.offer;
+  const state = assemblyBuildState();
+  const offer = state?.project?.offer;
   const stake = stakeOf(offer);
-  if (ui.build?.contractor) return contractorQuote(ui.catalog, ui.state, ui.build.contractor)?.playerCost || 0;
+  if (ui.build?.contractor) return contractorQuote(ui.catalog, state, ui.build.contractor)?.playerCost || 0;
   return Math.round((offer?.estBuildTotal || 0) * stake);
 }
 
@@ -639,8 +655,8 @@ function toneKey(tone) {
   return "toneQuiet";
 }
 
-function salesBlock(sales) {
-  const outlook = buildOutlook(ui.catalog, ui.state, ui.build.mix, ui.build.contractor, ui.build.loan || "cash");
+function salesBlock(sales, state = ui.state) {
+  const outlook = buildOutlook(ui.catalog, state, ui.build.mix, ui.build.contractor, ui.build.loan || "cash");
   const tone = outlook.tone;
   const fill = tone === "hot" ? 100 : tone === "steady" ? 50 : 0;
   return `<div class="sales-band tone-${tone}" id="sales-band">
@@ -655,6 +671,14 @@ function buildView() {
   const offer = ui.state.project.offer;
   const assembly = ASSEMBLY_OPTIONS[ui.build.assembly || "standard"] || ASSEMBLY_OPTIONS.standard;
   const gfa = Math.round(offer.gfaFt2 * assembly.gfaMul);
+  const buildState = {
+    ...ui.state,
+    project: {
+      ...ui.state.project,
+      assembly: ui.build.assembly || "standard",
+      offer: { ...offer, gfaFt2: gfa },
+    },
+  };
   const used = gfaUsed(ui.build.mix);
   const left = gfa - used;
   const heat = campaignHeat(ui.state, ui.catalog.balance);
@@ -667,7 +691,7 @@ function buildView() {
     bias: ui.state.poolBias || {},
     poolMul: poolMultipliers(ui.state),
   });
-  const picked = ui.build.contractor ? contractorQuote(ui.catalog, ui.state, ui.build.contractor) : null;
+  const picked = ui.build.contractor ? contractorQuote(ui.catalog, buildState, ui.build.contractor) : null;
   const costPsf = picked ? picked.buildPerFt2 : offer.estBuildPerFt2;
   const step = mixDelta(gfa);
   const rows = UNIT_SPECS.map((spec) => {
@@ -694,12 +718,6 @@ function buildView() {
       </span>
     </div>`;
   }).join("");
-  const presets = [
-    ["studio", "presetStudio"],
-    ["starter", "presetStarter"],
-    ["upgrade", "presetUpgrade"],
-    ["luxury", "presetLuxury"],
-  ].map(([id, key]) => `<button class="chip" data-action="mix-preset" data-id="${id}">${t(ui.lang, key)}</button>`).join("");
   const loans = ["cash", "small", "big"].map((mode) => {
     const quote = funding(mode);
     const on = (ui.build.loan || "cash") === mode;
@@ -722,11 +740,11 @@ function buildView() {
       small: compactHkd(funding("small").principal),
       big: compactHkd(funding("big").principal),
     })}</p>`;
-  const sales = buildSalesBand(ui.catalog, ui.state, ui.build.mix, ui.build.contractor);
-  const outlook = buildOutlook(ui.catalog, ui.state, ui.build.mix, ui.build.contractor, ui.build.loan || "cash");
+  const sales = buildSalesBand(ui.catalog, buildState, ui.build.mix, ui.build.contractor);
+  const outlook = buildOutlook(ui.catalog, buildState, ui.build.mix, ui.build.contractor, ui.build.loan || "cash");
   const warn = outlook.warnBig ? `<p class="loan-warn">${t(ui.lang, "loanWarn")}</p>` : "";
   const cards = ["jingjin", "huimen", "xinjing"].map((id) => {
-    const quote = contractorQuote(ui.catalog, ui.state, id);
+    const quote = contractorQuote(ui.catalog, buildState, id);
     const spec = ui.catalog.balance.contractors[id];
     const on = ui.build.contractor === id;
     const risk = spec.collapse > 0
@@ -757,12 +775,9 @@ function buildView() {
         <span>${t(ui.lang, "leftGfa")} <strong id="gfa-left">${formatCount(left)}</strong></span>
       </div>
       <div class="bar"><span id="gfa-bar" style="width:${width}%"></span></div>
-      ${salesBlock(sales)}
+      ${salesBlock(sales, buildState)}
       ${sales.weak ? `<p class="mismatch-line">${t(ui.lang, "mismatchTitle")}</p>` : ""}
-      <div class="preset-line">
-        <button type="button" class="reset-mix" data-action="reset-mix">${t(ui.lang, "resetMix")}</button>
-        <div class="chips preset-row">${presets}</div>
-      </div>
+      <div class="preset-line"><button type="button" class="reset-mix" data-action="reset-mix">${t(ui.lang, "resetMix")}</button></div>
       <p id="over-line" class="fine bad-text"${left < 0 ? "" : " hidden"}>${t(ui.lang, "overGfa")}</p>
       <div class="mixes">${rows}</div>
       ${onboarding ? onboardingLock() : `<div class="credit-row"><span>${t(ui.lang, "creditKicker")}</span>${loans}</div>
@@ -2079,7 +2094,6 @@ function onClick(event) {
     if (!ASSEMBLY_OPTIONS[id]) return;
     ui.build.assembly = id;
     ui.state = { ...ui.state, project: { ...ui.state.project, assembly: id } };
-    ui.build.mix = mixPreset(Math.round(ui.state.project.offer.gfaFt2 * ASSEMBLY_OPTIONS[id].gfaMul), "starter");
     render();
     return;
   }
@@ -2108,7 +2122,7 @@ function onClick(event) {
   }
   if (action === "confirm-build") {
     ensureBuild();
-    const sales = buildSalesBand(ui.catalog, ui.state, ui.build.mix, ui.build.contractor);
+    const sales = buildSalesBand(ui.catalog, assemblyBuildState(), ui.build.mix, ui.build.contractor);
     const gaps = sales.gaps?.length
       ? sales.gaps
       : UNIT_SPECS.filter((spec) => (ui.build.mix[spec.id] || 0) > 0).map((spec) => ({ unit: spec.id }));

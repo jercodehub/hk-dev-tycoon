@@ -19,8 +19,6 @@ export const CAPITAL_ASSETS = {
 export const ASSEMBLY_OPTIONS = {
   standard: { costMul: 1, gfaMul: 1 },
   modular: { costMul: 0.92, gfaMul: 1.06 },
-  precast: { costMul: 0.88, gfaMul: 1.03 },
-  hybrid: { costMul: 0.95, gfaMul: 1.10 },
 };
 
 export function emptyAssets() {
