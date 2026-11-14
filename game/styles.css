@@ -146,6 +146,10 @@ button:disabled { cursor: not-allowed; }
 .banner.bad { background: #3a1d22; color: var(--danger); }
 .banner.info { background: #1a2740; color: #c9dbff; }
 .banner.warn { background: var(--game-bg); color: var(--game); }
+.onboarding-banner { display: grid; gap: 4px; }
+.onboarding-banner strong { color: var(--accent); }
+.onboarding-banner .chip { justify-self: start; margin-top: 2px; }
+.onboarding-lock { color: var(--muted); }
 .ghost, .primary, .chip, .choice, .dock button {
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -903,9 +907,9 @@ button:disabled {
     gap: 4px;
   }
   .brand h1, .brand p, .hud-comment, .sell-stats,
-  .shell[data-phase="build"] .banner.info,
+  .shell[data-phase="build"] .banner.info:not(.onboarding-banner),
   .shell[data-phase="build"] .preset-why,
-  .shell[data-phase="sell"] .banner.info,
+  .shell[data-phase="sell"] .banner.info:not(.onboarding-banner),
   .shell[data-phase="sell"] .promo .fine,
   .sell-setup .note { display: none; }
   .logo { width: 28px; height: 28px; }

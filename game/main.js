@@ -32,6 +32,7 @@ import {
   hydrateCampaign,
   loanAdjustments,
   isTutorial,
+  isOnboarding,
   jvEligible,
   migrateSave,
   mismatchEcho,
@@ -537,6 +538,19 @@ function tutorialBanner() {
   return "";
 }
 
+function onboardingBanner() {
+  if (!isOnboarding(ui.state)) return "";
+  return `<section class="banner info onboarding-banner">
+    <strong>${t(ui.lang, "onboardingTitle")}</strong>
+    <span>${t(ui.lang, "onboardingBody")}</span>
+    ${ui.state.phase === "build" ? `<button class="chip" type="button" data-action="suggested-build"><strong>${t(ui.lang, "onboardingSuggested")}</strong><small>${t(ui.lang, "onboardingSuggestedSub")}</small></button>` : ""}
+  </section>`;
+}
+
+function onboardingLock() {
+  return `<p class="fine onboarding-lock"><strong>${t(ui.lang, "locked")}</strong> · ${t(ui.lang, "onboardingLocked")}</p>`;
+}
+
 function shareSentence(stake) {
   const you = Math.round(Number(stake) * 100);
   const partner = 100 - you;
@@ -583,7 +597,7 @@ function landCard(offer) {
 
 function landView() {
   const venture = (ui.state.offers || []).some((offer) => jvEligible(offer));
-  return `${errorBanner()}${yellowBanner()}${tutorialBanner()}
+  return `${errorBanner()}${yellowBanner()}${tutorialBanner()}${onboardingBanner()}
     <p class="kicker">${t(ui.lang, "landKicker")}</p>
     ${venture ? `<p class="fine jv-disclaimer">${t(ui.lang, "jvDisclaimer")}</p>` : ""}
     <div class="land-grid">${ui.state.offers.map(landCard).join("")}</div>`;
@@ -613,6 +627,7 @@ function salesBlock(sales) {
 
 function buildView() {
   ensureBuild();
+  const onboarding = isOnboarding(ui.state);
   const offer = ui.state.project.offer;
   const gfa = offer.gfaFt2;
   const used = gfaUsed(ui.build.mix);
@@ -702,7 +717,7 @@ function buildView() {
   const width = Math.max(0, Math.min(100, (used / gfa) * 100));
   const stake = stakeOf(offer);
   const stakeNote = stake < 1 ? `<p class="fine jv-line">${shareSentence(stake)}</p>` : "";
-  return `${errorBanner()}${yellowBanner()}${tutorialBanner()}
+  return `${errorBanner()}${yellowBanner()}${tutorialBanner()}${onboardingBanner()}
     <section class="card build-card">
       <div class="title-row">
         ${projectTitle()}
@@ -724,11 +739,11 @@ function buildView() {
       </div>
       <p id="over-line" class="fine bad-text"${left < 0 ? "" : " hidden"}>${t(ui.lang, "overGfa")}</p>
       <div class="mixes">${rows}</div>
-      <div class="credit-row"><span>${t(ui.lang, "creditKicker")}</span>${loans}</div>
+      ${onboarding ? onboardingLock() : `<div class="credit-row"><span>${t(ui.lang, "creditKicker")}</span>${loans}</div>
       <p class="loan-compare">${t(ui.lang, "loanCompare", { interest: compactHkd(outlook.interest), profit: compactHkd(outlook.profit) })}</p>
       ${warn}
       ${shortLine}
-      <p class="fine credit-note">${t(ui.lang, "loanDisclaimer")}</p>
+      <p class="fine credit-note">${t(ui.lang, "loanDisclaimer")}</p>`}
       <div class="contractors">${cards}</div>
     </section>`;
 }
@@ -932,13 +947,14 @@ function bridgeBanner() {
 
 function sellSetup() {
   const offer = ui.state.project.offer;
+  const onboarding = isOnboarding(ui.state);
   const quote = currentQuote();
   const forecast = saleForecast(ui.catalog, ui.state, ui.sale.choices);
   const cut = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, leftover: "cut" });
   const hold = resolveSale(ui.catalog, ui.state, { ...ui.sale.choices, leftover: "hold" });
   const heat = quote.marketHeat;
   const showOn = ui.sale.choices.showflat;
-  return `${tutorialBanner()}${yellowBanner()}${bridgeBanner()}${collapseBanner()}
+  return `${tutorialBanner()}${yellowBanner()}${onboardingBanner()}${bridgeBanner()}${collapseBanner()}
     <section class="card sell-setup showroom">
       <div class="title-row">
         <span class="kicker">${t(ui.lang, "showroom")}</span>
@@ -950,17 +966,17 @@ function sellSetup() {
       ${towerRow(offer.units || quote.units, 0, { empty: true })}
       ${salePnl(ui.sale.choices)}
       ${similarPeek()}
-      ${promoRow()}
+      ${onboarding ? "" : promoRow()}
       ${unitBars(forecast.bars)}
       <p class="bowl ${quote.bowl.ok ? "ok" : "bad"}">${t(ui.lang, "bowl")} ${quote.bowl.ok ? t(ui.lang, "bowlOk") : t(ui.lang, "bowlCrack")} · ${t(ui.lang, "twoBed")} ${compactHkd(quote.bowl.lump)}</p>
-      <button class="chip toggle${showOn ? " on" : ""}" data-action="showflat" aria-pressed="${showOn}">
+      ${onboarding ? onboardingLock() : `<button class="chip toggle${showOn ? " on" : ""}" data-action="showflat" aria-pressed="${showOn}">
         <strong>${t(ui.lang, "showflat")}${showOn ? ` · ${t(ui.lang, "picked")}` : ""}</strong>
         <small>${compactHkd(ui.catalog.balance.showflatPerFt2 * offer.gfaFt2)}</small>
       </button>
       <div class="pair">
         ${leftoverButton("cut", cut, quote)}
         ${leftoverButton("hold", hold, quote)}
-      </div>
+      </div>`}
       <p class="fine heat-hint">${heat === "loose" ? t(ui.lang, "looseHint") : t(ui.lang, "spicyHint")}</p>
     </section>`;
 }
@@ -1778,6 +1794,16 @@ function onClick(event) {
   if (action === "reset-mix") {
     ensureBuild();
     ui.build.mix = projectPresetMix(ui.catalog, ui.state);
+    render();
+    return;
+  }
+  if (action === "suggested-build") {
+    if (!isOnboarding(ui.state) || ui.state.phase !== "build") return;
+    ensureBuild();
+    ui.build.mix = projectPresetMix(ui.catalog, ui.state);
+    ui.build.contractor = "huimen";
+    ui.build.loan = "cash";
+    ui.error = null;
     render();
     return;
   }

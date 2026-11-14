@@ -1266,6 +1266,10 @@ export function isTutorial(state) {
   return state.completed < 2 && state.phase !== "summary";
 }
 
+export function isOnboarding(state) {
+  return Boolean(state && !state.onboarding?.completed && state.completed < 1);
+}
+
 function drawMove(state, catalog, rng) {
   const base = catalog.balance.drifts[state.market.step % catalog.balance.drifts.length];
   const noise = catalog.balance.driftNoise ? (rng.next() - 0.5) * catalog.balance.driftNoise : 0;
@@ -1280,6 +1284,7 @@ export function createCampaign(catalog, { company, seed = 1 } = {}) {
     cash: catalog.balance.startingCash,
     reputation: catalog.balance.startingReputation,
     completed: 0,
+    onboarding: { completed: false, step: "first-project" },
     phase: "land",
     market: initialMarket(),
     offers: null,
@@ -2140,6 +2145,7 @@ export function confirmSettle(catalog, state) {
   };
   const base = {
     ...state,
+    onboarding: { completed: true, step: "done" },
     cash: creditResult.cash,
     reputation,
     unitsSold,
@@ -2223,6 +2229,7 @@ export function serializeCampaign(state) {
     cash: state.cash,
     reputation: state.reputation,
     completed: state.completed,
+    onboarding: { completed: Boolean(state.onboarding?.completed), step: state.onboarding?.step || "first-project" },
     phase: state.phase,
     market: state.market,
     seed: state.seed,
@@ -2328,6 +2335,9 @@ export function hydrateCampaign(catalog, saved) {
     cash: money(saved.cash),
     reputation: clamp(saved.reputation, 0, 100),
     completed: clamp(saved.completed || 0, 0, catalog.balance.projects),
+    onboarding: saved.onboarding
+      ? { completed: Boolean(saved.onboarding.completed), step: saved.onboarding.step || "first-project" }
+      : { completed: Number(saved.completed || 0) > 0, step: Number(saved.completed || 0) > 0 ? "done" : "first-project" },
     phase: saved.phase,
     market: { ...saved.market },
     seed: saved.seed >>> 0,
